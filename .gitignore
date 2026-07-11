@@ -1,0 +1,81 @@
+# ========================
+# Python cache files
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ========================
+# Virtual environments
+# ========================
+venv/
+env/
+ENV/
+.env/
+.venv/
+
+# ========================
+# Distribution / packaging
+# ========================
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# ========================
+# Installer logs
+# ========================
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ========================
+# Testing / coverage
+# ========================
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# ========================
+# Jupyter Notebook
+# ========================
+.ipynb_checkpoints
+
+# ========================
+# Environment variables
+# ========================
+.env
+
+# ========================
+# IDEs / Editors
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ========================
+# OS files
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# MyPy / type checkers
+# ========================
+.mypy_cache/
+.dmypy.json
+
+# ========================
+# Pyre / Pyright
+# ========================
+.pyre/
+.pyright/
+
+# ========================
+# Logs
+# ========================
+*.log
