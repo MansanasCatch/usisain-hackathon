@@ -5,9 +5,6 @@ A local-first scam/misinformation/AI-content detection system with a
 browser extension (desktop), a Messenger bot (mobile — no app install
 needed), and a web app (planned).
 
-Everything runs from **one virtual environment, one `requirements.txt`,
-and one `.env`** — no `pyproject.toml`, no per-package installs.
-
 ## 1. Project structure
 
 ```
