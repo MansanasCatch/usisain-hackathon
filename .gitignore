@@ -1,81 +1,21 @@
-# ========================
-# Python cache files
-# ========================
-__pycache__/
-*.py[cod]
-*$py.class
-
-# ========================
-# Virtual environments
-# ========================
-venv/
-env/
-ENV/
-.env/
-.venv/
-
-# ========================
-# Distribution / packaging
-# ========================
-build/
-dist/
-*.egg-info/
-.eggs/
-pip-wheel-metadata/
-
-# ========================
-# Installer logs
-# ========================
-pip-log.txt
-pip-delete-this-directory.txt
-
-# ========================
-# Testing / coverage
-# ========================
-.pytest_cache/
-.coverage
-coverage.xml
-htmlcov/
-.tox/
-.nox/
-
-# ========================
-# Jupyter Notebook
-# ========================
-.ipynb_checkpoints
-
-# ========================
-# Environment variables
-# ========================
 .env
+venv/
+__pycache__/
+*.pyc
 
-# ========================
-# IDEs / Editors
-# ========================
+# runtime data — never commit generated content
+data/app.db
+data/uploads/*
+!data/uploads/.gitkeep
+data/reference_images/*
+!data/reference_images/.gitkeep
+data/vector_index/*
+!data/vector_index/.gitkeep
+data/tts_output/*
+!data/tts_output/.gitkeep
+data/models/*
+!data/models/.gitkeep
+
+# editor / OS
 .vscode/
-.idea/
-*.swp
-*.swo
-
-# ========================
-# OS files
-# ========================
 .DS_Store
-Thumbs.db
-
-# ========================
-# MyPy / type checkers
-# ========================
-.mypy_cache/
-.dmypy.json
-
-# ========================
-# Pyre / Pyright
-# ========================
-.pyre/
-.pyright/
-
-# ========================
-# Logs
-# ========================
-*.log

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "UsisAIn — Trust & Fraud Detector",
+  "version": "0.2.0",
+  "description": "Analyze text, images, and video for scams, misinformation, and AI generation — right from the right-click menu.",
+  "permissions": ["contextMenus", "activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://*.facebook.com/*",
+    "https://*.instagram.com/*",
+    "https://*.x.com/*",
+    "https://*.twitter.com/*",
+    "<all_urls>"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["site-selectors.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "UsisAIn"
+  }
+}
