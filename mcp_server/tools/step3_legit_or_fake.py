@@ -1,27 +1,40 @@
-"""
-step3_legit_or_fake.py — checks the RAG cache first (has something like
-this been investigated before?), then searches the web for anything not
-already covered, scores source credibility, and asks the LLM to explain
-*why* each source is relevant rather than just listing links.
-
-This is the step where "just detect fake" becomes "teach the user why" —
-the explanation is written to be read, not just a score to glance at.
-"""
-
+import os
+import cv2
+import requests
+from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
 from services.search import google_search
 from services.rag import retriever
 from services.llm.gemini_client import get_provider
 from shared.text_utils import domain_trust, text_similarity, truncate
 
-SYNTHESIS_PROMPT = (
-    "You are explaining a fact-check result to someone who may not be "
-    "familiar with how to evaluate sources. Given a claim and a list of "
-    "search results with credibility scores, write 3-5 sentences that: "
-    "(1) state whether the claim looks credible, questionable, or false, "
-    "(2) explain which source(s) matter most and specifically why they're "
-    "relevant to this claim, (3) note anything that should make the "
-    "reader cautious. Be direct. Do not invent facts beyond what's given."
+QUERY_GEN_PROMPT = (
+    "You are an expert fact-checker. Given the description and analysis of an image or claim, "
+    "generate a single concise search query (3-6 words) that can be used on Google to search for "
+    "information, news, or fact-checks about this content. "
+    "Output ONLY the search query, with no quotes, preamble, or formatting."
 )
+
+SYNTHESIS_PROMPT = (
+    "You are a professional fact-checker explaining verification results to a general audience. "
+    "Given a claim/image context and a list of web search results along with their actual page content:\n"
+    "1. State clearly whether the claim/image content is LEGIT (likely true), QUESTIONABLE (inconclusive/unverified), or FAKE (likely false).\n"
+    "2. For the relevant sources, explain specifically how their content supports or refutes the claim/image context.\n"
+    "3. Filter out and ignore any sources that are unrelated, spammy, or do not support the context. Do NOT list or mention them.\n"
+    "4. At the end of your explanation, list the relevant, verified sources as clickable markdown links in the format:\n"
+    "   - [Source Title/Domain](URL): Brief description of what this source verifies.\n"
+    "5. Keep the response direct and concise (4-6 sentences total).\n"
+    "CRITICAL: Use ONLY Filipino or English letters/words. "
+    "NEVER output Chinese characters or any other non-Latin script."
+)
+
+LANGUAGE_INSTRUCTIONS = {
+    "taglish": "Write the explanation in casual Taglish (mix of Tagalog and English). Use only Filipino and English words. NO Chinese characters.",
+    "tagalog": "Isulat ang paliwanag sa Tagalog. Gamitin lamang ang Filipino o Ingles na salita. HUWAG gumamit ng Chinese characters.",
+    "cebuano": "Isulat ang paliwanag sa Cebuano. Gamitin lamang ang Cebuano o Ingles na mga pulong. DILI mogamit og Chinese characters.",
+    "ilocano": "Isulat ang paliwanag iti Ilocano. Usaren laeng dagiti Ilocano wenno Ingles a sao. HAAN nga usaren dagiti Chinese characters.",
+    "bisaya": "Isulat ang paliwanag sa Bisaya. Gamitin lamang ang Bisaya o Ingles na mga pulong. DILI mogamit og Chinese characters.",
+}
 
 
 def _score_sources(claim: str, results: list[dict]) -> list[dict]:
@@ -29,26 +42,167 @@ def _score_sources(claim: str, results: list[dict]) -> list[dict]:
     for r in results:
         trust = domain_trust(r["url"])
         similarity = text_similarity(claim, r["snippet"])
-        scored.append({**r, "domain_trust": round(trust, 2), "text_similarity": round(similarity, 2),
-                        "combined": round(trust * 0.6 + similarity * 0.4, 3)})
+        scored.append({
+            **r,
+            "domain_trust": round(trust, 2),
+            "text_similarity": round(similarity, 2),
+            "combined": round(trust * 0.6 + similarity * 0.4, 3),
+        })
     return sorted(scored, key=lambda s: s["combined"], reverse=True)
 
 
-def check_claim(claim: str, provider: str = "ollama") -> dict:
-    # 1. Check the local cache first — has something like this been seen before?
-    cached = retriever.search(claim, top_k=3)
-
-    # 2. Fresh web search for anything the cache doesn't cover well
+def fetch_page_content(url: str, timeout: int = 2) -> str:
     try:
-        search_results = google_search.search(claim, max_results=6)
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            )
+        }
+        resp = requests.get(url, headers=headers, timeout=timeout)
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            for script in soup(["script", "style"]):
+                script.decompose()
+            text = soup.get_text()
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = '\n'.join(chunk for chunk in chunks if chunk)
+            return text[:1500]
+    except Exception:
+        pass
+    return ""
+
+
+def fetch_multiple_pages(urls: list[str]) -> dict[str, str]:
+    pages = {}
+    with ThreadPoolExecutor(max_workers=max(1, min(3, len(urls)))) as executor:
+        future_to_url = {executor.submit(fetch_page_content, url): url for url in urls}
+        for future in future_to_url:
+            url = future_to_url[future]
+            try:
+                content = future.result()
+                if content:
+                    pages[url] = content
+            except Exception:
+                pass
+    return pages
+
+
+def generate_search_query(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", step1_result: dict = None, step2_result: dict = None) -> str:
+    # Gather textual descriptions of the image/claim from prior steps
+    step1_text = ""
+    if step1_result:
+        step1_text = step1_result.get("insight") or step1_result.get("explanation") or ""
+    step2_text = ""
+    if step2_result and step2_result.get("applicable") != False:
+        step2_text = step2_result.get("explanation") or ""
+
+    desc_text = f"{step1_text} {step2_text}".strip()
+
+    # Construct context for query generation
+    context_for_query = ""
+    if claim:
+        context_for_query += f"Accompanying Text/Claim: {claim}\n"
+    if desc_text:
+        context_for_query += f"Visual Description/Context: {desc_text}\n"
+
+    context_for_query = context_for_query.strip()
+    if not context_for_query:
+        return ""
+
+    # If an image or video file was submitted, attach it so the vision LLM can infer visual context
+    image_to_pass = None
+    temp_frame_path = None
+    if file_path and os.path.exists(file_path):
+        if content_type == "image":
+            image_to_pass = file_path
+        elif content_type == "video":
+            try:
+                cap = cv2.VideoCapture(file_path)
+                ok, frame = cap.read()
+                if ok:
+                    temp_dir = os.path.dirname(file_path)
+                    temp_frame_path = os.path.join(temp_dir, "_temp_query_frame.jpg")
+                    cv2.imwrite(temp_frame_path, frame)
+                    image_to_pass = temp_frame_path
+                cap.release()
+            except Exception:
+                pass
+
+    llm = get_provider(provider)
+    try:
+        query = llm.complete(QUERY_GEN_PROMPT, context_for_query, image_path=image_to_pass)
+        query = query.strip().replace('"', '').replace("'", "")
+        if query:
+            return query
+    except Exception:
+        pass
+    finally:
+        if temp_frame_path and os.path.exists(temp_frame_path):
+            try:
+                os.remove(temp_frame_path)
+            except Exception:
+                pass
+
+    # Safe fallback if generation fails or query is empty
+    if claim:
+        return claim
+    if desc_text:
+        # Use first few words of the description as a query
+        words = desc_text.split()
+        return " ".join(words[:6])
+    return ""
+
+
+def check_claim(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english", step1_result: dict = None, step2_result: dict = None) -> dict:
+    search_query = generate_search_query(claim, file_path, content_type, provider, step1_result, step2_result)
+    
+    if not search_query or not search_query.strip():
+        return {
+            "score": 0,
+            "verdict": "no_claim",
+            "explanation": "No claim or image content was provided to verify.",
+            "sources": [],
+            "cached_matches": [],
+            "search_error": None,
+        }
+
+    # 1. RAG cache — prior investigations
+    cached = retriever.search(search_query, top_k=1)
+
+    # 2. Live web search (Google → DuckDuckGo fallback)
+    search_error = None
+    try:
+        search_results = google_search.search(search_query, max_results=3)
     except Exception as e:
         search_results = []
         search_error = str(e)
-    else:
-        search_error = None
 
-    scored_sources = _score_sources(claim, search_results)
-    score = round(sum(s["combined"] for s in scored_sources) / len(scored_sources) * 100, 1) if scored_sources else 20.0
+    scored_sources = _score_sources(search_query, search_results)
+    top_sources = scored_sources[:2]
+
+    # 3. Fetch page content for the top sources so the synthesis prompt can ignore unrelated links.
+    urls_to_fetch = [s["url"] for s in top_sources if s.get("url")]
+    page_contents = fetch_multiple_pages(urls_to_fetch) if urls_to_fetch else {}
+
+    source_context_lines = []
+    for s in top_sources:
+        content = page_contents.get(s["url"], "")
+        snippet = truncate(content, 700) if content else truncate(s["snippet"], 180)
+        source_context_lines.append(
+            f"- Title: {s['title']}\n"
+            f"  URL: {s['url']}\n"
+            f"  Snippet: {snippet}\n"
+        )
+    source_context = "\n".join(source_context_lines) or "No web sources found."
+
+    # 4. Score: average combined score * 100; default 15 when no results
+    if scored_sources:
+        score = round(sum(s["combined"] for s in scored_sources) / len(scored_sources) * 100, 1)
+    else:
+        score = 15.0
 
     if score >= 70:
         verdict = "likely_true"
@@ -57,28 +211,66 @@ def check_claim(claim: str, provider: str = "ollama") -> dict:
     else:
         verdict = "flagged"
 
-    llm = get_provider(provider)
     context = (
-        f"Claim: {claim}\n\n"
-        f"Cached prior investigations: {[c['text'][:150] for c in cached] or 'none'}\n\n"
-        f"Search results: {[(s['title'], s['url'], s['domain_trust'], s['text_similarity']) for s in scored_sources] or 'none found'}"
+        f"Claim/Context: {claim or '(no text claim provided, checking the image)'}\n\n"
+        f"Search query: {search_query}\n\n"
+        f"Cached prior investigations:\n"
+        f"{chr(10).join(c['text'][:150] for c in cached) or 'None'}\n\n"
+        f"Web search results:\n{source_context}"
     )
+
+    # Sample first frame of video if video is provided
+    temp_frame_path = None
+    image_to_pass = None
+    
+    if file_path and os.path.exists(file_path) and provider != "ollama":
+        if content_type == "image":
+            image_to_pass = file_path
+        elif content_type == "video":
+            try:
+                cap = cv2.VideoCapture(file_path)
+                ok, frame = cap.read()
+                if ok:
+                    temp_dir = os.path.dirname(file_path)
+                    temp_frame_path = os.path.join(temp_dir, "_temp_video_factcheck_frame.jpg")
+                    cv2.imwrite(temp_frame_path, frame)
+                    image_to_pass = temp_frame_path
+                cap.release()
+            except Exception:
+                pass
+
+    system_prompt = SYNTHESIS_PROMPT
+    if language in LANGUAGE_INSTRUCTIONS:
+        system_prompt = f"{SYNTHESIS_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
+
+    llm = get_provider(provider)
     try:
-        explanation = llm.complete(SYNTHESIS_PROMPT, context)
+        explanation = llm.complete(system_prompt, context, image_path=image_to_pass)
     except Exception as e:
         explanation = (
-            f"Found {len(scored_sources)} sources with an average credibility "
-            f"score of {score}/100. (LLM explanation unavailable: {e})"
+            f"Found {len(scored_sources)} source(s) with average credibility "
+            f"score {score}/100. (LLM explanation unavailable: {e})"
         )
+    finally:
+        if temp_frame_path and os.path.exists(temp_frame_path):
+            try:
+                os.remove(temp_frame_path)
+            except Exception:
+                pass
 
-    # 3. Cache this investigation for next time
-    retriever.add(claim, {"score": score, "verdict": verdict, "top_url": scored_sources[0]["url"] if scored_sources else None})
+    # Cache this investigation
+    retriever.add(search_query, {
+        "score": score,
+        "verdict": verdict,
+        "top_url": top_sources[0]["url"] if top_sources else None,
+    })
 
     return {
         "score": score,
         "verdict": verdict,
         "explanation": explanation,
-        "sources": scored_sources,
+        "sources": top_sources,
         "cached_matches": cached,
         "search_error": search_error,
     }
+

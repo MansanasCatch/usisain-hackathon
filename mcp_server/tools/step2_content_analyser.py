@@ -9,10 +9,30 @@ percentages reported are the proportion of frames that fell into each
 category — a segment-level view of the whole clip, not one opaque score.
 """
 
+import os
 from PIL import Image
 
 from shared.visual_signals import classify_frame, normalize_pct
 from shared.video_utils import sample_frames, transcribe_audio
+from services.llm.gemini_client import get_provider
+
+SYSTEM_PROMPT = (
+    "You are a forensic content analyst. Given a piece of visual content and a set of computer vision heuristic signals, "
+    "provide a detailed, user-friendly explanation. "
+    "1. Explain why the content has the estimated breakdown percentages (Real vs Edited vs AI-generated) by referring to the specific heuristic signals (Error Level Analysis, Frequency ratio, Metadata). "
+    "2. Describe in detail what you can see in the content (objects, text, design, or layout) and point out any visual details that look authentic, edited, or AI-generated. "
+    "Keep it engaging and easy to understand for everyday users. "
+    "CRITICAL: Use ONLY Filipino or English letters/words. "
+    "NEVER output Chinese characters or any other non-Latin script."
+)
+
+LANGUAGE_INSTRUCTIONS = {
+    "taglish": "Write in casual Taglish (mix of Tagalog and English). Use only Filipino and English words. NO Chinese characters.",
+    "tagalog": "Isulat sa Tagalog. Gamitin lamang ang Filipino o Ingles na salita. HUWAG gumamit ng Chinese characters.",
+    "cebuano": "Isulat sa Cebuano. Gamitin lamang ang Cebuano o Ingles na mga pulong. DILI mogamit og Chinese characters.",
+    "ilocano": "Isulat iti Ilocano. Usaren laeng dagiti Ilocano wenno Ingles a sao. HAAN nga usaren dagiti Chinese characters.",
+    "bisaya": "Isulat sa Bisaya. Gamitin lamang ang Bisaya o Ingles na mga pulong. DILI mogamit og Chinese characters.",
+}
 
 
 def _explain(real: float, edited: float, ai_gen: float, signals: dict) -> str:
@@ -46,22 +66,67 @@ def _verdict(real: float, edited: float, ai_gen: float) -> str:
     return "inconclusive"
 
 
-def analyze_image(image_path: str) -> dict:
+def generate_detailed_explanation(real: float, edited: float, ai_gen: float, signals: dict,
+                                 image_path: str = None, is_video: bool = False, video_info: str = "",
+                                 provider: str = "ollama", language: str = "english") -> str:
+    llm = get_provider(provider)
+    system_prompt = SYSTEM_PROMPT
+    if language in LANGUAGE_INSTRUCTIONS:
+        system_prompt = f"{SYSTEM_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
+        
+    ela = signals.get("ela_suspicion", 0)
+    freq = signals.get("frequency", {})
+    freq_ratio = freq.get("ratio", 0)
+    meta = signals.get("metadata", {})
+    has_meta = meta.get("has_camera_metadata", False)
+    flagged_software = meta.get("flagged_software")
+    
+    video_prefix = f"Video stats: {video_info}\n" if is_video else ""
+    
+    context = (
+        f"{video_prefix}"
+        f"Estimated Breakdown:\n"
+        f"- Authentic/Real: {real}%\n"
+        f"- Edited/Modified: {edited}%\n"
+        f"- AI-Generated: {ai_gen}%\n\n"
+        f"Heuristic Signals:\n"
+        f"- Error Level Analysis (recompression check): {ela}/100. Higher values suggest regions saved at different qualities (editing indicator).\n"
+        f"- Frequency-Domain Noise Ratio: {freq_ratio}. Low ratio suggests smoothed/AI-generated patterns; camera sensors have high natural noise.\n"
+        f"- Camera Metadata: {'Found' if has_meta else 'Not found'}"
+        + (f", Software: {flagged_software}." if flagged_software else ".")
+        + "\n\nTask: Explain the breakdown percentages (why it is X% real, Y% edited, Z% AI-generated) using the signals, and also describe in detail what you can see in the content."
+    )
+    
+    try:
+        explanation = llm.complete(system_prompt, context, image_path=image_path)
+        return explanation
+    except Exception as e:
+        # Fallback to static explanation if LLM fails
+        return _explain(real, edited, ai_gen, signals) + f"\n\n(Detailed analysis unavailable: {e})"
+
+
+def analyze_image(image_path: str, provider: str = "ollama", language: str = "english") -> dict:
     image = Image.open(image_path)
     result = classify_frame(image)
     real, edited, ai_gen = result["real_pct"], result["edited_pct"], result["ai_generated_pct"]
+
+    explanation = generate_detailed_explanation(
+        real, edited, ai_gen, result["signals"],
+        image_path=image_path, is_video=False,
+        provider=provider, language=language
+    )
 
     return {
         "content_type": "image",
         "real_pct": real, "edited_pct": edited, "ai_generated_pct": ai_gen,
         "score": real,  # kept for dashboard trend compatibility: score = % real
         "verdict": _verdict(real, edited, ai_gen),
-        "explanation": _explain(real, edited, ai_gen, result["signals"]),
+        "explanation": explanation,
         "details": result["signals"],
     }
 
 
-def analyze_video(video_path: str, max_frames: int = 24) -> dict:
+def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama", language: str = "english") -> dict:
     frames, duration = sample_frames(video_path, max_frames)
     if not frames:
         return {
@@ -79,16 +144,44 @@ def analyze_video(video_path: str, max_frames: int = 24) -> dict:
     transcript = transcribe_audio(video_path)
     real, edited, ai_gen = pct["real"], pct["edited"], pct["ai_generated"]
 
-    explanation = (
-        f"Sampled {total} frames across ~{round(duration, 1)}s of video. "
-        f"{real}% of sampled frames look consistent with authentic "
-        f"footage, {edited}% show signs of editing, and {ai_gen}% show "
-        f"signs consistent with AI generation.\n\n"
-        f"Audio was transcribed locally for context — nothing left this "
-        f"machine during analysis.\n\n"
-        "These are heuristic, frame-level signals meant to help you "
-        "investigate further, not a definitive verdict on the whole video."
+    # Sample average signals from the frame results
+    avg_ela = sum(r["signals"]["ela_suspicion"] for r in frame_results) / total
+    avg_freq_ratio = sum(r["signals"]["frequency"]["ratio"] for r in frame_results) / total
+    avg_freq_suspicion = sum(r["signals"]["frequency"]["suspicion"] for r in frame_results) / total
+    has_meta = any(r["signals"]["metadata"]["has_camera_metadata"] for r in frame_results)
+    flagged_software = next((r["signals"]["metadata"]["flagged_software"] for r in frame_results if r["signals"]["metadata"]["flagged_software"]), None)
+    
+    signals = {
+        "ela_suspicion": round(avg_ela, 1),
+        "frequency": {"ratio": round(avg_freq_ratio, 4), "suspicion": round(avg_freq_suspicion, 1)},
+        "metadata": {"has_camera_metadata": has_meta, "flagged_software": flagged_software}
+    }
+
+    # Save the first frame to a temporary file so the multimodal LLM can analyze it
+    temp_frame_path = None
+    try:
+        temp_dir = os.path.dirname(video_path)
+        temp_frame_path = os.path.join(temp_dir, "_temp_video_analysis_frame.jpg")
+        frames[0].save(temp_frame_path)
+    except Exception:
+        pass
+
+    video_info = f"Sampled {total} frames across ~{round(duration, 1)}s of video."
+    if transcript:
+        video_info += f" Audio transcript: '{transcript}'"
+
+    explanation = generate_detailed_explanation(
+        real, edited, ai_gen, signals,
+        image_path=temp_frame_path, is_video=True, video_info=video_info,
+        provider=provider, language=language
     )
+
+    # Clean up temp file
+    if temp_frame_path and os.path.exists(temp_frame_path):
+        try:
+            os.remove(temp_frame_path)
+        except Exception:
+            pass
 
     return {
         "content_type": "video",
@@ -103,9 +196,10 @@ def analyze_video(video_path: str, max_frames: int = 24) -> dict:
     }
 
 
-def analyze_content(file_path: str, content_type: str) -> dict:
+def analyze_content(file_path: str, content_type: str, provider: str = "ollama", language: str = "english") -> dict:
     """Entry point the MCP tool calls — dispatches on content_type so the
     tool registration in server.py doesn't need two separate tools."""
     if content_type == "video":
-        return analyze_video(file_path)
-    return analyze_image(file_path)
+        return analyze_video(file_path, provider=provider, language=language)
+    return analyze_image(file_path, provider=provider, language=language)
+

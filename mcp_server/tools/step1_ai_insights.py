@@ -1,46 +1,81 @@
-"""
-step1_ai_insights.py — the fastest useful thing the pipeline can produce:
-a single LLM call giving an initial contextual read of the content before
-any deeper (and slower) analysis runs. This is what shows up on screen
-first while steps 2-5 are still working.
-"""
-
+import os
+import cv2
 from services.llm.gemini_client import get_provider
 
 SYSTEM_PROMPT = (
     "You are the first-pass reviewer in a scam and misinformation detection "
-    "tool used by Filipino internet users. Given a piece of content (a "
-    "claim, caption, or description of an image/video), give a short "
-    "initial read: what is this content claiming or showing, what stands "
-    "out about it (urgency language, unofficial links, emotional framing, "
-    "unusual formatting), and what would be worth checking further. "
-    "2-4 sentences. Do not make a final judgment — that comes later in the "
-    "pipeline. Be plain and direct, no hedging filler."
+    "tool for Filipino internet users. Given text and optional visual content, "
+    "write a short, smart overview in 2-4 sentences. If an image or video is included, "
+    "mention it but do not make a final judgment. "
+    "Avoid filler phrases like 'ehehe', 'wala namang text', or childish slang. "
+    "Use only Filipino or English words with natural grammar and phrasing. "
+    "NEVER output Chinese characters or any other non-Latin script."
 )
 
-# Appended to the system prompt based on the client's requested language.
-# "english" adds nothing — the base prompt is already plain English.
 LANGUAGE_INSTRUCTIONS = {
-    "taglish": "Write your response in casual Taglish, the way a Filipino "
-               "user would actually text a friend — not formal English.",
-    "tagalog": "Write your response in conversational Tagalog.",
-    "cebuano": "Write your response in conversational Cebuano.",
-    "ilocano": "Write your response in conversational Ilocano.",
+    "taglish": (
+        "Write your response in natural Taglish, using Filipino and English words "
+        "the way a Filipino would speak. Keep it clear, smart, and not awkward. "
+        "Avoid broken grammar and childish slang."
+    ),
+    "tagalog": "Write your response in conversational Tagalog using only Filipino and English words.",
+    "cebuano": "Write your response in conversational Cebuano using only Cebuano and English words.",
+    "ilocano": "Write your response in conversational Ilocano using only Ilocano and English words.",
+    "bisaya": "Write your response in conversational Bisaya using only Bisaya and English words.",
 }
 
 
-def generate_insight(content_summary: str, provider: str = "ollama", language: str = "english") -> dict:
+def generate_insight(content_summary: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english") -> dict:
     llm = get_provider(provider)
     system_prompt = SYSTEM_PROMPT
     if language in LANGUAGE_INSTRUCTIONS:
         system_prompt = f"{SYSTEM_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
+        
+    image_to_pass = None
+    temp_frame_path = None
+    
+    if file_path and os.path.exists(file_path):
+        if content_type == "image":
+            image_to_pass = file_path
+            user_prompt = (
+                f"Text content: {content_summary or '(no text provided)'}\n"
+                "Please analyze the attached image and provide a short, clear summary of the visible objects, text, and any suspicious details."
+            )
+        elif content_type == "video":
+            try:
+                cap = cv2.VideoCapture(file_path)
+                ok, frame = cap.read()
+                if ok:
+                    temp_dir = os.path.dirname(file_path)
+                    temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
+                    cv2.imwrite(temp_frame_path, frame)
+                    image_to_pass = temp_frame_path
+                cap.release()
+            except Exception:
+                pass
+            user_prompt = (
+                f"Text content: {content_summary or '(no text provided)'}\n"
+                "Please analyze the attached representative video frame and provide a short, clear summary of the visible scene."
+            )
+        else:
+            user_prompt = f"Text content: {content_summary or '(no text provided)'}"
+    else:
+        user_prompt = f"Text content: {content_summary or '(no text provided)'}"
+        
     try:
-        insight = llm.complete(system_prompt, content_summary)
+        insight = llm.complete(system_prompt, user_prompt, image_path=image_to_pass)
     except Exception as e:
         return {
             "insight": None,
             "explanation": f"AI insight unavailable: {e}",
             "error": str(e),
         }
+    finally:
+        if temp_frame_path and os.path.exists(temp_frame_path):
+            try:
+                os.remove(temp_frame_path)
+            except Exception:
+                pass
 
     return {"insight": insight, "explanation": insight}
+

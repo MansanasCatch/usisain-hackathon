@@ -1,47 +1,59 @@
-"""step4_actionable_items.py — turns the findings from steps 1-3 into
-concrete, specific next steps. This is what makes the tool useful in the
-moment, not just informative after the fact."""
+"""step4_actionable_items.py — turns findings from steps 1-3 into
+concrete, specific next steps. Kept short and focused so the LLM
+returns quickly with a tight list the user can act on immediately."""
 
 from services.llm.gemini_client import get_provider
 
 SYSTEM_PROMPT = (
-    "You generate concrete, specific action items for someone who just "
-    "had a piece of content checked for scams/misinformation/AI "
-    "generation. Given the findings, list 3-5 short, specific next steps "
-    "(not generic advice like 'be careful online'). If it's a financial "
-    "scam pattern, mention concrete steps like verifying directly through "
-    "the official app/hotline, not the link/number in the message. If "
-    "it's misinformation, suggest specific ways to verify. If it looks "
-    "legitimate, say so plainly and give one step to double-check anyway. "
-    "Output as a short list, one action per line, no preamble."
+    "You are a security and digital safety advisor. Based on the findings of Step 1 (AI Insights), "
+    "Step 2 (Content Analyser visual breakdown), and Step 3 (Legit or Fake Authentictity fact-check), list 3-5 short, concrete "
+    "action items for the user. "
+    "Keep each item brief and practical. Output ONLY the numbered list, no intro text, no extra explanation. "
+    "Use natural, clear Filipino/English only. NEVER output Chinese characters or any other non-Latin script."
 )
 
 LANGUAGE_INSTRUCTIONS = {
-    "taglish": "Write each action item in casual Taglish.",
-    "tagalog": "Write each action item in conversational Tagalog.",
-    "cebuano": "Write each action item in conversational Cebuano.",
-    "ilocano": "Write each action item in conversational Ilocano.",
+    "taglish": "Write in casual Taglish (mix of Tagalog and English). Use only Filipino and English words. NO Chinese characters.",
+    "tagalog": "Isulat sa Tagalog. Gamitin lamang ang Filipino o Ingles na salita. HUWAG gumamit ng Chinese characters.",
+    "cebuano": "Isulat sa Cebuano. Gamitin lamang ang Cebuano o Ingles na mga pulong. DILI mogamit og Chinese characters.",
+    "ilocano": "Isulat iti Ilocano. Usaren laeng dagiti Ilocano wenno Ingles a sao. HAAN nga usaren dagiti Chinese characters.",
+    "bisaya": "Isulat sa Bisaya. Gamitin lamang ang Bisaya o Ingles na mga pulong. DILI mogamit og Chinese characters.",
 }
 
 
 def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
-                      provider: str = "ollama", language: str = "english") -> dict:
+                     provider: str = "ollama", language: str = "english") -> dict:
     llm = get_provider(provider)
     system_prompt = SYSTEM_PROMPT
     if language in LANGUAGE_INSTRUCTIONS:
         system_prompt = f"{SYSTEM_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
+
+    # Distill only what the LLM needs — keeps context short for speed
+    verdict = step3_result.get("verdict", "unknown")
+    score = step3_result.get("score", "?")
+    insight = (step1_result.get("insight") or "")[:180]
+    step3_exp = (step3_result.get("explanation") or "")[:180]
+
+    step2_applicable = step2_result.get("applicable", True)
+    step2_info = ""
+    if step2_applicable:
+        step2_info = (
+            f"Content breakdown: real {step2_result.get('real_pct') or 0}%, "
+            f"edited {step2_result.get('edited_pct') or 0}%, "
+            f"AI-generated {step2_result.get('ai_generated_pct') or 0}%. "
+        )
+
     context = (
-        f"AI insight: {step1_result.get('insight', 'n/a')}\n"
-        f"Content analysis: {step2_result.get('verdict', 'n/a')} "
-        f"(real {step2_result.get('real_pct', '?')}%, edited {step2_result.get('edited_pct', '?')}%, "
-        f"AI-generated {step2_result.get('ai_generated_pct', '?')}%)\n"
-        f"Legit-or-fake verdict: {step3_result.get('verdict', 'n/a')}, score {step3_result.get('score', '?')}\n"
-        f"Legit-or-fake explanation: {step3_result.get('explanation', 'n/a')}"
+        f"Verdict: {verdict}\n"
+        f"Insight: {insight}\n"
+        f"{step2_info}"
+        f"Fact-check: {step3_exp}"
     )
+
     try:
         actions_text = llm.complete(system_prompt, context)
     except Exception as e:
         return {"actions": [], "explanation": f"Action generation unavailable: {e}"}
 
-    actions = [line.strip("-• ").strip() for line in actions_text.splitlines() if line.strip()]
+    actions = [line.strip("-•1234567890. ").strip() for line in actions_text.splitlines() if line.strip()]
     return {"actions": actions, "explanation": actions_text}
