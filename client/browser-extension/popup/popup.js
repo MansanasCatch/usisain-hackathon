@@ -1,5 +1,20 @@
 const BACKEND = "http://localhost:8000";
 
+// ---------- Language Preference ----------
+const languageSelect = document.getElementById("language-select");
+
+// Load saved language
+chrome.storage.local.get("preferredLanguage", (data) => {
+  if (data.preferredLanguage) {
+    languageSelect.value = data.preferredLanguage;
+  }
+});
+
+// Save language on change
+languageSelect.addEventListener("change", () => {
+  chrome.storage.local.set({ preferredLanguage: languageSelect.value });
+});
+
 async function loadHistory() {
   const statusEl = document.getElementById("status");
   const list = document.getElementById("history");

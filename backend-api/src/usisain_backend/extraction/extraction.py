@@ -1,19 +1,32 @@
 """extraction.py — turns whatever a client sends (raw text, an uploaded
 file, a caption+image pair) into the normalized shape orchestration.pipeline
-expects. Kept deliberately simple — heavy lifting (OCR, frame sampling)
-happens inside the pipeline steps themselves, not here."""
+expects.  Files are written to OS temp storage and cleaned up after the
+pipeline finishes (see stream.py / analyze.py)."""
 
-import uuid
+import os
+import tempfile
 from pathlib import Path
-
-from ..core.config import settings
 
 
 def _save_upload(file_bytes: bytes, filename: str) -> str:
+    """Save uploaded bytes to a temporary file that persists until we
+    explicitly delete it (delete=False).  Returns the temp file path."""
     ext = Path(filename).suffix or ".bin"
-    dest = settings.uploads_dir / f"{uuid.uuid4().hex}{ext}"
-    dest.write_bytes(file_bytes)
-    return str(dest)
+    fd = tempfile.NamedTemporaryFile(
+        delete=False, suffix=ext, prefix="usisain_"
+    )
+    fd.write(file_bytes)
+    fd.close()
+    return fd.name
+
+
+def cleanup_file(file_path: str | None):
+    """Remove a temp file if it exists.  Safe to call with None."""
+    if file_path:
+        try:
+            os.unlink(file_path)
+        except OSError:
+            pass
 
 
 def extract_text(text: str) -> dict:

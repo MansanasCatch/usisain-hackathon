@@ -1,25 +1,31 @@
-"""google_search.py — source lookup for step 3. Get credentials at:
-  API key:            https://console.cloud.google.com/apis/credentials
-  Search engine (cx): https://programmablesearchengine.google.com/
-  (set the search engine to search the entire web, not a specific site)
+"""google_search.py — web search for step 3.
+
+Tries Google Custom Search first (requires GOOGLE_API_KEY + GOOGLE_CSE_ID).
+Falls back to DuckDuckGo HTML scraping if Google fails or keys are missing.
 """
 
 import os
 import requests
+from bs4 import BeautifulSoup
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
 
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
 
-def search(query: str, max_results: int = 6) -> list[dict]:
-    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
-        raise RuntimeError(
-            "GOOGLE_API_KEY / GOOGLE_CSE_ID not set — see README for where to get them."
-        )
+
+def _google_search(query: str, max_results: int) -> list[dict]:
+    """Google Custom Search API."""
     resp = requests.get(
         "https://www.googleapis.com/customsearch/v1",
         params={"key": GOOGLE_API_KEY, "cx": GOOGLE_CSE_ID, "q": query, "num": max_results},
-        timeout=15,
+        timeout=10,
     )
     resp.raise_for_status()
     items = resp.json().get("items", [])
@@ -27,3 +33,46 @@ def search(query: str, max_results: int = 6) -> list[dict]:
         {"title": i.get("title", ""), "url": i.get("link", ""), "snippet": i.get("snippet", "")}
         for i in items
     ]
+
+
+def _ddg_search(query: str, max_results: int) -> list[dict]:
+    """DuckDuckGo HTML scrape fallback — no API key required."""
+    resp = requests.get(
+        "https://html.duckduckgo.com/html/",
+        params={"q": query},
+        headers=_HEADERS,
+        timeout=10,
+    )
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    results = []
+    for r in soup.select(".result__body")[:max_results]:
+        title_el = r.select_one(".result__title")
+        url_el = r.select_one(".result__url")
+        snippet_el = r.select_one(".result__snippet")
+        title = title_el.get_text(strip=True) if title_el else ""
+        url = url_el.get_text(strip=True) if url_el else ""
+        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+        if url:
+            if not url.startswith("http"):
+                url = "https://" + url
+            results.append({"title": title, "url": url, "snippet": snippet})
+    return results
+
+
+def search(query: str, max_results: int = 6) -> list[dict]:
+    """Search the web. Tries Google CSE first, falls back to DuckDuckGo."""
+    # Try Google first if credentials are available
+    if GOOGLE_API_KEY and GOOGLE_CSE_ID:
+        try:
+            results = _google_search(query, max_results)
+            if results:
+                return results
+        except Exception:
+            pass  # Fall through to DuckDuckGo
+
+    # Fallback: DuckDuckGo HTML scrape
+    try:
+        return _ddg_search(query, max_results)
+    except Exception as e:
+        raise RuntimeError(f"All search backends failed: {e}") from e

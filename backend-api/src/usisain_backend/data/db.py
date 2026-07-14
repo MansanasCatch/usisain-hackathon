@@ -39,6 +39,18 @@ CREATE TABLE IF NOT EXISTS reference_documents (
     uploaded_at TEXT NOT NULL DEFAULT (datetime('now')),
     notes       TEXT
 );
+
+CREATE TABLE IF NOT EXISTS errors (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    step        INTEGER,                                -- 1-5, or NULL for general errors
+    step_name   TEXT,                                   -- e.g. 'ai_insights', 'legit_or_fake'
+    error_type  TEXT NOT NULL DEFAULT 'pipeline',       -- 'pipeline' | 'api' | 'system'
+    error_msg   TEXT NOT NULL,
+    details     TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_errors_created_at ON errors(created_at);
 """
 
 
@@ -86,3 +98,101 @@ def get_summary_stats() -> dict:
             "by_channel": {r["channel"]: r["c"] for r in by_channel},
             "by_verdict": {r["step3_verdict"]: r["c"] for r in by_verdict},
         }
+
+
+def get_trend(days: int = 30) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT date(created_at) AS day, channel, COUNT(*) AS c, AVG(step2_score) AS avg_score
+               FROM scans
+               WHERE created_at >= datetime('now', ?)
+               GROUP BY day, channel
+               ORDER BY day ASC""",
+            (f"-{days} days",),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ---------- reference documents ----------
+
+def insert_reference_document(name: str, category: str, image_path: str,
+                               notes: str | None = None) -> int:
+    with get_connection() as conn:
+        cur = conn.execute(
+            """INSERT INTO reference_documents (name, category, image_path, notes)
+               VALUES (?, ?, ?, ?)""",
+            (name, category, image_path, notes),
+        )
+        return cur.lastrowid
+
+
+def get_reference_documents(category: str | None = None) -> list[dict]:
+    query = "SELECT * FROM reference_documents"
+    params: list = []
+    if category:
+        query += " WHERE category = ?"
+        params.append(category)
+    query += " ORDER BY uploaded_at DESC"
+    with get_connection() as conn:
+        return [dict(r) for r in conn.execute(query, params).fetchall()]
+
+
+def delete_reference_document(doc_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM reference_documents WHERE id = ?", (doc_id,))
+
+
+# ---------- error log ----------
+
+def insert_error(step: int | None, step_name: str | None, error_msg: str,
+                 error_type: str = "pipeline", details: str | None = None) -> int:
+    with get_connection() as conn:
+        cur = conn.execute(
+            """INSERT INTO errors (step, step_name, error_type, error_msg, details)
+               VALUES (?, ?, ?, ?, ?)""",
+            (step, step_name, error_type, error_msg, details),
+        )
+        return cur.lastrowid
+
+
+def get_errors(limit: int = 50, offset: int = 0) -> list[dict]:
+    with get_connection() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM errors ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ).fetchall()]
+
+
+def get_error_stats() -> dict:
+    with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(*) c FROM errors").fetchone()["c"]
+        by_type = conn.execute(
+            "SELECT error_type, COUNT(*) c FROM errors GROUP BY error_type"
+        ).fetchall()
+        by_step = conn.execute(
+            "SELECT step_name, COUNT(*) c FROM errors WHERE step IS NOT NULL GROUP BY step_name"
+        ).fetchall()
+        return {
+            "total_errors": total,
+            "by_type": {r["error_type"]: r["c"] for r in by_type},
+            "by_step": {r["step_name"]: r["c"] for r in by_step},
+        }
+
+
+def clear_errors() -> int:
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM errors")
+        return cur.rowcount
+
+
+def clear_scans() -> int:
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM scans")
+        # Also reset the local RAG vector store so cached claims don't linger
+        rag_store = settings.project_root / "data" / "vector_index" / "store.json"
+        try:
+            if rag_store.exists():
+                rag_store.write_text("[]", encoding="utf-8")
+        except Exception:
+            pass
+        return cur.rowcount

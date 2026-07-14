@@ -12,3 +12,14 @@ def list_scans(channel: str | None = None, limit: int = 20, offset: int = 0):
 @router.get("/stats/summary")
 def stats_summary():
     return db.get_summary_stats()
+
+
+@router.get("/stats/trends")
+def stats_trends(days: int = 30):
+    return db.get_trend(days=days)
+
+
+@router.delete("")
+def clear_all_scans():
+    count = db.clear_scans()
+    return {"deleted": count}

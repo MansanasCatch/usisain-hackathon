@@ -1,11 +1,12 @@
 """analyze.py — non-streaming endpoint. The Messenger bot calls this
 (via HTTP) since it replies with a sequence of chat messages rather than
 live UI updates, so it doesn't need step-by-step SSE — it just wants the
-final aggregated result and formats its own reply sequence from it."""
+final aggregated result and formats its own reply sequence from it.
+Temp files are cleaned up after the pipeline finishes."""
 
 from fastapi import APIRouter, UploadFile, File, Form
 
-from ..extraction.extraction import extract_text, extract_image, extract_video, extract_post
+from ..extraction.extraction import extract_text, extract_image, extract_video, extract_post, cleanup_file
 from ..orchestration.pipeline import run_pipeline_blocking
 from ..data import db
 from ..core.config import settings
@@ -23,6 +24,9 @@ async def analyze(
     channel: str = Form("webapp"),
     source_url: str | None = Form(None),
 ):
+    provider = (provider or settings.default_llm_provider).strip().lower()
+    if provider not in ("ollama", "gemini"):
+        provider = settings.default_llm_provider
     file_bytes = await file.read() if file else None
 
     if file_bytes and caption is not None:
@@ -34,11 +38,15 @@ async def analyze(
     else:
         content = extract_text(text or "")
 
-    results = await run_pipeline_blocking(content, language=language, provider=provider)
+    try:
+        results = await run_pipeline_blocking(content, language=language, provider=provider)
 
-    input_summary = (text or caption or (file.filename if file else ""))[:200]
-    scan_id = db.insert_scan(
-        channel=channel, content_type=content.get("content_type"), results=results,
-        source_url=source_url, input_summary=input_summary, language=language,
-    )
-    return {"scan_id": scan_id, **results}
+        input_summary = (text or caption or (file.filename if file else ""))[:200]
+        scan_id = db.insert_scan(
+            channel=channel, content_type=content.get("content_type"), results=results,
+            source_url=source_url, input_summary=input_summary, language=language,
+        )
+        return {"scan_id": scan_id, **results}
+    finally:
+        # Clean up the temp file after the pipeline is done
+        cleanup_file(content.get("file_path"))

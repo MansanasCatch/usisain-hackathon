@@ -28,7 +28,7 @@ def synthesize(text: str, language: str = "english") -> str:
     engine = pyttsx3.init()
     voices = engine.getProperty("voices")
 
-    if language in ("taglish", "tagalog", "cebuano", "ilocano"):
+    if language in ("taglish", "tagalog", "cebuano", "ilocano", "bisaya"):
         # Best-effort: look for any installed voice whose name/id hints at
         # Filipino/Tagalog. Falls back to the default voice if none found.
         for voice in voices:

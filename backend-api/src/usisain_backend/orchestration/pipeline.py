@@ -1,86 +1,172 @@
 """
-pipeline.py — the only place that knows the 5-step order. Everything else
-(steps 1-5's actual logic) lives in mcp_server/tools/; this just calls
-them in the right sequence — concurrently where steps don't depend on
-each other — and yields a StepEvent the moment each one finishes, which
-is what makes progressive UI updates possible on the client side.
-
-Dependency shape:
-  step 1 (AI insights) and step 2 (content analyser) are independent of
-    each other — run concurrently, stream whichever finishes first.
-  step 3 (legit or fake) only needs the extracted text/claim — runs after
-    1 & 2 so its context is available if we want to use it later, but
-    doesn't strictly depend on their output today.
-  step 4 (actionable items) and step 5 (learnings) both depend on 1-3's
-    results but not on each other — run concurrently.
+pipeline.py — the only place that knows the 5-step order.
+Steps execute sequentially (1 → 2 → 3 → 4 → 5) and yield a StepEvent the
+moment each one finishes, enabling progressive UI updates on the client side.
 """
 
 import asyncio
+import logging
+import traceback
+import uuid
 from typing import AsyncGenerator
 
-from .events import StepEvent
+from ..core.config import settings
+from ..core.request_context import REQUEST_ID
+
+from .events import STEP_NAMES, StepEvent
 from ..services.mcp_client.client import call_tool
+from ..data import db
+
+logger = logging.getLogger(__name__)
+
+# Maps tool name -> (step number, step display name)
+_STEP_INFO: dict[str, tuple[int, str]] = {
+    "step1_ai_insights": (1, "ai_insights"),
+    "step2_content_analyser": (2, "content_analyser"),
+    "step3_legit_or_fake": (3, "legit_or_fake"),
+    "step4_actionable_items": (4, "actionable_items"),
+    "step5_learnings": (5, "learnings"),
+}
 
 
 async def _safe_call(tool_name: str, arguments: dict) -> dict:
+    timeout_seconds = settings.pipeline_step_timeout_seconds
     try:
-        return await call_tool(tool_name, arguments)
+        # Wrap tool call in a configurable timeout
+        result = await asyncio.wait_for(call_tool(tool_name, arguments), timeout=timeout_seconds)
+        # Some tools return {"error": "..."} without raising — log those too
+        if isinstance(result, dict) and result.get("error"):
+            step_num, step_name = _STEP_INFO.get(tool_name, (None, tool_name))
+            db.insert_error(
+                step=step_num, step_name=step_name,
+                error_msg=result["error"], error_type="pipeline",
+                details=f"Tool: {tool_name}",
+            )
+        return result
+    except asyncio.TimeoutError:
+        step_num, step_name = _STEP_INFO.get(tool_name, (None, tool_name))
+        err_msg = f"Step timed out after {timeout_seconds:.0f} seconds."
+        db.insert_error(
+            step=step_num, step_name=step_name,
+            error_msg=err_msg, error_type="pipeline_timeout",
+            details=f"Tool: {tool_name} timed out after {timeout_seconds:.0f} seconds.",
+        )
+        return {"error": err_msg}
     except Exception as e:
-        return {"error": str(e)}
+        tb = traceback.format_exc()
+        logger.exception("Error calling MCP tool %s with args %s", tool_name, arguments)
+        err_msg = str(e).strip() or f"Unexpected error: {type(e).__name__}"
+        step_num, step_name = _STEP_INFO.get(tool_name, (None, tool_name))
+        db.insert_error(
+            step=step_num, step_name=step_name,
+            error_msg=err_msg, error_type="pipeline",
+            details=tb,
+        )
+        return {"error": err_msg}
 
 
 def _status_for(result: dict) -> str:
     return "error" if isinstance(result, dict) and result.get("error") else "completed"
 
 
+def _skip_remaining_steps(start_step: int, reason: str) -> list[StepEvent]:
+    return [StepEvent(step, STEP_NAMES[step], "error", {"error": reason}) for step in range(start_step, 6)]
+
+
 async def run_pipeline(content: dict, language: str = "english", provider: str = "ollama") -> AsyncGenerator[StepEvent, None]:
     """`content` is the output of the extraction layer:
     {"content_type": "text"|"image"|"video"|"post", "text": str|None, "file_path": str|None}
     """
+    provider = (provider or "ollama").strip().lower()
+    # Assign a unique request id for tracing LLM calls in logs
+    request_id = str(uuid.uuid4())
+    REQUEST_ID.set(request_id)
+    print(f"INFO:     [Pipeline] request_id={request_id}", flush=True)
+
     text_summary = content.get("text") or ""
     file_path = content.get("file_path")
     content_type = content.get("content_type", "text")
     results: dict[str, dict] = {}
 
-    # ---- Steps 1 & 2: concurrent ----
+    print(f"INFO:     [Pipeline] Using provider: {provider}", flush=True)
+    # ---- Step 1: AI Insights ----
+    print("INFO:     [Step 1/5] Starting AI Insights...", flush=True)
     yield StepEvent(1, "ai_insights", "in_progress")
-    step1_task = asyncio.create_task(_safe_call(
+
+    results["step1"] = await _safe_call(
         "step1_ai_insights",
-        {"content_summary": text_summary or "(no text provided, image/video only)",
-         "provider": provider, "language": language},
-    ))
+        {
+            "content_summary": text_summary or "",
+            "file_path": file_path,
+            "content_type": content_type,
+            "provider": provider,
+            "language": language,
+        },
+    )
+    status1 = _status_for(results["step1"])
+    print(f"INFO:     [Step 1/5] Completed AI Insights. Status: {status1}", flush=True)
+    yield StepEvent(1, "ai_insights", status1, results["step1"])
 
-    step2_task = None
+    if status1 == "error":
+        for event in _skip_remaining_steps(2, "Skipped because a previous step failed."):
+            yield event
+        return
+
+    # ---- Step 2: Content Analyser ----
     if file_path and content_type in ("image", "video"):
+        print("INFO:     [Step 2/5] Starting Content Analyser...", flush=True)
         yield StepEvent(2, "content_analyser", "in_progress")
-        step2_task = asyncio.create_task(_safe_call(
-            "step2_content_analyser", {"file_path": file_path, "content_type": content_type},
-        ))
 
-    pending = {step1_task} | ({step2_task} if step2_task else set())
-    while pending:
-        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-        for task in done:
-            if task is step1_task:
-                results["step1"] = task.result()
-                yield StepEvent(1, "ai_insights", _status_for(results["step1"]), results["step1"])
-            else:
-                results["step2"] = task.result()
-                yield StepEvent(2, "content_analyser", _status_for(results["step2"]), results["step2"])
-
-    if step2_task is None:
+        results["step2"] = await _safe_call(
+            "step2_content_analyser", {
+                "file_path": file_path,
+                "content_type": content_type,
+                "provider": provider,
+                "language": language,
+            },
+        )
+        status2 = _status_for(results["step2"])
+        print(f"INFO:     [Step 2/5] Completed Content Analyser. Status: {status2}", flush=True)
+        yield StepEvent(2, "content_analyser", status2, results["step2"])
+        if status2 == "error":
+            for event in _skip_remaining_steps(3, "Skipped because a previous step failed."):
+                yield event
+            return
+    else:
         results["step2"] = {"applicable": False, "explanation": "Content analyser applies to images and video only."}
+        print(f"INFO:     [Step 2/5] Completed Content Analyser. Status: completed", flush=True)
         yield StepEvent(2, "content_analyser", "completed", results["step2"])
 
-    # ---- Step 3 ----
+    # ---- Step 3: Legit or Fake ----
+    print("INFO:     [Step 3/5] Starting Authenticity...", flush=True)
     yield StepEvent(3, "legit_or_fake", "in_progress")
     claim = text_summary or content.get("caption", "")
-    results["step3"] = await _safe_call("step3_legit_or_fake", {"claim": claim, "provider": provider})
-    yield StepEvent(3, "legit_or_fake", _status_for(results["step3"]), results["step3"])
+    results["step3"] = await _safe_call(
+        "step3_legit_or_fake",
+        {
+            "claim": claim,
+            "file_path": file_path,
+            "content_type": content_type,
+            "provider": provider,
+            "language": language,
+            "step1_result": results["step1"],
+            "step2_result": results["step2"],
+        },
+    )
+    status3 = _status_for(results["step3"])
+    print(f"INFO:     [Step 3/5] Completed Authenticity. Status: {status3}", flush=True)
+    yield StepEvent(3, "legit_or_fake", status3, results["step3"])
+    if status3 == "error":
+        for event in _skip_remaining_steps(4, "Skipped because a previous step failed."):
+            yield event
+        return
 
-    # ---- Steps 4 & 5: concurrent, both depend on 1-3 ----
+    # ---- Steps 4 & 5: Actionable Items and Learnings ----
+    print("INFO:     [Step 4/5] Starting Actionable Items...", flush=True)
+    print("INFO:     [Step 5/5] Starting Learnings...", flush=True)
     yield StepEvent(4, "actionable_items", "in_progress")
     yield StepEvent(5, "learnings", "in_progress")
+
     common_args = {
         "step1_result": results["step1"], "step2_result": results["step2"], "step3_result": results["step3"],
         "provider": provider, "language": language,
@@ -88,16 +174,16 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
     step4_task = asyncio.create_task(_safe_call("step4_actionable_items", common_args))
     step5_task = asyncio.create_task(_safe_call("step5_learnings", common_args))
 
-    pending = {step4_task, step5_task}
+    pending = {step4_task: 4, step5_task: 5}
     while pending:
-        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
         for task in done:
-            if task is step4_task:
-                results["step4"] = task.result()
-                yield StepEvent(4, "actionable_items", _status_for(results["step4"]), results["step4"])
-            else:
-                results["step5"] = task.result()
-                yield StepEvent(5, "learnings", _status_for(results["step5"]), results["step5"])
+            step = pending.pop(task)
+            results[f"step{step}"] = task.result()
+            status = _status_for(results[f"step{step}"])
+            step_name = "actionable_items" if step == 4 else "learnings"
+            print(f"INFO:     [Step {step}/5] Completed {step_name.replace('_', ' ').title()}. Status: {status}", flush=True)
+            yield StepEvent(step, step_name, status, results[f"step{step}"])
 
 
 async def run_pipeline_blocking(content: dict, language: str = "english", provider: str = "ollama") -> dict:

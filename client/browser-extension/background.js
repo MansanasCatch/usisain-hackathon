@@ -2,23 +2,88 @@
 // and streams the backend's SSE response into the content script's panel.
 
 const BACKEND = "http://localhost:8000";
-const DEFAULT_LANGUAGE = "taglish"; // change via chrome.storage if you add a settings UI later
+const DEFAULT_LANGUAGE = "english"; // fallback if no language saved in chrome.storage yet
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({ id: "analyzetext", title: "Analyze this text", contexts: ["selection"] });
-  chrome.contextMenus.create({ id: "analyzeimage", title: "Analyze this image", contexts: ["image"] });
-  chrome.contextMenus.create({ id: "analyzevideo", title: "Analyze this video (local file src only)", contexts: ["video"] });
-  chrome.contextMenus.create({ id: "analyzepost", title: "Analyze this post (text + image)", contexts: ["image", "page", "selection"] });
+  // Use a parent menu item so sub-items nest under one entry
+  chrome.contextMenus.create({
+    id: "usisain-parent",
+    title: "UsisAIn — Trust  Fraud Detector",
+    contexts: ["image", "selection", "page", "video"],
+  });
+  chrome.contextMenus.create({ id: "analyzeimage", parentId: "usisain-parent", title: "Usisain ang imahe", contexts: ["image"] });
+  chrome.contextMenus.create({ id: "analyzetext", parentId: "usisain-parent", title: "Usisain ang teksto", contexts: ["selection"] });
+  chrome.contextMenus.create({ id: "analyzevideo", parentId: "usisain-parent", title: "Usisain ang video", contexts: ["video"] });
+  chrome.contextMenus.create({ id: "analyzepost", parentId: "usisain-parent", title: "Usisain ang post", contexts: ["image", "page", "selection"] });
 });
+
+
+// ---------------------------------------------------------------------------
+// Helpers to ensure the content script is loaded before sending messages
+// ---------------------------------------------------------------------------
+
+/**
+ * Injects site-selectors.js + content.js into `tabId` if they aren't already
+ * loaded. Uses a "ping" message: if the content script responds, it's alive;
+ * otherwise we inject it with chrome.scripting.executeScript().
+ */
+async function ensureContentScript(tabId) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { action: "ping" });
+    if (response && response.pong) return; // already alive
+  } catch {
+    // content script not loaded — inject it
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["site-selectors.js", "content.js"],
+    });
+    // Give the content script a moment to initialize its listener
+    await new Promise(resolve => setTimeout(resolve, 100));
+  } catch (err) {
+    console.warn("[UsisAIn] Could not inject content script:", err.message);
+    throw new Error("Cannot inject content script on this page. Chrome internal pages (chrome://, chrome-extension://) are not supported.");
+  }
+}
+
+/**
+ * Safely send a message to a tab's content script, ensuring it's injected first.
+ * Returns null if the message can't be delivered (instead of throwing).
+ */
+async function safeSendMessage(tabId, message) {
+  try {
+    await ensureContentScript(tabId);
+    return await chrome.tabs.sendMessage(tabId, message);
+  } catch (err) {
+    console.warn(`[UsisAIn] sendMessage(${message.action}) failed:`, err.message);
+    return null;
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Context menu handler
+// ---------------------------------------------------------------------------
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return;
-  const context = await chrome.tabs.sendMessage(tab.id, { action: "get-context", srcUrl: info.srcUrl });
 
   try {
+    // Ensure content script is injected, then ask it for page context
+    const context = await safeSendMessage(tab.id, { action: "get-context", srcUrl: info.srcUrl });
+    if (!context) {
+      console.error("[UsisAIn] Could not get context from content script.");
+      return;
+    }
+
+    const storage = await chrome.storage.local.get("preferredLanguage");
+    const selectedLanguage = storage.preferredLanguage || DEFAULT_LANGUAGE;
+
     const form = new FormData();
-    form.append("language", DEFAULT_LANGUAGE);
-    form.append("source_url", context.pageUrl);
+    form.append("language", selectedLanguage);
+    form.append("source_url", context.pageUrl || tab.url || "");
 
     if (info.menuItemId === "analyzetext") {
       const text = info.selectionText || context.selectedText || context.postCaption;
@@ -29,7 +94,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.menuItemId === "analyzeimage") {
       const url = info.srcUrl || context.clickedImageSrc;
       if (!url) return;
-      const blob = await fetchAsBlob(tab.id, url);
+      const blob = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
       form.append("file", blob, "image.png");
     }
 
@@ -37,10 +102,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const url = info.srcUrl || context.clickedVideoSrc;
       if (!url) return;
       if (url.startsWith("blob:")) {
-        chrome.tabs.sendMessage(tab.id, { action: "pipeline-error", error: "This video uses a blob: stream and can't be fetched directly. See README known limitations." });
+        await safeSendMessage(tab.id, { action: "pipeline-error", error: "This video uses a blob: stream and can't be fetched directly. See README known limitations." });
         return;
       }
-      const blob = await fetchAsBlob(tab.id, url);
+      const blob = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
       form.append("file", blob, "video.mp4");
     }
 
@@ -49,29 +114,85 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       form.append("caption", caption);
       const imgUrl = info.srcUrl || context.postImages?.[0] || context.clickedImageSrc;
       if (imgUrl) {
-        const blob = await fetchAsBlob(tab.id, imgUrl);
+        const blob = await fetchAndResizeBlob(tab.id, imgUrl, 1024, 0.75);
         form.append("file", blob, "image.png");
       }
     }
 
-    await streamAnalysis(tab.id, form);
+    // Notify content script we're starting the upload (for UI banner)
+    try {
+      await safeSendMessage(tab.id, { action: 'upload-start' });
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      await streamAnalysis(tab.id, form);
+    } finally {
+      // Clear upload banner
+      try { await safeSendMessage(tab.id, { action: 'upload-end' }); } catch (e) { }
+    }
   } catch (err) {
-    chrome.tabs.sendMessage(tab.id, { action: "pipeline-error", error: err.message });
+    console.error("[UsisAIn] Pipeline error:", err);
+    await safeSendMessage(tab.id, { action: "pipeline-error", error: err.message });
   }
 });
 
+
+// ---------------------------------------------------------------------------
+// Fetch helper — asks the content script to fetch a cross-origin resource
+// ---------------------------------------------------------------------------
+
 async function fetchAsBlob(tabId, url) {
-  const res = await chrome.tabs.sendMessage(tabId, { action: "fetch-as-dataurl", url });
-  if (res.error) throw new Error(res.error);
+  // Deprecated: kept for backward compatibility
+  const res = await safeSendMessage(tabId, { action: "fetch-as-dataurl", url });
+  if (!res || res.error) throw new Error(res?.error || "Failed to fetch resource from page");
   return await (await fetch(res.dataUrl)).blob();
 }
 
-async function streamAnalysis(tabId, form) {
-  chrome.tabs.sendMessage(tabId, { action: "pipeline-start" });
+async function fetchAndResizeBlob(tabId, url, maxDim = 1024, quality = 0.75) {
+  const res = await safeSendMessage(tabId, { action: "fetch-and-resize", url, maxDim, quality });
+  if (!res || res.error) throw new Error(res?.error || "Failed to fetch/resize resource from page");
+  return await (await fetch(res.dataUrl)).blob();
+}
 
-  const response = await fetch(`${BACKEND}/api/analyze/stream`, { method: "POST", body: form });
+
+// ---------------------------------------------------------------------------
+// SSE stream — sends backend results to the content script panel step by step
+// ---------------------------------------------------------------------------
+
+async function getBackendSettings() {
+  try {
+    const response = await fetch(`${BACKEND}/api/settings`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+async function streamAnalysis(tabId, form) {
+  const settings = await getBackendSettings();
+  if (settings?.pipeline_step_timeout_seconds) {
+    await safeSendMessage(tabId, {
+      action: "pipeline-settings",
+      pipeline_step_timeout_seconds: Number(settings.pipeline_step_timeout_seconds) || 120,
+    });
+  }
+
+  await safeSendMessage(tabId, { action: "pipeline-start" });
+
+  let response;
+  try {
+    response = await fetch(`${BACKEND}/api/analyze/stream`, { method: "POST", body: form });
+  } catch (err) {
+    await safeSendMessage(tabId, { action: "pipeline-error", error: `Cannot reach backend at ${BACKEND}. Is it running? (${err.message})` });
+    return;
+  }
+
   if (!response.ok || !response.body) {
-    chrome.tabs.sendMessage(tabId, { action: "pipeline-error", error: `Backend returned ${response.status}. Is it running on localhost:8000?` });
+    const errorText = await response.text().catch(() => "");
+    await safeSendMessage(tabId, { action: "pipeline-error", error: `Backend returned ${response.status}. ${errorText || "Is it running on localhost:8000?"}` });
     return;
   }
 
@@ -90,9 +211,18 @@ async function streamAnalysis(tabId, form) {
       buffer = buffer.slice(boundary + 2);
       if (!frame.startsWith("data: ")) continue;
 
-      const payload = JSON.parse(frame.slice(6));
-      if (payload.done) continue; // final marker, nothing to render
-      chrome.tabs.sendMessage(tabId, { action: "pipeline-event", event: payload });
+      try {
+        const payload = JSON.parse(frame.slice(6));
+        if (payload.done) continue; // final marker, nothing to render
+        if (payload.error && !payload.step) {
+          // Top-level system error (e.g. quota exceeded)
+          await safeSendMessage(tabId, { action: "pipeline-error", error: payload.error });
+          continue;
+        }
+        await safeSendMessage(tabId, { action: "pipeline-event", event: payload });
+      } catch (parseErr) {
+        console.warn("[UsisAIn] Could not parse SSE frame:", frame, parseErr);
+      }
     }
   }
 }

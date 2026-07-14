@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 from mcp.server.fastmcp import FastMCP
 
@@ -28,38 +28,48 @@ mcp = FastMCP("usisain-pipeline")
 
 
 @mcp.tool()
-def step1_ai_insights(content_summary: str, provider: str = "ollama", language: str = "english") -> dict:
+def step1_ai_insights(content_summary: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english") -> dict:
     """Step 1: give an initial LLM read of the content before deeper analysis.
 
     Args:
         content_summary: Text description of the content (claim, caption, or OCR'd text).
+        file_path: Optional path to the image/video file on disk.
+        content_type: 'text', 'image', or 'video'.
         provider: 'ollama' (local, default) or 'gemini' (cloud).
-        language: 'english' (default), 'taglish', 'tagalog', 'cebuano', or 'ilocano'.
+        language: 'english' (default), 'taglish', 'tagalog', 'cebuano', 'ilocano', or 'bisaya'.
     """
-    return generate_insight(content_summary, provider, language)
+    return generate_insight(content_summary, file_path, content_type, provider, language)
 
 
 @mcp.tool()
-def step2_content_analyser(file_path: str, content_type: str) -> dict:
+def step2_content_analyser(file_path: str, content_type: str, provider: str = "ollama", language: str = "english") -> dict:
     """Step 2: break an image or video into real / edited / AI-generated percentages.
 
     Args:
         file_path: Absolute path to the image or video file on disk.
         content_type: 'image' or 'video'.
+        provider: 'ollama' (local, default) or 'gemini' (cloud).
+        language: 'english' (default), 'taglish', 'tagalog', 'cebuano', 'ilocano', or 'bisaya'.
     """
-    return analyze_content(file_path, content_type)
+    return analyze_content(file_path, content_type, provider, language)
 
 
 @mcp.tool()
-def step3_legit_or_fake(claim: str, provider: str = "ollama") -> dict:
+def step3_legit_or_fake(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english", step1_result: dict = None, step2_result: dict = None) -> dict:
     """Step 3: check a claim against cached prior investigations and fresh
     web search, scoring and explaining source credibility.
 
     Args:
         claim: The text claim to verify.
+        file_path: Optional path to the image/video file.
+        content_type: 'text', 'image', or 'video'.
         provider: 'ollama' (local, default) or 'gemini' (cloud).
+        language: 'english' (default), 'taglish', 'tagalog', 'cebuano', 'ilocano', or 'bisaya'.
+        step1_result: Optional dict output from step 1.
+        step2_result: Optional dict output from step 2.
     """
-    return check_claim(claim, provider)
+    return check_claim(claim, file_path, content_type, provider, language, step1_result, step2_result)
+
 
 
 @mcp.tool()

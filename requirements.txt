@@ -7,6 +7,7 @@ uvicorn[standard]==0.30.6
 python-multipart==0.0.9
 python-dotenv==1.0.1
 requests==2.32.3
+beautifulsoup4==4.15.0
 
 # --- MCP (backend <-> mcp_server) ---
 mcp==1.7.1

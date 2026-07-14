@@ -23,7 +23,7 @@ from formatters import format_step_messages
 VERIFY_TOKEN = os.environ.get("META_VERIFY_TOKEN")
 APP_SECRET = os.environ.get("META_APP_SECRET")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
-DEFAULT_LANGUAGE = os.environ.get("DEFAULT_LANGUAGE", "taglish")
+DEFAULT_LANGUAGE = os.environ.get("DEFAULT_LANGUAGE", "english")
 
 app = FastAPI(title="UsisAIn Messenger Bot")
 

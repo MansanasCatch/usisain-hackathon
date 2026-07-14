@@ -25,7 +25,7 @@ def format_step_messages(results: dict) -> list[str]:
     if step3:
         verdict_emoji = {"likely_true": "✅", "flagged": "⚠️", "inconclusive": "❓"}.get(step3.get("verdict"), "❓")
         messages.append(
-            f"{verdict_emoji} Legit or Fake — {step3.get('verdict', 'unknown')} "
+            f"{verdict_emoji} Authenticity — {step3.get('verdict', 'unknown')} "
             f"(score {step3.get('score', '?')}/100)\n\n{step3.get('explanation', '')}"
         )
 
