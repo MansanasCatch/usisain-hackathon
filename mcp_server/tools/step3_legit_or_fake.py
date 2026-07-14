@@ -169,9 +169,9 @@ def extract_fast_query(claim: str) -> str:
 
 
 def generate_search_query(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", step1_result: dict = None, step2_result: dict = None) -> str:
-    # Check if fast query generation is enabled and provider is ollama
+    # Check if fast query generation is enabled
     fast_gen = os.environ.get("STEP3_FAST_QUERY_GEN", "True").lower() in ("1", "true", "yes")
-    if fast_gen and provider == "ollama":
+    if fast_gen:
         fast_query = extract_fast_query(claim)
         if fast_query:
             return fast_query
@@ -197,39 +197,14 @@ def generate_search_query(claim: str, file_path: str = None, content_type: str =
     if not context_for_query:
         return ""
 
-    # If an image or video file was submitted, attach it so the vision LLM can infer visual context (only for non-ollama to avoid local timeout)
-    image_to_pass = None
-    temp_frame_path = None
-    if file_path and os.path.exists(file_path) and provider != "ollama":
-        if content_type == "image":
-            image_to_pass = file_path
-        elif content_type == "video":
-            try:
-                cap = cv2.VideoCapture(file_path)
-                ok, frame = cap.read()
-                if ok:
-                    temp_dir = os.path.dirname(file_path)
-                    temp_frame_path = os.path.join(temp_dir, "_temp_query_frame.jpg")
-                    cv2.imwrite(temp_frame_path, frame)
-                    image_to_pass = temp_frame_path
-                cap.release()
-            except Exception:
-                pass
-
     llm = get_provider(provider)
     try:
-        query = llm.complete(QUERY_GEN_PROMPT, context_for_query, image_path=image_to_pass, max_tokens=15)
+        query = llm.complete(QUERY_GEN_PROMPT, context_for_query, max_tokens=15)
         query = " ".join(query.split()).strip().replace('"', '').replace("'", "")
         if query:
             return query
     except Exception:
         pass
-    finally:
-        if temp_frame_path and os.path.exists(temp_frame_path):
-            try:
-                os.remove(temp_frame_path)
-            except Exception:
-                pass
 
     # Safe fallback if generation fails or query is empty
     if claim:

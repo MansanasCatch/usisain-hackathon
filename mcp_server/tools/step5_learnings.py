@@ -60,15 +60,17 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
     # If no verified sources are found in Step 3, search for educational fact-check/literacy resources
     if not top_sources:
         search_query = ""
-        try:
-            search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, context_summary, max_tokens=15)
-            if search_query:
-                search_query = search_query.strip().replace('"', '').replace("'", "")
-        except Exception:
-            pass
+        if provider != "gemini":
+            try:
+                search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, context_summary, max_tokens=15)
+                if search_query:
+                    search_query = search_query.strip().replace('"', '').replace("'", "")
+            except Exception:
+                pass
 
         if not search_query:
-            search_query = f"{verdict} fact check guide digital literacy"
+            verdict_term = "scam fake news fact check" if verdict in ("flagged", "inconclusive") else "credible source news"
+            search_query = f"{verdict_term} guide digital media literacy"
 
         search_results = []
         try:
