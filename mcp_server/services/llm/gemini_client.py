@@ -222,7 +222,6 @@ class GeminiProvider(LLMProvider):
             import traceback as _tb
             stack = "".join(_tb.format_stack(limit=6))
             safe_print(f"--- CALLER STACK --- {meta}", prefix="INFO:     ")
-            safe_print(stack, prefix="INFO:     ")
         except Exception:
             pass
         safe_print("-----------------------------", prefix="INFO:     ", suffix="\n")
@@ -266,8 +265,9 @@ class GeminiProvider(LLMProvider):
                 
         contents.append(user)
         config = {}
-        if max_tokens is not None:
-            config["max_output_tokens"] = max_tokens
+        # We omit max_output_tokens for Gemini because gemini-3.5-flash has a bug where
+        # specifying max_output_tokens causes it to truncate the response prematurely (e.g. 1-3 words).
+        # The prompt instructions already guide the model to be concise.
         response = model.generate_content(
             contents,
             generation_config=genai.GenerationConfig(**config) if config else None,
