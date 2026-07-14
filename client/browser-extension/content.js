@@ -97,13 +97,15 @@ function injectPanelStyles() {
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
     #usisain-panel {
-      position: fixed; bottom: 20px; right: 20px; width: 380px; max-height: 75vh;
-      overflow-y: auto; z-index: 999999;
+      position: fixed; top: 0; right: 0; bottom: 0; width: 380px; height: 100vh;
+      overflow-y: hidden; z-index: 999999;
+      display: flex; flex-direction: column;
       background: linear-gradient(170deg, rgba(12,14,22,0.97) 0%, rgba(18,22,34,0.98) 100%);
       color: #e8ecf4;
-      border-radius: 16px;
+      border-radius: 16px 0 0 16px;
       border: 1px solid rgba(56,68,102,0.35);
-      box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(96,165,250,0.08);
+      border-right: none;
+      box-shadow: -8px 0 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(96,165,250,0.08);
       font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
       font-size: 13px; line-height: 1.5;
       backdrop-filter: blur(16px);
@@ -111,20 +113,20 @@ function injectPanelStyles() {
     }
 
     @keyframes usisainSlideIn {
-      from { opacity: 0; transform: translateY(20px) scale(0.97); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
+      from { opacity: 0; transform: translateX(100%); }
+      to   { opacity: 1; transform: translateX(0); }
     }
 
-    #usisain-panel::-webkit-scrollbar { width: 4px; }
-    #usisain-panel::-webkit-scrollbar-track { background: transparent; }
-    #usisain-panel::-webkit-scrollbar-thumb { background: rgba(56,68,102,0.4); border-radius: 4px; }
-    #usisain-panel::-webkit-scrollbar-thumb:hover { background: rgba(96,165,250,0.4); }
+    .usisain-steps-container::-webkit-scrollbar { width: 4px; }
+    .usisain-steps-container::-webkit-scrollbar-track { background: transparent; }
+    .usisain-steps-container::-webkit-scrollbar-thumb { background: rgba(56,68,102,0.4); border-radius: 4px; }
+    .usisain-steps-container::-webkit-scrollbar-thumb:hover { background: rgba(96,165,250,0.4); }
 
     .usisain-header {
       position: relative; padding: 16px 18px 14px;
       background: linear-gradient(135deg, #0f1629 0%, #162040 50%, #0d1a2e 100%);
       border-bottom: 1px solid rgba(56,68,102,0.35);
-      border-radius: 16px 16px 0 0; overflow: hidden;
+      border-radius: 16px 0 0 0; overflow: hidden;
     }
 
     .usisain-header::before {
@@ -175,7 +177,7 @@ function injectPanelStyles() {
     }
     .usisain-close-btn:hover { background: rgba(248,113,113,0.15); color: #f87171; }
 
-    .usisain-steps-container { padding: 6px 14px 14px; }
+    .usisain-steps-container { padding: 6px 14px 14px; flex: 1; overflow-y: auto; }
 
     .usisain-step-row {
       padding: 12px 0; position: relative;
@@ -401,7 +403,7 @@ function showPanel() {
   header.querySelector(".usisain-close-btn").onclick = () => {
     panel.style.animation = "none";
     panel.style.opacity = "0";
-    panel.style.transform = "translateY(20px) scale(0.97)";
+    panel.style.transform = "translateX(100%)";
     panel.style.transition = "all 0.25s ease";
     setTimeout(() => panel.remove(), 250);
   };
