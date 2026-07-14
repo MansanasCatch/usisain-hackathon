@@ -52,46 +52,71 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
         f"{step2_info}"
     )
     
-    # 2. Generate search query for educational materials
-    search_query = ""
-    try:
-        search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, context_summary, max_tokens=15)
-        if search_query:
-            search_query = search_query.strip().replace('"', '').replace("'", "")
-    except Exception:
-        pass
+    # 2. Get verified sources from Step 3 if available, to ensure they are related to the context
+    top_sources = []
+    if step3_result and step3_result.get("sources"):
+        top_sources = step3_result["sources"][:2]
 
-    if not search_query:
-        search_query = f"{verdict} scam educational guide digital literacy"
+    # If no verified sources are found in Step 3, search for educational fact-check/literacy resources
+    if not top_sources:
+        search_query = ""
+        try:
+            search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, context_summary, max_tokens=15)
+            if search_query:
+                search_query = search_query.strip().replace('"', '').replace("'", "")
+        except Exception:
+            pass
 
-    # 3. Perform search
-    search_results = []
-    try:
-        search_results = google_search.search(search_query, max_results=1)
-    except Exception:
-        pass
-    
-    from shared.text_utils import domain_trust, truncate
-    scored_sources = []
-    for r in search_results:
-        trust = domain_trust(r["url"])
-        scored_sources.append({
-            **r,
-            "combined": trust
-        })
-    scored_sources = sorted(scored_sources, key=lambda s: s["combined"], reverse=True)
-    top_sources = scored_sources[:2]
-    
+        if not search_query:
+            search_query = f"{verdict} fact check guide digital literacy"
+
+        search_results = []
+        try:
+            # Prefer official, educational, and wikipedia domains for learning materials
+            query_filter = f"{search_query} site:gov.ph OR site:edu.ph OR site:wikipedia.org OR site:factcheck.org"
+            search_results = google_search.search(query_filter, max_results=1)
+            if not search_results:
+                search_results = google_search.search(search_query, max_results=1)
+        except Exception:
+            pass
+        
+        from shared.text_utils import domain_trust
+        scored_sources = []
+        for r in search_results:
+            trust = domain_trust(r["url"])
+            # Only include high-trust domains or specifically trusted domains to avoid unrelated spam
+            if trust >= 0.6 or any(d in r["url"] for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
+                scored_sources.append({
+                    **r,
+                    "combined": trust
+                })
+        scored_sources = sorted(scored_sources, key=lambda s: s["combined"], reverse=True)
+        top_sources = scored_sources[:2]
+
+    # Default fallback to verified social weather reports and digital literacy page if still empty
+    if not top_sources:
+        top_sources = [
+            {
+                "title": "SWS Official Social Weather Reports",
+                "url": "https://sws.org.ph/social-weather-report-net"
+            },
+            {
+                "title": "FactCheck.org Resources",
+                "url": "https://www.factcheck.org/"
+            }
+        ]
+
+    from shared.text_utils import truncate
     source_context_lines = []
     for s in top_sources:
-        url = s["url"]
-        snippet_or_content = truncate(s["snippet"], 150)
+        url = s.get("url", "")
+        snippet_or_content = truncate(s.get("snippet") or s.get("title") or "", 150)
         source_context_lines.append(
-            f"- Title: {s['title']}\n"
+            f"- Title: {s.get('title')}\n"
             f"  URL: {url}\n"
             f"  Webpage Content: {snippet_or_content}\n"
         )
-    source_context = "\n".join(source_context_lines) or "No educational sources found."
+    source_context = "\n".join(source_context_lines)
     
     # 5. Build final context for the LLM
     final_context = (
