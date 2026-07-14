@@ -3,14 +3,45 @@ const STEP_LABELS = {
   4: "(Step 4) Actionable Items", 5: "(Step 5) Learnings",
 };
 
+// ─── Provider-aware language map (updated from /api/settings if available) ───
+let supportedLanguages = {
+  ollama: ["english"],
+  gemini: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
+};
+
 const modeSelect = document.getElementById("content-mode");
 const textInput = document.getElementById("text-input");
 const fileInput = document.getElementById("file-input");
 const providerSelect = document.getElementById("llm-provider");
+const languageSelect = document.getElementById("language");
 const form = document.getElementById("analyze-form");
 const submitBtn = document.getElementById("submit-btn");
 const resultsPanel = document.getElementById("results");
 const resultsHeader = document.getElementById("results-header");
+
+// ─── Filter languages based on selected provider ───
+function updateLanguageOptions() {
+  const provider = providerSelect.value || "gemini";
+  const allowed = supportedLanguages[provider] || supportedLanguages.gemini;
+  const currentValue = languageSelect.value;
+
+  languageSelect.innerHTML = "";
+  for (const lang of allowed) {
+    const option = document.createElement("option");
+    option.value = lang;
+    option.textContent = lang.charAt(0).toUpperCase() + lang.slice(1);
+    languageSelect.appendChild(option);
+  }
+
+  // Restore selection if still valid, otherwise default to english
+  if (allowed.includes(currentValue)) {
+    languageSelect.value = currentValue;
+  } else {
+    languageSelect.value = "english";
+  }
+}
+
+providerSelect.addEventListener("change", updateLanguageOptions);
 
 function updateFormFields() {
   const mode = modeSelect.value;
@@ -35,9 +66,15 @@ async function loadSettings() {
     if (settings?.pipeline_step_timeout_seconds) {
       pipelineTimeoutSeconds = Number(settings.pipeline_step_timeout_seconds) || pipelineTimeoutSeconds;
     }
+    // Use server-provided language map if available
+    if (settings?.supported_languages) {
+      supportedLanguages = settings.supported_languages;
+    }
     if (settings?.default_llm_provider) {
       providerSelect.value = settings.default_llm_provider;
     }
+    // Update language dropdown based on loaded provider
+    updateLanguageOptions();
   } catch (err) {
     console.warn("Unable to load settings:", err);
   }

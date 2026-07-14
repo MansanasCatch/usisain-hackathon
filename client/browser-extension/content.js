@@ -76,15 +76,217 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "pipeline-error") { showPanelError(message.error); return; }
 });
 
-// ---------- results panel ----------
+// ---------- results panel — enterprise UI ----------
 
 const STEP_LABELS = {
-  1: "(Step 1) AI Insights", 2: "(Step 2) Content Analyser", 3: "(Step 3) Authenticity",
-  4: "(Step 4) Actionable Items", 5: "(Step 5) Learnings",
+  1: "AI Insights", 2: "Content Analyser", 3: "Authenticity",
+  4: "Actionable Items", 5: "Learnings",
 };
+
+const STEP_ICONS = { 1: "💡", 2: "🔬", 3: "✅", 4: "🎯", 5: "📚" };
 
 let pipelineTimeoutSeconds = 120;
 const activeTimers = {};
+
+// ─── Inject scoped stylesheet (once) ───
+function injectPanelStyles() {
+  if (document.getElementById("usisain-panel-styles")) return;
+  const style = document.createElement("style");
+  style.id = "usisain-panel-styles";
+  style.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    #usisain-panel {
+      position: fixed; bottom: 20px; right: 20px; width: 380px; max-height: 75vh;
+      overflow-y: auto; z-index: 999999;
+      background: linear-gradient(170deg, rgba(12,14,22,0.97) 0%, rgba(18,22,34,0.98) 100%);
+      color: #e8ecf4;
+      border-radius: 16px;
+      border: 1px solid rgba(56,68,102,0.35);
+      box-shadow: 0 12px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(96,165,250,0.08);
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-size: 13px; line-height: 1.5;
+      backdrop-filter: blur(16px);
+      animation: usisainSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes usisainSlideIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    #usisain-panel::-webkit-scrollbar { width: 4px; }
+    #usisain-panel::-webkit-scrollbar-track { background: transparent; }
+    #usisain-panel::-webkit-scrollbar-thumb { background: rgba(56,68,102,0.4); border-radius: 4px; }
+    #usisain-panel::-webkit-scrollbar-thumb:hover { background: rgba(96,165,250,0.4); }
+
+    .usisain-header {
+      position: relative; padding: 16px 18px 14px;
+      background: linear-gradient(135deg, #0f1629 0%, #162040 50%, #0d1a2e 100%);
+      border-bottom: 1px solid rgba(56,68,102,0.35);
+      border-radius: 16px 16px 0 0; overflow: hidden;
+    }
+
+    .usisain-header::before {
+      content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: radial-gradient(ellipse at 30% 50%, rgba(96,165,250,0.08) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 50%, rgba(45,212,191,0.06) 0%, transparent 60%);
+      animation: usisainHeaderShimmer 8s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    @keyframes usisainHeaderShimmer {
+      0%   { transform: translate(0, 0); }
+      100% { transform: translate(5%, -3%); }
+    }
+
+    .usisain-header-inner {
+      display: flex; align-items: center; gap: 10px; position: relative; z-index: 1;
+    }
+
+    .usisain-header-icon {
+      width: 30px; height: 30px;
+      background: linear-gradient(135deg, #60a5fa 0%, #818cf8 50%, #2dd4bf 100%);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+      box-shadow: 0 2px 10px rgba(96,165,250,0.25);
+    }
+
+    .usisain-header-text { flex: 1; }
+
+    .usisain-header-title {
+      font-size: 14px; font-weight: 700; letter-spacing: -0.3px;
+      background: linear-gradient(135deg, #60a5fa 0%, #818cf8 50%, #2dd4bf 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .usisain-header-sub {
+      font-size: 10px; color: #5a6478; text-transform: uppercase;
+      letter-spacing: 1px; margin-top: 1px;
+    }
+
+    .usisain-close-btn {
+      position: relative; z-index: 1; width: 26px; height: 26px; border: none;
+      background: rgba(56,68,102,0.3); color: #8892a8; border-radius: 6px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; transition: all 0.2s ease; flex-shrink: 0;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .usisain-close-btn:hover { background: rgba(248,113,113,0.15); color: #f87171; }
+
+    .usisain-steps-container { padding: 6px 14px 14px; }
+
+    .usisain-step-row {
+      padding: 12px 0; position: relative;
+      border-bottom: 1px solid rgba(56,68,102,0.2);
+      transition: all 0.3s ease;
+    }
+    .usisain-step-row:last-child { border-bottom: none; }
+
+    .usisain-step-inner { display: flex; gap: 12px; align-items: flex-start; }
+
+    .usisain-step-badge {
+      width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700;
+      background: rgba(56,68,102,0.2); border: 1px solid rgba(56,68,102,0.3);
+      color: #5a6478; transition: all 0.4s ease;
+    }
+
+    .usisain-step-row[data-status="in_progress"] .usisain-step-badge {
+      background: rgba(96,165,250,0.12); border-color: rgba(96,165,250,0.3);
+      color: #60a5fa; box-shadow: 0 0 12px rgba(96,165,250,0.15);
+    }
+
+    .usisain-step-row[data-status="completed"] .usisain-step-badge {
+      background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.3);
+      color: #34d399; box-shadow: 0 0 12px rgba(52,211,153,0.15);
+    }
+
+    .usisain-step-row[data-status="error"] .usisain-step-badge {
+      background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.3);
+      color: #f87171; box-shadow: 0 0 12px rgba(248,113,113,0.15);
+    }
+
+    .usisain-step-content { flex: 1; min-width: 0; }
+
+    .usisain-step-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.6px; color: #8892a8; margin-bottom: 2px;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .usisain-step-num {
+      font-size: 9px; font-weight: 700; color: #5a6478;
+      background: rgba(56,68,102,0.25); padding: 1px 5px; border-radius: 4px;
+    }
+
+    .usisain-body {
+      color: #8892a8; margin-top: 3px; font-size: 12.5px;
+      line-height: 1.5; word-break: break-word;
+      transition: color 0.3s ease;
+    }
+
+    .usisain-step-row[data-status="completed"] .usisain-body {
+      color: #c8d0e0;
+    }
+
+    .usisain-step-row[data-status="error"] .usisain-body {
+      color: #f87171;
+    }
+
+    .usisain-progress-track {
+      height: 2px; background: rgba(56,68,102,0.2); border-radius: 2px;
+      margin-top: 8px; overflow: hidden; display: none;
+    }
+
+    .usisain-step-row[data-status="in_progress"] .usisain-progress-track {
+      display: block;
+    }
+
+    .usisain-progress-bar {
+      height: 100%; width: 40%; border-radius: 2px;
+      background: linear-gradient(90deg, #60a5fa, #818cf8, #2dd4bf);
+      animation: usisainProgressSlide 1.5s ease-in-out infinite;
+    }
+
+    @keyframes usisainProgressSlide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+
+    .usisain-body a {
+      color: #60a5fa !important; text-decoration: underline !important;
+      word-break: break-all;
+    }
+
+    .usisain-body strong { color: #e8ecf4; font-weight: 600; }
+
+    #usisain-temp-banner {
+      margin: 10px 14px 0; padding: 8px 12px; border-radius: 8px;
+      background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.2);
+      color: #60a5fa; font-size: 11px; font-weight: 500;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex; align-items: center; gap: 8px;
+      animation: usisainFadeIn 0.25s ease;
+    }
+
+    @keyframes usisainFadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    #usisain-error-banner {
+      margin: 10px 14px 0; padding: 10px 14px; border-radius: 10px;
+      background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25);
+      color: #f87171; font-size: 12px; font-family: 'Inter', monospace;
+      white-space: pre-wrap; word-break: break-word; line-height: 1.5;
+      animation: usisainFadeIn 0.25s ease;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 function clearTimerForStep(step) {
   if (activeTimers[step]) {
@@ -93,22 +295,23 @@ function clearTimerForStep(step) {
   }
 }
 
-// Temporary banner helpers (small lightweight progress indicator)
+// Temporary banner helpers
 function showTemporaryBanner(text) {
   let banner = document.getElementById('usisain-temp-banner');
   if (!banner) {
     banner = document.createElement('div');
     banner.id = 'usisain-temp-banner';
-    Object.assign(banner.style, {
-      background: '#0b1220', color: '#dbe9ff', padding: '8px 10px', borderRadius: '8px',
-      fontSize: '12px', fontFamily: 'system-ui, sans-serif', marginBottom: '8px'
-    });
   }
-  banner.textContent = text;
+  banner.innerHTML = `<span style="animation: usisainProgressSlide 1.5s ease-in-out infinite; display:inline-block;">⏳</span> ${text}`;
   const panel = document.getElementById('usisain-panel');
   if (panel) {
     if (panel.querySelector('#usisain-temp-banner')) panel.querySelector('#usisain-temp-banner').remove();
-    panel.insertBefore(banner, panel.firstChild?.nextSibling || panel.firstChild);
+    const stepsContainer = panel.querySelector('.usisain-steps-container');
+    if (stepsContainer) {
+      panel.insertBefore(banner, stepsContainer);
+    } else {
+      panel.appendChild(banner);
+    }
   }
 }
 
@@ -156,19 +359,10 @@ async function resizeBlobToDataUrl(blob, maxDim = 1024, quality = 0.75) {
 function setPanelStepStatus(step, status, iconText, bodyHtml, color) {
   const row = document.getElementById(`usisain-step-${step}`);
   if (!row) return;
-  const icon = row.querySelector(".usisain-icon");
+  const badge = row.querySelector(".usisain-step-badge");
   const body = row.querySelector(".usisain-body");
   row.dataset.status = status;
-  icon.textContent = iconText;
-  if (color) {
-    icon.style.color = color;
-    row.style.color = color;
-    body.style.color = color;
-  } else {
-    icon.style.color = "";
-    row.style.color = "";
-    body.style.color = "";
-  }
+  badge.textContent = iconText;
   body.innerHTML = bodyHtml;
 }
 
@@ -177,49 +371,67 @@ function markRemainingStepsFailed(startStep) {
     const row = document.getElementById(`usisain-step-${step}`);
     if (!row || (row.dataset.status !== "pending" && row.dataset.status !== "in_progress")) continue;
     clearTimerForStep(step);
-    setPanelStepStatus(step, "error", "⚠️", formatContent("Skipped because a previous step failed."), "#ff7b72");
+    setPanelStepStatus(step, "error", "✕", formatContent("Skipped because a previous step failed."));
   }
 }
 
 function showPanel() {
+  injectPanelStyles();
   document.getElementById("usisain-panel")?.remove();
   // Clear any active timers from a previous run
   for (let step = 1; step <= 5; step++) {
     clearTimerForStep(step);
   }
+
   const panel = document.createElement("div");
   panel.id = "usisain-panel";
-  Object.assign(panel.style, {
-    position: "fixed", bottom: "20px", right: "20px", width: "340px", maxHeight: "70vh",
-    overflowY: "auto", zIndex: 999999, background: "#171a21", color: "#e7e9ee",
-    borderRadius: "12px", boxShadow: "0 8px 30px rgba(0,0,0,0.5)", fontFamily: "system-ui, sans-serif",
-    fontSize: "13px", padding: "12px",
-  });
 
+  // ── Header ──
   const header = document.createElement("div");
-  header.textContent = "UsisAIn — 5 Steps Pipeline";
-  Object.assign(header.style, { fontWeight: "600", marginBottom: "8px", display: "flex", justifyContent: "space-between" });
-  const closeBtn = document.createElement("span");
-  closeBtn.textContent = "✕";
-  closeBtn.style.cursor = "pointer";
-  closeBtn.onclick = () => panel.remove();
-  header.appendChild(closeBtn);
+  header.className = "usisain-header";
+  header.innerHTML = `
+    <div class="usisain-header-inner">
+      <div class="usisain-header-icon">🛡️</div>
+      <div class="usisain-header-text">
+        <div class="usisain-header-title">UsisAIn</div>
+        <div class="usisain-header-sub">5-Step Analysis Pipeline</div>
+      </div>
+      <button class="usisain-close-btn" title="Close panel">✕</button>
+    </div>`;
+  header.querySelector(".usisain-close-btn").onclick = () => {
+    panel.style.animation = "none";
+    panel.style.opacity = "0";
+    panel.style.transform = "translateY(20px) scale(0.97)";
+    panel.style.transition = "all 0.25s ease";
+    setTimeout(() => panel.remove(), 250);
+  };
   panel.appendChild(header);
+
+  // ── Steps container ──
+  const stepsContainer = document.createElement("div");
+  stepsContainer.className = "usisain-steps-container";
 
   for (let step = 1; step <= 5; step++) {
     const row = document.createElement("div");
     row.id = `usisain-step-${step}`;
+    row.className = "usisain-step-row";
     row.dataset.status = "pending";
-    Object.assign(row.style, { padding: "8px 0", borderTop: step > 1 ? "1px solid #2a2e38" : "none" });
-    row.innerHTML = `<div style="display:flex; gap:8px; align-items:flex-start;">
-      <span class="usisain-icon" style="flex-shrink:0;">⏳</span>
-      <div style="flex:1;">
-        <div style="font-weight:500;">${STEP_LABELS[step]}</div>
-        <div class="usisain-body" style="color:#9aa1ac; margin-top:2px;">Waiting…</div>
-      </div></div>`;
-    panel.appendChild(row);
+    row.innerHTML = `
+      <div class="usisain-step-inner">
+        <div class="usisain-step-badge">${step}</div>
+        <div class="usisain-step-content">
+          <div class="usisain-step-label">
+            <span class="usisain-step-num">STEP ${step}</span>
+            ${STEP_LABELS[step]}
+          </div>
+          <div class="usisain-body">Waiting…</div>
+          <div class="usisain-progress-track"><div class="usisain-progress-bar"></div></div>
+        </div>
+      </div>`;
+    stepsContainer.appendChild(row);
   }
 
+  panel.appendChild(stepsContainer);
   document.body.appendChild(panel);
 }
 
@@ -233,7 +445,7 @@ function formatContent(text) {
     .replace(/'/g, "&#039;");
 
   escaped = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (match, linkText, url) => {
-    return `<a href="${url}" target="_blank" style="color:#58a6ff; text-decoration:underline; word-break:break-all;">${linkText}</a>`;
+    return `<a href="${url}" target="_blank">${linkText}</a>`;
   });
 
   escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -243,49 +455,37 @@ function formatContent(text) {
 function updatePanelStep(event) {
   const row = document.getElementById(`usisain-step-${event.step}`);
   if (!row) return;
-  const icon = row.querySelector(".usisain-icon");
+  const badge = row.querySelector(".usisain-step-badge");
   const body = row.querySelector(".usisain-body");
 
   clearTimerForStep(event.step);
 
   if (event.status === "in_progress") {
-    icon.textContent = "🔄";
-    icon.style.color = "#58a6ff";
-    row.style.color = "";
-    body.style.color = "#9aa1ac";
+    badge.textContent = STEP_ICONS[event.step] || "⏳";
     row.dataset.status = "in_progress";
     let secondsLeft = pipelineTimeoutSeconds;
-    body.textContent = `Working… (${secondsLeft}s remaining)`;
+    body.textContent = `Analyzing… ${secondsLeft}s remaining`;
     activeTimers[event.step] = setInterval(() => {
       secondsLeft--;
       if (secondsLeft <= 0) {
         clearTimerForStep(event.step);
         if (row.dataset.status === "in_progress") {
-          icon.textContent = "⚠️";
-          icon.style.color = "#ff7b72";
-          row.style.color = "#ff7b72";
-          body.style.color = "#ff7b72";
+          badge.textContent = "✕";
           row.dataset.status = "error";
           body.innerHTML = formatContent(`Step timed out after ${pipelineTimeoutSeconds} seconds.`);
           markRemainingStepsFailed(event.step + 1);
         }
       } else {
-        body.textContent = `Working… (${secondsLeft}s remaining)`;
+        body.textContent = `Analyzing… ${secondsLeft}s remaining`;
       }
     }, 1000);
   } else if (event.status === "error") {
-    icon.textContent = "⚠️";
-    icon.style.color = "#ff7b72";
-    row.style.color = "#ff7b72";
-    body.style.color = "#ff7b72";
+    badge.textContent = "✕";
     row.dataset.status = "error";
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
     markRemainingStepsFailed(event.step + 1);
   } else if (event.status === "completed") {
-    icon.textContent = "✅";
-    icon.style.color = "";
-    row.style.color = "";
-    body.style.color = "";
+    badge.textContent = "✓";
     row.dataset.status = "completed";
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
   }
@@ -307,24 +507,25 @@ function summarizeStep(step, result) {
 
 function showPanelError(error) {
   const panel = document.getElementById("usisain-panel");
-  if (!panel) return;
-  // Update the header
-  const header = panel.querySelector("div");
-  if (header) header.childNodes[0].textContent = "UsisAIn — Error";
-  // Insert (or update) an error banner at the top
+  if (!panel) {
+    // If no panel exists yet, create one to show the error
+    showPanel();
+    return showPanelError(error);
+  }
+  // Update the header subtitle
+  const headerSub = panel.querySelector(".usisain-header-sub");
+  if (headerSub) headerSub.textContent = "Error Encountered";
+  // Insert (or update) an error banner
   let banner = document.getElementById("usisain-error-banner");
   if (!banner) {
     banner = document.createElement("div");
     banner.id = "usisain-error-banner";
-    Object.assign(banner.style, {
-      background: "rgba(230,88,79,0.15)", border: "1px solid #e6584f",
-      borderRadius: "8px", padding: "10px", marginBottom: "8px",
-      color: "#e6584f", fontSize: "12px", fontFamily: "monospace",
-      whiteSpace: "pre-wrap", wordBreak: "break-word",
-    });
-    // Insert right after the header
-    if (header.nextSibling) panel.insertBefore(banner, header.nextSibling);
-    else panel.appendChild(banner);
+    const stepsContainer = panel.querySelector('.usisain-steps-container');
+    if (stepsContainer) {
+      panel.insertBefore(banner, stepsContainer);
+    } else {
+      panel.appendChild(banner);
+    }
   }
   banner.textContent = "⚠️ " + error;
 }
