@@ -7,6 +7,7 @@ Falls back to DuckDuckGo HTML scraping if Google fails or keys are missing.
 import os
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import urlparse, unquote
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 GOOGLE_CSE_ID = os.environ.get("GOOGLE_CSE_ID")
@@ -25,7 +26,7 @@ def _google_search(query: str, max_results: int) -> list[dict]:
     resp = requests.get(
         "https://www.googleapis.com/customsearch/v1",
         params={"key": GOOGLE_API_KEY, "cx": GOOGLE_CSE_ID, "q": query, "num": max_results},
-        timeout=10,
+        timeout=5,
     )
     resp.raise_for_status()
     items = resp.json().get("items", [])
@@ -41,7 +42,7 @@ def _ddg_search(query: str, max_results: int) -> list[dict]:
         "https://html.duckduckgo.com/html/",
         params={"q": query},
         headers=_HEADERS,
-        timeout=10,
+        timeout=5,
     )
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -60,8 +61,41 @@ def _ddg_search(query: str, max_results: int) -> list[dict]:
     return results
 
 
+def _yahoo_search(query: str, max_results: int) -> list[dict]:
+    """Yahoo Search scrape fallback — robust against bot detection."""
+    resp = requests.get(
+        "https://search.yahoo.com/search",
+        params={"p": query},
+        headers=_HEADERS,
+        timeout=5,
+    )
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    results = []
+    for item in soup.select(".algo")[:max_results]:
+        link_el = item.select_one("a")
+        title_el = item.select_one("h3")
+        snippet_el = item.select_one(".compText") or item.select_one(".fc-falcon")
+        
+        title = title_el.get_text(strip=True) if title_el else ""
+        url = link_el.get("href") if link_el else ""
+        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+        
+        if url:
+            parsed = urlparse(url)
+            if "r.search.yahoo.com" in parsed.netloc:
+                for part in parsed.path.split("/"):
+                    if part.startswith("RU="):
+                        url = unquote(part[3:])
+                        break
+            if not url.startswith("http"):
+                url = "https://" + url
+            results.append({"title": title, "url": url, "snippet": snippet})
+    return results
+
+
 def search(query: str, max_results: int = 6) -> list[dict]:
-    """Search the web. Tries Google CSE first, falls back to DuckDuckGo."""
+    """Search the web. Tries Google CSE first, falls back to Yahoo, then DuckDuckGo."""
     # Try Google first if credentials are available
     if GOOGLE_API_KEY and GOOGLE_CSE_ID:
         try:
@@ -69,9 +103,17 @@ def search(query: str, max_results: int = 6) -> list[dict]:
             if results:
                 return results
         except Exception:
-            pass  # Fall through to DuckDuckGo
+            pass  # Fall through
 
-    # Fallback: DuckDuckGo HTML scrape
+    # Fallback 1: Yahoo Search
+    try:
+        results = _yahoo_search(query, max_results)
+        if results:
+            return results
+    except Exception:
+        pass
+
+    # Fallback 2: DuckDuckGo HTML scrape
     try:
         return _ddg_search(query, max_results)
     except Exception as e:

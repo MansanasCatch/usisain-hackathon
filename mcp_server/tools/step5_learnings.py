@@ -9,15 +9,11 @@ LEARNING_QUERY_GEN_PROMPT = (
 )
 
 SYSTEM_PROMPT_TEMPLATE = (
-    "You are an educator teaching digital literacy. Given the context of checked content, the System Verdict, "
-    "and a list of web search results for educational materials:\n"
-    "1. Explain the GENERAL PATTERN behind this type of content and how users can recognize it themselves next time:\n"
-    "   - If System Verdict is LIKELY_TRUE (LEGIT), explain the pattern of authentic, credible news or public facts, and how to verify them using official websites or reputable media.\n"
+    "You are an educator teaching digital literacy. Given the context of checked content and the System Verdict:\n"
+    "Explain the GENERAL PATTERN behind this type of content and how users can recognize it themselves next time in 2-3 sentences:\n"
+    "   - If System Verdict is LIKELY_TRUE (LEGIT), explain the pattern of authentic, credible public facts or news, and how to verify them using official websites or reputable media.\n"
     "   - If System Verdict is FLAGGED (FAKE) or INCONCLUSIVE (QUESTIONABLE), explain the common pattern behind this scam or misinformation, why it succeeds (e.g., emotional appeal, clickbait), and how users can spot the red flags next time.\n"
-    "2. Select only the most relevant, official, and credible educational resources or guides from the search results. "
-    "Do NOT return any unrelated, commercial, or generic links.\n"
-    "{resources_rule}"
-    "CRITICAL: Do NOT invent or make up any resources or URLs. Only use URLs that are explicitly provided in the 'Educational Search Results' list. If no results are provided, do NOT list any resources or URLs.\n"
+    "CRITICAL: Do NOT invent, recommend, or list any links, resource URLs, or markdown links in your response text.\n"
     "CRITICAL: Use ONLY Filipino or English letters/words. "
     "NEVER output Chinese characters or any other non-Latin script."
 )
@@ -54,7 +50,6 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
         f"System Verdict: {verdict.upper()}\n"
         f"AI insight: {insight}\n"
         f"{step2_info}"
-        f"Fact-check summary: {step3_exp}"
     )
     
     # 2. Generate search query for educational materials
@@ -99,33 +94,21 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
     source_context = "\n".join(source_context_lines) or "No educational sources found."
     
     # 5. Build final context for the LLM
-    note = ""
-    resources_rule = ""
-    if not top_sources:
-        note = "\n\nNOTE: No educational sources were found in search results. Therefore, do NOT include any resource links, URLs, or markdown links in your response. Just explain the pattern and safety instructions."
-        resources_rule = "3. Do NOT include any 'Recommended Resources' or links section, since no educational search results are available.\n"
-    else:
-        note = f"\n\nOnly list from the following verified educational sources if they are directly relevant: {[s['url'] for s in top_sources]}"
-        resources_rule = (
-            "3. List the selected resources as clickable markdown links in the format:\n"
-            "   - [Resource Title/Domain](URL): What the user will learn from this resource.\n"
-        )
-
     final_context = (
-        f"Checked Content Context:\n{context_summary}\n\n"
-        f"Educational Search Results:\n{source_context}"
-        f"{note}"
+        f"System Verdict: {verdict.upper()}\n"
+        f"AI insight: {insight}\n"
+        f"{step2_info}"
     )
 
-    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(resources_rule=resources_rule)
+    system_prompt = SYSTEM_PROMPT_TEMPLATE
     if language in LANGUAGE_INSTRUCTIONS:
-        system_prompt = f"{system_prompt} {LANGUAGE_INSTRUCTIONS[language]}"
+        system_prompt = f"{SYSTEM_PROMPT_TEMPLATE} {LANGUAGE_INSTRUCTIONS[language]}"
 
     try:
-        material = llm.complete(system_prompt, final_context, max_tokens=250)
+        material = llm.complete(system_prompt, final_context, max_tokens=150)
         
-        # Post-processing cleaning to ensure no hallucinated links/sources under empty search results
-        if not top_sources and material:
+        # Clean up any potential markdown links from LLM
+        if material:
             lines = []
             for line in material.splitlines():
                 if "[" in line and "](" in line:
@@ -134,6 +117,12 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
                     continue
                 lines.append(line)
             material = "\n".join(lines).strip()
+            
+        # Append verified sources programmatically in Python
+        if top_sources:
+            material = material.strip() + "\n\n**Recommended Resources:**\n"
+            for s in top_sources:
+                material += f"- [{s['title']}]({s['url']})\n"
     except Exception as e:
         material = f"Make sure to verify information before sharing. Learn more about media literacy from trusted official sites. (Learnings unavailable: {e})"
         

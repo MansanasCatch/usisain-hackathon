@@ -1,13 +1,20 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><link rel="stylesheet" href="popup.css"></head>
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+
 <body>
   <header><strong>UsisAIn</strong></header>
-  <div style="padding: 10px 14px; border-bottom: 1px solid #2a2e38; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
+  <div
+    style="padding: 10px 14px; border-bottom: 1px solid #2a2e38; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
     <label for="language-select" style="font-size: 12px; color: #9aa1ac;">Preferred Language:</label>
-    <select id="language-select" style="background: #171a21; color: #e7e9ee; border: 1px solid #2a2e38; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;">
+    <select id="language-select"
+      style="background: #171a21; color: #e7e9ee; border: 1px solid #2a2e38; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;">
+      <option value="english" selected>English</option>
       <option value="taglish">Taglish</option>
-      <option value="english">English</option>
       <option value="tagalog">Tagalog</option>
       <option value="cebuano">Cebuano</option>
       <option value="bisaya">Bisaya</option>
@@ -18,4 +25,5 @@
   <ul id="history"></ul>
   <script src="popup.js"></script>
 </body>
+
 </html>

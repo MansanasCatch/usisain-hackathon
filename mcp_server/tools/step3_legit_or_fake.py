@@ -9,10 +9,9 @@ from services.llm.gemini_client import get_provider
 from shared.text_utils import domain_trust, text_similarity, truncate
 
 QUERY_GEN_PROMPT = (
-    "You are an expert fact-checker. Given the description and analysis of an image or claim, "
-    "generate a single concise search query (3-6 words) that can be used on Google to search for "
-    "information, news, or fact-checks about this content. "
-    "Output ONLY the search query, with no quotes, preamble, or formatting."
+    "You are a fact-checking query generator. Given a claim, write a single search query of exactly 3 to 4 words "
+    "that will verify the factual claims using search engines. Focus on key entities (e.g. SWS, Marcos, GCash, etc.). "
+    "Output ONLY the raw search query, with no formatting, quotes, or preamble."
 )
 
 SYNTHESIS_PROMPT_TEMPLATE = (
@@ -137,7 +136,7 @@ def generate_search_query(claim: str, file_path: str = None, content_type: str =
     llm = get_provider(provider)
     try:
         query = llm.complete(QUERY_GEN_PROMPT, context_for_query, image_path=image_to_pass, max_tokens=15)
-        query = query.strip().replace('"', '').replace("'", "")
+        query = " ".join(query.split()).strip().replace('"', '').replace("'", "")
         if query:
             return query
     except Exception:
@@ -262,7 +261,7 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
 
     llm = get_provider(provider)
     try:
-        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=250)
+        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=150)
         
         # Post-processing cleaning to ensure no hallucinated links/sources under empty search results
         if not top_sources and explanation:
