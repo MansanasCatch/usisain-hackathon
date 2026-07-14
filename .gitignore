@@ -1,7 +1,8 @@
 .env
 venv/
-__pycache__/
 *.pyc
+**/__pycache__/
+
 
 # runtime data — never commit generated content
 data/app.db
@@ -15,6 +16,7 @@ data/tts_output/*
 !data/tts_output/.gitkeep
 data/models/*
 !data/models/.gitkeep
+data/vector_index/
 
 # editor / OS
 .vscode/
