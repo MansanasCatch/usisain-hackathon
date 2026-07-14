@@ -38,6 +38,10 @@ class Settings:
     # Pipeline timeout (seconds)
     pipeline_step_timeout_seconds: float = float(os.environ.get("PIPELINE_STEP_TIMEOUT_SECONDS", "120.0"))
 
+    # Step 3 settings
+    step3_fast_query_gen: bool = os.environ.get("STEP3_FAST_QUERY_GEN", "True").lower() in ("true", "1", "yes")
+    step3_fetch_full_page: bool = os.environ.get("STEP3_FETCH_FULL_PAGE", "False").lower() in ("true", "1", "yes")
+
     # Video analysis
     max_video_frames: int = int(os.environ.get("MAX_VIDEO_FRAMES", "24"))
 

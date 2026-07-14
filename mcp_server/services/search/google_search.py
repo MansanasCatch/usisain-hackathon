@@ -5,6 +5,7 @@ Falls back to DuckDuckGo HTML scraping if Google fails or keys are missing.
 """
 
 import os
+import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, unquote
@@ -26,7 +27,7 @@ def _google_search(query: str, max_results: int) -> list[dict]:
     resp = requests.get(
         "https://www.googleapis.com/customsearch/v1",
         params={"key": GOOGLE_API_KEY, "cx": GOOGLE_CSE_ID, "q": query, "num": max_results},
-        timeout=5,
+        timeout=3,
     )
     resp.raise_for_status()
     items = resp.json().get("items", [])
@@ -42,7 +43,7 @@ def _ddg_search(query: str, max_results: int) -> list[dict]:
         "https://html.duckduckgo.com/html/",
         params={"q": query},
         headers=_HEADERS,
-        timeout=5,
+        timeout=3,
     )
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -67,7 +68,7 @@ def _yahoo_search(query: str, max_results: int) -> list[dict]:
         "https://search.yahoo.com/search",
         params={"p": query},
         headers=_HEADERS,
-        timeout=5,
+        timeout=3,
     )
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -94,8 +95,45 @@ def _yahoo_search(query: str, max_results: int) -> list[dict]:
     return results
 
 
+def _wikipedia_search(query: str, max_results: int) -> list[dict]:
+    """Wikipedia search fallback — robust, no API key required."""
+    import urllib.parse
+    try:
+        resp = requests.get(
+            "https://en.wikipedia.org/w/api.php",
+            params={
+                "action": "query",
+                "list": "search",
+                "srsearch": query,
+                "format": "json",
+                "utf8": 1
+            },
+            headers={"User-Agent": "UsisAIn/1.0 (contact@usisain.org)"},
+            timeout=3
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            search_results = data.get("query", {}).get("search", [])
+            results = []
+            for r in search_results[:max_results]:
+                title = r.get("title", "")
+                snippet_raw = r.get("snippet", "")
+                snippet = re.sub(r'<[^>]*>', '', snippet_raw)
+                encoded_title = urllib.parse.quote(title.replace(" ", "_"))
+                url = f"https://en.wikipedia.org/wiki/{encoded_title}"
+                results.append({
+                    "title": title,
+                    "url": url,
+                    "snippet": snippet
+                })
+            return results
+    except Exception:
+        pass
+    return []
+
+
 def search(query: str, max_results: int = 6) -> list[dict]:
-    """Search the web. Tries Google CSE first, falls back to Yahoo, then DuckDuckGo."""
+    """Search the web. Tries Google CSE first, falls back to Yahoo, DuckDuckGo, then Wikipedia."""
     # Try Google first if credentials are available
     if GOOGLE_API_KEY and GOOGLE_CSE_ID:
         try:
@@ -115,6 +153,14 @@ def search(query: str, max_results: int = 6) -> list[dict]:
 
     # Fallback 2: DuckDuckGo HTML scrape
     try:
-        return _ddg_search(query, max_results)
+        results = _ddg_search(query, max_results)
+        if results:
+            return results
+    except Exception:
+        pass
+
+    # Fallback 3: Wikipedia Search API (highly robust, no-key fallback)
+    try:
+        return _wikipedia_search(query, max_results)
     except Exception as e:
         raise RuntimeError(f"All search backends failed: {e}") from e

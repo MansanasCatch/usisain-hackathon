@@ -1,4 +1,5 @@
 import os
+import re
 import cv2
 import requests
 from bs4 import BeautifulSoup
@@ -92,7 +93,89 @@ def fetch_multiple_pages(urls: list[str]) -> dict[str, str]:
     return pages
 
 
+def extract_fast_query(claim: str) -> str:
+    if not claim:
+        return ""
+    
+    # 1. Look for URLs and extract domain/slug components
+    urls = re.findall(r'https?://(?:www\.)?([a-zA-Z0-9.-]+)(/[^\s]*)?', claim)
+    if urls:
+        domain, path = urls[0]
+        domain_parts = [p for p in domain.split('.') if p not in ('com', 'org', 'net', 'gov', 'edu', 'ph', 'www')]
+        keywords = list(domain_parts)
+        if path:
+            path_words = re.findall(r'[a-zA-Z0-9]+', path)
+            keywords.extend([w for w in path_words if w.lower() not in ('html', 'php', 'htm', 'asp', 'jsp', 'index')])
+        
+        url_query = " ".join(keywords[:5])
+        if url_query:
+            cap_words = re.findall(r'\b[A-Z][a-z]+\b', claim)
+            cap_words = [w for w in cap_words if w.lower() not in url_query.lower()]
+            final_query = f"{url_query} " + " ".join(cap_words[:2])
+            return final_query.strip()
+
+    # 2. General text extraction using scoring
+    # Stopwords list (Tagalog + English)
+    stopwords = {
+        # English
+        "the", "is", "a", "and", "or", "in", "of", "to", "on", "at", "by", "for", "with", "from", 
+        "this", "that", "it", "its", "are", "was", "were", "be", "been", "have", "has", "had", 
+        "latest", "new", "about", "may", "can", "will", "would", "should",
+        # Tagalog / Filipino
+        "ang", "mga", "ng", "sa", "na", "ni", "at", "ay", "si", "para", "kay", "ng mga", "nang",
+        "yung", "iyong", "itong", "bilang", "habang", "nasa", "ito", "siya", "nila", "kami", "tayo",
+        "may", "mayroon", "maging", "dahil"
+    }
+
+    # Find all words in the claim
+    words = re.findall(r'\b[a-zA-Z0-9-]+\b', claim)
+    if not words:
+        return ""
+
+    # Determine first word of the text to avoid scoring capitalization due to sentence start
+    first_word = words[0].lower()
+
+    scored_words = []
+    seen = set()
+    for idx, w in enumerate(words):
+        w_lower = w.lower()
+        if w_lower in stopwords or len(w) < 2:
+            continue
+        if w_lower in seen:
+            continue
+        seen.add(w_lower)
+
+        # Base score is 0
+        score = 0
+        # Capitalization check (skip if it is the first word of the text)
+        if w[0].isupper() and w_lower != first_word:
+            score += 10
+        # Longer words are generally more descriptive/entities
+        score += min(len(w) * 0.1, 1.0)
+        # Earlier words get a slight priority
+        score += max(0, (len(words) - idx) / len(words) * 0.5)
+
+        scored_words.append((w, score, idx))
+
+    # Sort by score descending, then take top 5
+    scored_words.sort(key=lambda item: item[1], reverse=True)
+    top_items = scored_words[:5]
+
+    # Re-sort top items by their original order in the text to keep it coherent
+    top_items.sort(key=lambda item: item[2])
+
+    result_query = " ".join(item[0] for item in top_items)
+    return result_query or " ".join(words[:5])
+
+
 def generate_search_query(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", step1_result: dict = None, step2_result: dict = None) -> str:
+    # Check if fast query generation is enabled and provider is ollama and content is text
+    fast_gen = os.environ.get("STEP3_FAST_QUERY_GEN", "True").lower() in ("1", "true", "yes")
+    if fast_gen and provider == "ollama" and content_type == "text":
+        fast_query = extract_fast_query(claim)
+        if fast_query:
+            return fast_query
+
     # Gather textual descriptions of the image/claim from prior steps
     step1_text = ""
     if step1_result:
@@ -187,7 +270,8 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
 
     # 3. Fetch page content for the top sources so the synthesis prompt can ignore unrelated links.
     urls_to_fetch = [s["url"] for s in top_sources if s.get("url")]
-    page_contents = fetch_multiple_pages(urls_to_fetch) if urls_to_fetch else {}
+    fetch_enabled = os.environ.get("STEP3_FETCH_FULL_PAGE", "False").lower() in ("1", "true", "yes")
+    page_contents = fetch_multiple_pages(urls_to_fetch) if (fetch_enabled and urls_to_fetch) else {}
 
     source_context_lines = []
     for s in top_sources:
