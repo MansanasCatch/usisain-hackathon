@@ -1,28 +1,57 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UsisAIn — Trust & Fraud Detector</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 
 <body>
-  <header><strong>UsisAIn</strong></header>
-  <div
-    style="padding: 10px 14px; border-bottom: 1px solid #2a2e38; display: flex; align-items: center; gap: 8px; justify-content: space-between;">
-    <label for="language-select" style="font-size: 12px; color: #9aa1ac;">Preferred Language:</label>
-    <select id="language-select"
-      style="background: #171a21; color: #e7e9ee; border: 1px solid #2a2e38; border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer;">
-      <option value="english" selected>English</option>
-      <option value="taglish">Taglish</option>
-      <option value="tagalog">Tagalog</option>
-      <option value="cebuano">Cebuano</option>
-      <option value="bisaya">Bisaya</option>
-      <option value="ilocano">Ilocano</option>
-    </select>
+  <!-- ── Header ── -->
+  <header class="ext-header">
+    <div class="header-top">
+      <div class="header-icon">🛡️</div>
+      <div class="header-text">
+        <div class="header-title">UsisAIn</div>
+        <div class="header-subtitle">Trust & Fraud Detector</div>
+      </div>
+      <div class="provider-badge" id="provider-badge">
+        <span class="dot"></span>
+        <span id="provider-name">Loading…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Language Selector ── -->
+  <div class="controls-section">
+    <div class="control-row">
+      <span class="control-label">Preferred Language</span>
+      <div class="styled-select">
+        <select id="language-select">
+          <option value="english" selected>English</option>
+        </select>
+      </div>
+    </div>
   </div>
+
+  <!-- ── Navigation Buttons ── -->
+  <div class="nav-buttons">
+    <button class="nav-btn primary" id="btn-analyze">
+      <span class="btn-icon">🔍</span>
+      Analyze
+    </button>
+    <button class="nav-btn" id="btn-dashboard">
+      <span class="btn-icon">📊</span>
+      Dashboard
+    </button>
+  </div>
+
+  <!-- ── Status & History ── -->
   <div id="status"></div>
   <ul id="history"></ul>
+
   <script src="popup.js"></script>
 </body>
 

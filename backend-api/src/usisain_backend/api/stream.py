@@ -54,6 +54,9 @@ async def analyze_stream(
     provider = (provider or settings.default_llm_provider).strip().lower()
     if provider not in ("ollama", "gemini"):
         provider = settings.default_llm_provider
+    # Ollama only supports English — enforce server-side
+    if provider == "ollama" and language.strip().lower() != "english":
+        language = "english"
     file_bytes = await file.read() if file else None
 
     if file_bytes and caption is not None:
