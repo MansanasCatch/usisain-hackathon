@@ -93,7 +93,7 @@ pip install -r requirements.txt
 
 copy .env.example .env
 # edit .env: GOOGLE_API_KEY, GOOGLE_CSE_ID at minimum; Messenger keys only if you're running the bot
-
+ 
 py data\scripts\init_db.py
 ```
 
