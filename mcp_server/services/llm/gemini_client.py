@@ -134,12 +134,24 @@ class GeminiProvider(LLMProvider):
     def complete(self, system: str, user: str, image_path: str = None, max_tokens: int | None = None) -> str:
         import google.generativeai as genai
         from .ollama_client import OllamaProvider
-        # If local rate limiter says we've exhausted our RPM budget, fall
-        # back to Ollama immediately to avoid sending a request that will
-        # be rejected by Gemini and to prevent further quota consumption.
-        if not _try_consume_token():
-            logger.warning("Gemini local RPM limit reached — falling back to Ollama for this request.")
-            return OllamaProvider().complete(system, user, image_path, max_tokens)
+        # Try to consume a token. If rate limit is hit, sleep and retry up to 5 times (total 10 seconds wait)
+        # before falling back to Ollama.
+        # This keeps the request on Gemini and avoids slow Ollama fallback timeouts!
+        retry_delay = 2.0
+        max_limit_retries = 5
+        limit_retries = 0
+        
+        while not _try_consume_token():
+            if limit_retries < max_limit_retries:
+                limit_retries += 1
+                logger.warning(
+                    "Gemini local RPM limit reached. Sleeping %.1fs and retrying (attempt %d/%d)...",
+                    retry_delay, limit_retries, max_limit_retries
+                )
+                time.sleep(retry_delay)
+            else:
+                logger.warning("Gemini local RPM limit reached after retries — falling back to Ollama.")
+                return OllamaProvider().complete(system, user, image_path, max_tokens)
 
         # If an explicit key was provided at construction time, just use it always.
         if self._explicit_key:

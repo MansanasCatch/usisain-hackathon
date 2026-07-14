@@ -31,26 +31,19 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
                        provider: str = "ollama", language: str = "english") -> dict:
     llm = get_provider(provider)
     
-    # 1. Distill key facts from previous steps
+    # 1. Distill key facts from previous steps — keep concise for fast LLM response
     verdict = step3_result.get("verdict", "unknown")
-    insight = (step1_result.get("insight") or "")[:250]
-    step3_exp = (step3_result.get("explanation") or "")[:250]
+    insight = (step1_result.get("insight") or "")[:200]
+    step3_exp = (step3_result.get("explanation") or "")[:300]
     
     step2_applicable = step2_result.get("applicable", True)
     step2_info = ""
     if step2_applicable:
         step2_info = (
-            f"Content analysis results: real={step2_result.get('real_pct') or 0}%, "
+            f"Content analysis: real={step2_result.get('real_pct') or 0}%, "
             f"edited={step2_result.get('edited_pct') or 0}%, "
-            f"AI-generated={step2_result.get('ai_generated_pct') or 0}%. "
-            f"Details: {step2_result.get('explanation') or ''}\n"
+            f"AI-generated={step2_result.get('ai_generated_pct') or 0}%.\n"
         )
-
-    context_summary = (
-        f"System Verdict: {verdict.upper()}\n"
-        f"AI insight: {insight}\n"
-        f"{step2_info}"
-    )
     
     # 2. Get verified sources from Step 3 if available, to ensure they are related to the context
     top_sources = []
@@ -62,7 +55,7 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
         search_query = ""
         if provider != "gemini":
             try:
-                search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, context_summary, max_tokens=15)
+                search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, f"Verdict: {verdict}\nInsight: {insight}", max_tokens=15)
                 if search_query:
                     search_query = search_query.strip().replace('"', '').replace("'", "")
             except Exception:
@@ -95,36 +88,25 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
         scored_sources = sorted(scored_sources, key=lambda s: s["combined"], reverse=True)
         top_sources = scored_sources[:2]
 
-    # Default fallback to verified social weather reports and digital literacy page if still empty
+    # Default fallback to generic digital literacy pages if still empty
     if not top_sources:
         top_sources = [
             {
-                "title": "SWS Official Social Weather Reports",
-                "url": "https://sws.org.ph/social-weather-report-net"
+                "title": "FactCheck.org — How to Spot Fake News",
+                "url": "https://www.factcheck.org/2016/11/how-to-spot-fake-news/"
             },
             {
-                "title": "FactCheck.org Resources",
-                "url": "https://www.factcheck.org/"
+                "title": "DICT Philippines — Digital Literacy Resources",
+                "url": "https://dict.gov.ph/"
             }
         ]
 
-    from shared.text_utils import truncate
-    source_context_lines = []
-    for s in top_sources:
-        url = s.get("url", "")
-        snippet_or_content = truncate(s.get("snippet") or s.get("title") or "", 150)
-        source_context_lines.append(
-            f"- Title: {s.get('title')}\n"
-            f"  URL: {url}\n"
-            f"  Webpage Content: {snippet_or_content}\n"
-        )
-    source_context = "\n".join(source_context_lines)
-    
-    # 5. Build final context for the LLM
+    # 3. Build final context for the LLM — include Step 3 explanation for contextual grounding
     final_context = (
         f"System Verdict: {verdict.upper()}\n"
-        f"AI insight: {insight}\n"
+        f"Content Summary: {insight}\n"
         f"{step2_info}"
+        f"Fact-check Result: {step3_exp}\n"
     )
 
     system_prompt = SYSTEM_PROMPT_TEMPLATE
