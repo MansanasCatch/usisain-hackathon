@@ -15,6 +15,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({ id: "analyzetext", parentId: "usisain-parent", title: "Usisain ang teksto", contexts: ["selection"] });
   chrome.contextMenus.create({ id: "analyzevideo", parentId: "usisain-parent", title: "Usisain ang video", contexts: ["video"] });
   chrome.contextMenus.create({ id: "analyzepost", parentId: "usisain-parent", title: "Usisain ang post", contexts: ["image", "page", "selection"] });
+  chrome.contextMenus.create({id: "snip-extract", parentId: "usisain-parent", title: "Snip Extract", contexts: ["all"]});
 });
 
 
@@ -69,69 +70,97 @@ async function safeSendMessage(tabId, message) {
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return;
-
+  
   try {
-    // Ensure content script is injected, then ask it for page context
-    const context = await safeSendMessage(tab.id, { action: "get-context", srcUrl: info.srcUrl });
-    if (!context) {
-      console.error("[UsisAIn] Could not get context from content script.");
-      return;
-    }
-
     const storage = await chrome.storage.local.get("preferredLanguage");
     const selectedLanguage = storage.preferredLanguage || DEFAULT_LANGUAGE;
-
     const form = new FormData();
     form.append("language", selectedLanguage);
-    form.append("source_url", context.pageUrl || tab.url || "");
+    if (info.menuItemId === "snip-extract") {
+      const extractedData = await safeSendMessage(tab.id, { action: "start-snipping" });
+      if (!extractedData) return;
+      form.append("source_url", extractedData.pageUrl || tab.url || "");
+      form.append("text", extractedData.selectedText || "");
+      
+      if (extractedData.images && extractedData.images.length > 0) {
+        for (let i = 0; i < extractedData.images.length; i++) {
+          const img = extractedData.images[i];
+          
+          const fetchResponse = await fetch(img.base64);
+          const blob = await fetchResponse.blob();
+          
+          const urlFilename = img.url.split('/').pop().split('?')[0];
+          const filename = urlFilename || `image_${i}.png`;
 
-    if (info.menuItemId === "analyzetext") {
-      const text = info.selectionText || context.selectedText || context.postCaption;
-      if (!text) return;
-      form.append("text", text);
-    }
-
-    if (info.menuItemId === "analyzeimage") {
-      const url = info.srcUrl || context.clickedImageSrc;
-      if (!url) return;
-      const blob = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
-      form.append("file", blob, "image.png");
-    }
-
-    if (info.menuItemId === "analyzevideo") {
-      const url = info.srcUrl || context.clickedVideoSrc;
-      if (!url) return;
-      if (url.startsWith("blob:")) {
-        await safeSendMessage(tab.id, { action: "pipeline-error", error: "This video uses a blob: stream and can't be fetched directly. See README known limitations." });
+          form.append('file', blob, filename);
+        }
+      }
+      try {
+        await streamAnalysis(tab.id, form);
+      } finally {
+        // Clear upload banner
+        try { await safeSendMessage(tab.id, { action: 'upload-end' }); } catch (e) { }
+      }
+    } else {
+      // Ensure content script is injected, then ask it for page context
+      const context = await safeSendMessage(tab.id, { action: "get-context", srcUrl: info.srcUrl });
+      if (!context) {
+        console.error("[UsisAIn] Could not get context from content script.");
         return;
       }
-      const blob = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
-      form.append("file", blob, "video.mp4");
-    }
 
-    if (info.menuItemId === "analyzepost") {
-      const caption = context.postCaption || context.selectedText || "";
-      form.append("caption", caption);
-      const imgUrl = info.srcUrl || context.postImages?.[0] || context.clickedImageSrc;
-      if (imgUrl) {
-        const blob = await fetchAndResizeBlob(tab.id, imgUrl, 1024, 0.75);
+      form.append("source_url", context.pageUrl || tab.url || "");
+
+      if (info.menuItemId === "analyzetext") {
+        const text = info.selectionText || context.selectedText || context.postCaption;
+        if (!text) return;
+        form.append("text", text);
+      }
+
+      if (info.menuItemId === "analyzeimage") {
+        const url = info.srcUrl || context.clickedImageSrc;
+        if (!url) return;
+        const blob = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
         form.append("file", blob, "image.png");
+      }
+
+      if (info.menuItemId === "analyzevideo") {
+        const url = info.srcUrl || context.clickedVideoSrc;
+        if (!url) return;
+        if (url.startsWith("blob:")) {
+          await safeSendMessage(tab.id, { action: "pipeline-error", error: "This video uses a blob: stream and can't be fetched directly. See README known limitations." });
+          return;
+        }
+        const blob = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
+        form.append("file", blob, "video.mp4");
+      }
+
+      if (info.menuItemId === "analyzepost") {
+        const caption = context.postCaption || context.selectedText || "";
+        form.append("caption", caption);
+        const imgUrl = info.srcUrl || context.postImages?.[0] || context.clickedImageSrc;
+        if (imgUrl) {
+          const blob = await fetchAndResizeBlob(tab.id, imgUrl, 1024, 0.75);
+          form.append("file", blob, "image.png");
+        }
+      }
+
+      // Notify content script we're starting the upload (for UI banner)
+      try {
+        await safeSendMessage(tab.id, { action: 'upload-start' });
+      } catch (e) {
+        // ignore
+      }
+
+      try {
+        await streamAnalysis(tab.id, form);
+      } finally {
+        // Clear upload banner
+        try { await safeSendMessage(tab.id, { action: 'upload-end' }); } catch (e) { }
       }
     }
 
-    // Notify content script we're starting the upload (for UI banner)
-    try {
-      await safeSendMessage(tab.id, { action: 'upload-start' });
-    } catch (e) {
-      // ignore
-    }
-
-    try {
-      await streamAnalysis(tab.id, form);
-    } finally {
-      // Clear upload banner
-      try { await safeSendMessage(tab.id, { action: 'upload-end' }); } catch (e) { }
-    }
+    
   } catch (err) {
     console.error("[UsisAIn] Pipeline error:", err);
     await safeSendMessage(tab.id, { action: "pipeline-error", error: err.message });
