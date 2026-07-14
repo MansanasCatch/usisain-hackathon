@@ -45,7 +45,7 @@ class OllamaProvider(LLMProvider):
         self.vision_model = OLLAMA_VISION_MODEL
         self.client = _get_ollama_client(host)
 
-    def complete(self, system: str, user: str, image_path: str = None) -> str:
+    def complete(self, system: str, user: str, image_path: str = None, max_tokens: int | None = None) -> str:
         needs_vision = image_path and os.path.exists(image_path)
 
         # Pick the right model based on whether we have an image
@@ -67,12 +67,22 @@ class OllamaProvider(LLMProvider):
         if needs_vision:
             message["images"] = [image_path]
 
+        options = {
+            "temperature": 0.2,
+            "top_p": 0.9,
+        }
+        if max_tokens is not None:
+            options["num_predict"] = max_tokens
+        else:
+            options["num_predict"] = 256 if not needs_vision else 384
+
         response = self.client.chat(
             model=active_model,
             messages=[
                 {"role": "system", "content": system},
                 message,
             ],
+            options=options,
         )
 
         return response.message.content.strip()

@@ -131,7 +131,7 @@ class GeminiProvider(LLMProvider):
                 "GEMINI_API_KEY is not set — get one at https://aistudio.google.com/apikey"
             )
 
-    def complete(self, system: str, user: str, image_path: str = None) -> str:
+    def complete(self, system: str, user: str, image_path: str = None, max_tokens: int | None = None) -> str:
         import google.generativeai as genai
         from .ollama_client import OllamaProvider
         # If local rate limiter says we've exhausted our RPM budget, fall
@@ -139,19 +139,19 @@ class GeminiProvider(LLMProvider):
         # be rejected by Gemini and to prevent further quota consumption.
         if not _try_consume_token():
             logger.warning("Gemini local RPM limit reached — falling back to Ollama for this request.")
-            return OllamaProvider().complete(system, user, image_path)
+            return OllamaProvider().complete(system, user, image_path, max_tokens)
 
         # If an explicit key was provided at construction time, just use it always.
         # (single-attempt only; no retry with a different key.)
         if self._explicit_key:
-            return self._attempt(genai, system, user, self._explicit_key, image_path)
+            return self._attempt(genai, system, user, self._explicit_key, image_path, max_tokens)
 
         # One key per request, rotate keys round-robin across requests.
         with _REQUEST_LOCK:
             api_key = _next_api_key()
             key_hint = f"...{api_key[-6:]}" if api_key else "none"
             try:
-                return self._attempt(genai, system, user, api_key, image_path)
+                return self._attempt(genai, system, user, api_key, image_path, max_tokens)
             except Exception as exc:
                 logger.error(
                     "Gemini request failed (key=%s): %s.",
@@ -165,7 +165,7 @@ class GeminiProvider(LLMProvider):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _attempt(self, genai, system: str, user: str, api_key: str, image_path: str = None) -> str:
+    def _attempt(self, genai, system: str, user: str, api_key: str, image_path: str = None, max_tokens: int | None = None) -> str:
         """Make a single Gemini API call with the given key. Raises on failure."""
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(self.model, system_instruction=system)
@@ -242,7 +242,14 @@ class GeminiProvider(LLMProvider):
                 logger.warning("Could not open image for Gemini multimodal: %s", e)
                 
         contents.append(user)
-        response = model.generate_content(contents, request_options={"timeout": 120.0})
+        config = {}
+        if max_tokens is not None:
+            config["max_output_tokens"] = max_tokens
+        response = model.generate_content(
+            contents,
+            generation_config=genai.GenerationConfig(**config) if config else None,
+            request_options={"timeout": 120.0}
+        )
         return response.text.strip()
 
 

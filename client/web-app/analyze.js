@@ -35,6 +35,9 @@ async function loadSettings() {
     if (settings?.pipeline_step_timeout_seconds) {
       pipelineTimeoutSeconds = Number(settings.pipeline_step_timeout_seconds) || pipelineTimeoutSeconds;
     }
+    if (settings?.default_llm_provider) {
+      providerSelect.value = settings.default_llm_provider;
+    }
   } catch (err) {
     console.warn("Unable to load settings:", err);
   }

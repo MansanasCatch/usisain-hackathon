@@ -15,15 +15,18 @@ QUERY_GEN_PROMPT = (
     "Output ONLY the search query, with no quotes, preamble, or formatting."
 )
 
-SYNTHESIS_PROMPT = (
+SYNTHESIS_PROMPT_TEMPLATE = (
     "You are a professional fact-checker explaining verification results to a general audience. "
-    "Given a claim/image context and a list of web search results along with their actual page content:\n"
-    "1. State clearly whether the claim/image content is LEGIT (likely true), QUESTIONABLE (inconclusive/unverified), or FAKE (likely false).\n"
+    "Given a claim/image context, a System Verdict, and a list of web search results along with their actual page content:\n"
+    "1. Explain the verification result following the System Verdict:\n"
+    "   - If System Verdict is LIKELY_TRUE, explain why the content is LEGIT (likely true).\n"
+    "   - If System Verdict is INCONCLUSIVE, explain why the content is QUESTIONABLE (inconclusive/unverified).\n"
+    "   - If System Verdict is FLAGGED, explain why the content is flagged as FAKE (likely false) or unverified due to lack of credible supporting sources.\n"
     "2. For the relevant sources, explain specifically how their content supports or refutes the claim/image context.\n"
     "3. Filter out and ignore any sources that are unrelated, spammy, or do not support the context. Do NOT list or mention them.\n"
-    "4. At the end of your explanation, list the relevant, verified sources as clickable markdown links in the format:\n"
-    "   - [Source Title/Domain](URL): Brief description of what this source verifies.\n"
+    "{sources_rule}"
     "5. Keep the response direct and concise (4-6 sentences total).\n"
+    "CRITICAL: Do NOT invent, make up, or hallucinate any sources or URLs. Use ONLY the URLs provided in the 'Web search results' list. If no web search results are provided or if no source supports/refutes the claim, do NOT list any sources or URLs.\n"
     "CRITICAL: Use ONLY Filipino or English letters/words. "
     "NEVER output Chinese characters or any other non-Latin script."
 )
@@ -133,7 +136,7 @@ def generate_search_query(claim: str, file_path: str = None, content_type: str =
 
     llm = get_provider(provider)
     try:
-        query = llm.complete(QUERY_GEN_PROMPT, context_for_query, image_path=image_to_pass)
+        query = llm.complete(QUERY_GEN_PROMPT, context_for_query, image_path=image_to_pass, max_tokens=15)
         query = query.strip().replace('"', '').replace("'", "")
         if query:
             return query
@@ -211,12 +214,26 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
     else:
         verdict = "flagged"
 
+    note = ""
+    sources_rule = ""
+    if not top_sources:
+        note = "\n\nNOTE: No web search results were found. Therefore, do NOT include any 'Sources' or 'Sources:' section and do NOT list any links or URLs in your output."
+        sources_rule = "4. Do NOT include any 'Sources' section or links, since no web search results are available.\n"
+    else:
+        note = f"\n\nOnly list from the following verified sources if they are directly relevant: {[s['url'] for s in top_sources]}"
+        sources_rule = (
+            "4. At the end of your explanation, list the relevant, verified sources as clickable markdown links in the format:\n"
+            "   - [Source Title/Domain](URL): Brief description of what this source verifies.\n"
+        )
+
     context = (
+        f"System Verdict: {verdict.upper()} (based on credibility score of {score}/100)\n"
         f"Claim/Context: {claim or '(no text claim provided, checking the image)'}\n\n"
         f"Search query: {search_query}\n\n"
         f"Cached prior investigations:\n"
         f"{chr(10).join(c['text'][:150] for c in cached) or 'None'}\n\n"
         f"Web search results:\n{source_context}"
+        f"{note}"
     )
 
     # Sample first frame of video if video is provided
@@ -239,13 +256,24 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
             except Exception:
                 pass
 
-    system_prompt = SYNTHESIS_PROMPT
+    system_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(sources_rule=sources_rule)
     if language in LANGUAGE_INSTRUCTIONS:
-        system_prompt = f"{SYNTHESIS_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
+        system_prompt = f"{system_prompt} {LANGUAGE_INSTRUCTIONS[language]}"
 
     llm = get_provider(provider)
     try:
-        explanation = llm.complete(system_prompt, context, image_path=image_to_pass)
+        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=250)
+        
+        # Post-processing cleaning to ensure no hallucinated links/sources under empty search results
+        if not top_sources and explanation:
+            lines = []
+            for line in explanation.splitlines():
+                if "[" in line and "](" in line:
+                    continue
+                if line.strip().lower().startswith(("sources:", "source:", "- source", "* source", "sources")):
+                    continue
+                lines.append(line)
+            explanation = "\n".join(lines).strip()
     except Exception as e:
         explanation = (
             f"Found {len(scored_sources)} source(s) with average credibility "

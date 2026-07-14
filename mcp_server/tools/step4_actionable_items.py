@@ -8,6 +8,10 @@ SYSTEM_PROMPT = (
     "You are a security and digital safety advisor. Based on the findings of Step 1 (AI Insights), "
     "Step 2 (Content Analyser visual breakdown), and Step 3 (Legit or Fake Authentictity fact-check), list 3-5 short, concrete "
     "action items for the user. "
+    "CRITICAL: Tailor the recommendations based on the Verdict:\n"
+    "- If the Verdict is 'likely_true' (LEGIT), the content is verified as legitimate. Do NOT recommend blocking, unfollowing, or reporting the account. Instead, recommend safe ways to engage, verifying official links, and general security hygiene (like not sharing personal/sensitive info).\n"
+    "- If the Verdict is 'flagged' (FAKE), recommend defensive safety measures such as blocking the account, unfollowing, reporting the content, and warning others.\n"
+    "- If the Verdict is 'inconclusive' (QUESTIONABLE), recommend caution, verifying information through other sources, and waiting for official confirmation before sharing.\n"
     "Keep each item brief and practical. Output ONLY the numbered list, no intro text, no extra explanation. "
     "Use natural, clear Filipino/English only. NEVER output Chinese characters or any other non-Latin script."
 )
@@ -51,7 +55,7 @@ def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
     )
 
     try:
-        actions_text = llm.complete(system_prompt, context)
+        actions_text = llm.complete(system_prompt, context, max_tokens=150)
     except Exception as e:
         return {"actions": [], "explanation": f"Action generation unavailable: {e}"}
 

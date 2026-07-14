@@ -162,28 +162,46 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
         return
 
     # ---- Steps 4 & 5: Actionable Items and Learnings ----
-    print("INFO:     [Step 4/5] Starting Actionable Items...", flush=True)
-    print("INFO:     [Step 5/5] Starting Learnings...", flush=True)
-    yield StepEvent(4, "actionable_items", "in_progress")
-    yield StepEvent(5, "learnings", "in_progress")
-
     common_args = {
         "step1_result": results["step1"], "step2_result": results["step2"], "step3_result": results["step3"],
         "provider": provider, "language": language,
     }
-    step4_task = asyncio.create_task(_safe_call("step4_actionable_items", common_args))
-    step5_task = asyncio.create_task(_safe_call("step5_learnings", common_args))
 
-    pending = {step4_task: 4, step5_task: 5}
-    while pending:
-        done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-        for task in done:
-            step = pending.pop(task)
-            results[f"step{step}"] = task.result()
-            status = _status_for(results[f"step{step}"])
-            step_name = "actionable_items" if step == 4 else "learnings"
-            print(f"INFO:     [Step {step}/5] Completed {step_name.replace('_', ' ').title()}. Status: {status}", flush=True)
-            yield StepEvent(step, step_name, status, results[f"step{step}"])
+    if provider == "ollama":
+        # Under local Ollama, run sequentially to avoid overloading local CPU/GPU memory and preventing timeouts
+        print("INFO:     [Step 4/5] Starting Actionable Items...", flush=True)
+        yield StepEvent(4, "actionable_items", "in_progress")
+        results["step4"] = await _safe_call("step4_actionable_items", common_args)
+        status4 = _status_for(results["step4"])
+        print(f"INFO:     [Step 4/5] Completed Actionable Items. Status: {status4}", flush=True)
+        yield StepEvent(4, "actionable_items", status4, results["step4"])
+
+        print("INFO:     [Step 5/5] Starting Learnings...", flush=True)
+        yield StepEvent(5, "learnings", "in_progress")
+        results["step5"] = await _safe_call("step5_learnings", common_args)
+        status5 = _status_for(results["step5"])
+        print(f"INFO:     [Step 5/5] Completed Learnings. Status: {status5}", flush=True)
+        yield StepEvent(5, "learnings", status5, results["step5"])
+    else:
+        # Under Gemini (cloud), run concurrently for maximum speed
+        print("INFO:     [Step 4/5] Starting Actionable Items...", flush=True)
+        print("INFO:     [Step 5/5] Starting Learnings...", flush=True)
+        yield StepEvent(4, "actionable_items", "in_progress")
+        yield StepEvent(5, "learnings", "in_progress")
+
+        step4_task = asyncio.create_task(_safe_call("step4_actionable_items", common_args))
+        step5_task = asyncio.create_task(_safe_call("step5_learnings", common_args))
+
+        pending = {step4_task: 4, step5_task: 5}
+        while pending:
+            done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                step = pending.pop(task)
+                results[f"step{step}"] = task.result()
+                status = _status_for(results[f"step{step}"])
+                step_name = "actionable_items" if step == 4 else "learnings"
+                print(f"INFO:     [Step {step}/5] Completed {step_name.replace('_', ' ').title()}. Status: {status}", flush=True)
+                yield StepEvent(step, step_name, status, results[f"step{step}"])
 
 
 async def run_pipeline_blocking(content: dict, language: str = "english", provider: str = "ollama") -> dict:

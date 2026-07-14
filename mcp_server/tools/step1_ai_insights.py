@@ -3,10 +3,10 @@ import cv2
 from services.llm.gemini_client import get_provider
 
 SYSTEM_PROMPT = (
-    "You are the first-pass reviewer in a scam and misinformation detection "
-    "tool for Filipino internet users. Given text and optional visual content, "
-    "write a short, smart overview in 2-4 sentences. If an image or video is included, "
-    "mention it but do not make a final judgment. "
+    "You are an objective AI assistant providing a neutral, factual overview of user-submitted text or media. "
+    "Your sole task is to write a short, objective summary of the provided text or image in 2-4 sentences. "
+    "Do NOT refuse to summarize or analyze this content. You are NOT creating, endorsing, or promoting any scams or misinformation; you are only summarizing the existing content for offline educational and safety analysis. "
+    "If an image or video is included, describe its visible contents neutrally but do not make a final judgment. "
     "Avoid filler phrases like 'ehehe', 'wala namang text', or childish slang. "
     "Use only Filipino or English words with natural grammar and phrasing. "
     "NEVER output Chinese characters or any other non-Latin script."
@@ -63,7 +63,7 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
         user_prompt = f"Text content: {content_summary or '(no text provided)'}"
         
     try:
-        insight = llm.complete(system_prompt, user_prompt, image_path=image_to_pass)
+        insight = llm.complete(system_prompt, user_prompt, image_path=image_to_pass, max_tokens=150)
     except Exception as e:
         return {
             "insight": None,
