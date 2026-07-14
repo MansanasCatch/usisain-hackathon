@@ -197,10 +197,10 @@ def generate_search_query(claim: str, file_path: str = None, content_type: str =
     if not context_for_query:
         return ""
 
-    # If an image or video file was submitted, attach it so the vision LLM can infer visual context
+    # If an image or video file was submitted, attach it so the vision LLM can infer visual context (only for non-ollama to avoid local timeout)
     image_to_pass = None
     temp_frame_path = None
-    if file_path and os.path.exists(file_path):
+    if file_path and os.path.exists(file_path) and provider != "ollama":
         if content_type == "image":
             image_to_pass = file_path
         elif content_type == "video":

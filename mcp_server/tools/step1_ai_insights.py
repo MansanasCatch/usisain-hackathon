@@ -33,32 +33,72 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
         
     image_to_pass = None
     temp_frame_path = None
+    ocr_text = ""
     
     if file_path and os.path.exists(file_path):
-        if content_type == "image":
-            image_to_pass = file_path
-            user_prompt = (
-                f"Text content: {content_summary or '(no text provided)'}\n"
-                "Please analyze the attached image and provide a short, clear summary of the visible objects, text, and any suspicious details."
-            )
-        elif content_type == "video":
+        if provider == "ollama":
+            # Extract OCR text to avoid using slow local vision LLM
+            from shared.ocr_utils import extract_text as ocr_extract
+            from PIL import Image
             try:
-                cap = cv2.VideoCapture(file_path)
-                ok, frame = cap.read()
-                if ok:
-                    temp_dir = os.path.dirname(file_path)
-                    temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
-                    cv2.imwrite(temp_frame_path, frame)
-                    image_to_pass = temp_frame_path
-                cap.release()
+                if content_type == "image":
+                    with Image.open(file_path) as img:
+                        ocr_text = ocr_extract(img)
+                elif content_type == "video":
+                    try:
+                        cap = cv2.VideoCapture(file_path)
+                        ok, frame = cap.read()
+                        if ok:
+                            temp_dir = os.path.dirname(file_path)
+                            temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
+                            cv2.imwrite(temp_frame_path, frame)
+                            with Image.open(temp_frame_path) as img:
+                                ocr_text = ocr_extract(img)
+                        cap.release()
+                    except Exception:
+                        pass
             except Exception:
                 pass
-            user_prompt = (
-                f"Text content: {content_summary or '(no text provided)'}\n"
-                "Please analyze the attached representative video frame and provide a short, clear summary of the visible scene."
-            )
+            
+            if content_type == "image":
+                user_prompt = (
+                    f"Text content: {content_summary or '(no text provided)'}\n"
+                    f"OCR text from image: {ocr_text or '(no text detected)'}\n"
+                    "Please analyze the provided text content and OCR text, and provide a short, clear summary of the visible objects, text, and any suspicious details."
+                )
+            elif content_type == "video":
+                user_prompt = (
+                    f"Text content: {content_summary or '(no text provided)'}\n"
+                    f"OCR text from video frame: {ocr_text or '(no text detected)'}\n"
+                    "Please analyze the provided text content and OCR text from the video, and provide a short, clear summary of the visible scene."
+                )
+            else:
+                user_prompt = f"Text content: {content_summary or '(no text provided)'}"
         else:
-            user_prompt = f"Text content: {content_summary or '(no text provided)'}"
+            if content_type == "image":
+                image_to_pass = file_path
+                user_prompt = (
+                    f"Text content: {content_summary or '(no text provided)'}\n"
+                    "Please analyze the attached image and provide a short, clear summary of the visible objects, text, and any suspicious details."
+                )
+            elif content_type == "video":
+                try:
+                    cap = cv2.VideoCapture(file_path)
+                    ok, frame = cap.read()
+                    if ok:
+                        temp_dir = os.path.dirname(file_path)
+                        temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
+                        cv2.imwrite(temp_frame_path, frame)
+                        image_to_pass = temp_frame_path
+                    cap.release()
+                except Exception:
+                    pass
+                user_prompt = (
+                    f"Text content: {content_summary or '(no text provided)'}\n"
+                    "Please analyze the attached representative video frame and provide a short, clear summary of the visible scene."
+                )
+            else:
+                user_prompt = f"Text content: {content_summary or '(no text provided)'}"
     else:
         user_prompt = f"Text content: {content_summary or '(no text provided)'}"
         

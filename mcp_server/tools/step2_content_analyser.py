@@ -83,6 +83,21 @@ def generate_detailed_explanation(real: float, edited: float, ai_gen: float, sig
     
     video_prefix = f"Video stats: {video_info}\n" if is_video else ""
     
+    ocr_text = ""
+    image_to_pass = image_path
+    
+    if provider == "ollama" and image_path and os.path.exists(image_path):
+        image_to_pass = None
+        from shared.ocr_utils import extract_text as ocr_extract
+        from PIL import Image
+        try:
+            with Image.open(image_path) as img:
+                ocr_text = ocr_extract(img)
+        except Exception:
+            pass
+
+    ocr_context = f"\n- OCR Text found in media: '{ocr_text}'" if ocr_text else ""
+    
     context = (
         f"{video_prefix}"
         f"Estimated Breakdown:\n"
@@ -94,11 +109,12 @@ def generate_detailed_explanation(real: float, edited: float, ai_gen: float, sig
         f"- Frequency-Domain Noise Ratio: {freq_ratio}. Low ratio suggests smoothed/AI-generated patterns; camera sensors have high natural noise.\n"
         f"- Camera Metadata: {'Found' if has_meta else 'Not found'}"
         + (f", Software: {flagged_software}." if flagged_software else ".")
+        + ocr_context
         + "\n\nTask: Explain the breakdown percentages (why it is X% real, Y% edited, Z% AI-generated) using the signals, and also describe in detail what you can see in the content."
     )
     
     try:
-        explanation = llm.complete(system_prompt, context, image_path=image_path, max_tokens=180)
+        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=180)
         return explanation
     except Exception as e:
         # Fallback to static explanation if LLM fails
