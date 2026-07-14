@@ -36,30 +36,30 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
     ocr_text = ""
     
     if file_path and os.path.exists(file_path):
+        # Always extract OCR text first, so it is available to subsequent steps and search query generation
+        from shared.ocr_utils import extract_text as ocr_extract
+        from PIL import Image
+        try:
+            if content_type == "image":
+                with Image.open(file_path) as img:
+                    ocr_text = ocr_extract(img)
+            elif content_type == "video":
+                try:
+                    cap = cv2.VideoCapture(file_path)
+                    ok, frame = cap.read()
+                    if ok:
+                        temp_dir = os.path.dirname(file_path)
+                        temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
+                        cv2.imwrite(temp_frame_path, frame)
+                        with Image.open(temp_frame_path) as img:
+                            ocr_text = ocr_extract(img)
+                    cap.release()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         if provider == "ollama":
-            # Extract OCR text to avoid using slow local vision LLM
-            from shared.ocr_utils import extract_text as ocr_extract
-            from PIL import Image
-            try:
-                if content_type == "image":
-                    with Image.open(file_path) as img:
-                        ocr_text = ocr_extract(img)
-                elif content_type == "video":
-                    try:
-                        cap = cv2.VideoCapture(file_path)
-                        ok, frame = cap.read()
-                        if ok:
-                            temp_dir = os.path.dirname(file_path)
-                            temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
-                            cv2.imwrite(temp_frame_path, frame)
-                            with Image.open(temp_frame_path) as img:
-                                ocr_text = ocr_extract(img)
-                        cap.release()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            
             if content_type == "image":
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
@@ -82,17 +82,18 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
                     "Please analyze the attached image and provide a short, clear summary of the visible objects, text, and any suspicious details."
                 )
             elif content_type == "video":
-                try:
-                    cap = cv2.VideoCapture(file_path)
-                    ok, frame = cap.read()
-                    if ok:
-                        temp_dir = os.path.dirname(file_path)
-                        temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
-                        cv2.imwrite(temp_frame_path, frame)
-                        image_to_pass = temp_frame_path
-                    cap.release()
-                except Exception:
-                    pass
+                if not temp_frame_path:
+                    try:
+                        cap = cv2.VideoCapture(file_path)
+                        ok, frame = cap.read()
+                        if ok:
+                            temp_dir = os.path.dirname(file_path)
+                            temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
+                            cv2.imwrite(temp_frame_path, frame)
+                        cap.release()
+                    except Exception:
+                        pass
+                image_to_pass = temp_frame_path
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
                     "Please analyze the attached representative video frame and provide a short, clear summary of the visible scene."
@@ -109,6 +110,7 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
             "insight": None,
             "explanation": f"AI insight unavailable: {e}",
             "error": str(e),
+            "ocr_text": ocr_text,
         }
     finally:
         if temp_frame_path and os.path.exists(temp_frame_path):
@@ -117,5 +119,5 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
             except Exception:
                 pass
 
-    return {"insight": insight, "explanation": insight}
+    return {"insight": insight, "explanation": insight, "ocr_text": ocr_text}
 

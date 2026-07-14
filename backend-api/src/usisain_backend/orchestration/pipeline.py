@@ -140,7 +140,16 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
     # ---- Step 3: Legit or Fake ----
     print("INFO:     [Step 3/5] Starting Authenticity...", flush=True)
     yield StepEvent(3, "legit_or_fake", "in_progress")
-    claim = text_summary or content.get("caption", "")
+    claim = text_summary or content.get("caption", "") or ""
+    # Inject OCR'd text from Step 1 if available to ensure we search based on all text in the image
+    if results.get("step1") and results["step1"].get("ocr_text"):
+        ocr_txt = results["step1"]["ocr_text"].strip()
+        if ocr_txt:
+            if claim.strip():
+                if ocr_txt.lower() not in claim.lower():
+                    claim = f"{claim}\n\n{ocr_txt}"
+            else:
+                claim = ocr_txt
     results["step3"] = await _safe_call(
         "step3_legit_or_fake",
         {

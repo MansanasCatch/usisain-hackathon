@@ -38,28 +38,62 @@ def _google_search(query: str, max_results: int) -> list[dict]:
 
 
 def _ddg_search(query: str, max_results: int) -> list[dict]:
-    """DuckDuckGo HTML scrape fallback — no API key required."""
-    resp = requests.get(
-        "https://html.duckduckgo.com/html/",
-        params={"q": query},
-        headers=_HEADERS,
-        timeout=3,
-    )
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    results = []
-    for r in soup.select(".result__body")[:max_results]:
-        title_el = r.select_one(".result__title")
-        url_el = r.select_one(".result__url")
-        snippet_el = r.select_one(".result__snippet")
-        title = title_el.get_text(strip=True) if title_el else ""
-        url = url_el.get_text(strip=True) if url_el else ""
-        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
-        if url:
-            if not url.startswith("http"):
-                url = "https://" + url
-            results.append({"title": title, "url": url, "snippet": snippet})
-    return results
+    """DuckDuckGo Lite search fallback — robust against bot detection."""
+    try:
+        resp = requests.post(
+            "https://lite.duckduckgo.com/lite/",
+            data={"q": query},
+            headers=_HEADERS,
+            timeout=5,
+        )
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        results = []
+        for link in soup.select("a.result-link")[:max_results]:
+            title = link.get_text(" ", strip=True)
+            url = link.get("href")
+            
+            snippet = ""
+            tr = link.find_parent("tr")
+            if tr:
+                next_tr = tr.find_next_sibling("tr")
+                if next_tr:
+                    snippet_td = next_tr.select_one(".result-snippet")
+                    if snippet_td:
+                        snippet = snippet_td.get_text(" ", strip=True)
+                        
+            if url:
+                if not url.startswith("http"):
+                    url = "https://" + url
+                results.append({"title": title, "url": url, "snippet": snippet})
+        return results
+    except Exception as e:
+        # Fall back to original DDG search endpoint just in case
+        try:
+            resp = requests.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": query},
+                headers=_HEADERS,
+                timeout=3,
+            )
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, "html.parser")
+                results = []
+                for r in soup.select(".result__body")[:max_results]:
+                    title_el = r.select_one(".result__title")
+                    url_el = r.select_one(".result__url")
+                    snippet_el = r.select_one(".result__snippet")
+                    title = title_el.get_text(" ", strip=True) if title_el else ""
+                    url = url_el.get_text(" ", strip=True) if url_el else ""
+                    snippet = snippet_el.get_text(" ", strip=True) if snippet_el else ""
+                    if url:
+                        if not url.startswith("http"):
+                            url = "https://" + url
+                        results.append({"title": title, "url": url, "snippet": snippet})
+                return results
+        except Exception:
+            pass
+        raise e
 
 
 def _yahoo_search(query: str, max_results: int) -> list[dict]:
@@ -78,9 +112,9 @@ def _yahoo_search(query: str, max_results: int) -> list[dict]:
         title_el = item.select_one("h3")
         snippet_el = item.select_one(".compText") or item.select_one(".fc-falcon")
         
-        title = title_el.get_text(strip=True) if title_el else ""
+        title = title_el.get_text(" ", strip=True) if title_el else ""
         url = link_el.get("href") if link_el else ""
-        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+        snippet = snippet_el.get_text(" ", strip=True) if snippet_el else ""
         
         if url:
             parsed = urlparse(url)

@@ -169,9 +169,9 @@ def extract_fast_query(claim: str) -> str:
 
 
 def generate_search_query(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", step1_result: dict = None, step2_result: dict = None) -> str:
-    # Check if fast query generation is enabled and provider is ollama and content is text
+    # Check if fast query generation is enabled and provider is ollama
     fast_gen = os.environ.get("STEP3_FAST_QUERY_GEN", "True").lower() in ("1", "true", "yes")
-    if fast_gen and provider == "ollama" and content_type == "text":
+    if fast_gen and provider == "ollama":
         fast_query = extract_fast_query(claim)
         if fast_query:
             return fast_query
@@ -284,9 +284,10 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
         )
     source_context = "\n".join(source_context_lines) or "No web sources found."
 
-    # 4. Score: average combined score * 100; default 15 when no results
+    # 4. Score: average combined score * 100 of top sources; default 15 when no results
     if scored_sources:
-        score = round(sum(s["combined"] for s in scored_sources) / len(scored_sources) * 100, 1)
+        # Average of top 2 sources to avoid score dilution from irrelevant low-ranking search results
+        score = round(sum(s["combined"] for s in top_sources) / len(top_sources) * 100, 1)
     else:
         score = 15.0
 
