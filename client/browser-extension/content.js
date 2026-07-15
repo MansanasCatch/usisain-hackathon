@@ -73,6 +73,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.action === "pipeline-start") {
       ttsPlayer.stop();
+      for (let i = 1; i <= 5; i++) {
+        delete extensionSpokenStarts[i];
+        delete extensionSpokenCompletes[i];
+      }
       showPanel();
       return;
     }
@@ -483,10 +487,13 @@ function updatePanelStep(event) {
     let secondsLeft = pipelineTimeoutSeconds;
     body.textContent = `Analyzing… ${secondsLeft}s remaining`;
 
-    // Narrate step start
-    const startMsgs = STEP_START_MESSAGES[ttsPlayer.currentLanguage] || STEP_START_MESSAGES.english;
-    const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
-    ttsPlayer.speak(startMsg);
+    // Narrate step start (ensure we only narrate it once)
+    if (!extensionSpokenStarts[event.step]) {
+      extensionSpokenStarts[event.step] = true;
+      const startMsgs = STEP_START_MESSAGES[ttsPlayer.currentLanguage] || STEP_START_MESSAGES.english;
+      const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
+      ttsPlayer.speak(startMsg);
+    }
 
     activeTimers[event.step] = setInterval(() => {
       secondsLeft--;
@@ -508,23 +515,29 @@ function updatePanelStep(event) {
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
     markRemainingStepsFailed(event.step + 1);
 
-    // Narrate step failure
-    ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
+    // Narrate step failure (ensure we only narrate it once)
+    if (!extensionSpokenCompletes[event.step]) {
+      extensionSpokenCompletes[event.step] = true;
+      ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
+    }
   } else if (event.status === "completed") {
     badge.textContent = "✓";
     row.dataset.status = "completed";
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
 
-    // Narrate step output
-    let speechText = summarizeStep(event.step, event.result);
-    if (event.step === 2 && event.result.applicable !== false) {
-      speechText = `Visual analysis breakdown: ${event.result.real_pct}% real, ${event.result.edited_pct}% edited, and ${event.result.ai_generated_pct}% AI-generated. ${event.result.explanation}`;
-    } else if (event.step === 3) {
-      speechText = `Verdict: ${event.result.verdict}. Credibility score: ${event.result.score} out of 100. ${event.result.explanation}`;
-    } else if (event.step === 4) {
-      speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
+    // Narrate step output (ensure we only narrate it once)
+    if (!extensionSpokenCompletes[event.step]) {
+      extensionSpokenCompletes[event.step] = true;
+      let speechText = summarizeStep(event.step, event.result);
+      if (event.step === 2 && event.result.applicable !== false) {
+        speechText = `Visual analysis breakdown: ${event.result.real_pct}% real, ${event.result.edited_pct}% edited, and ${event.result.ai_generated_pct}% AI-generated. ${event.result.explanation}`;
+      } else if (event.step === 3) {
+        speechText = `Verdict: ${event.result.verdict}. Credibility score: ${event.result.score} out of 100. ${event.result.explanation}`;
+      } else if (event.step === 4) {
+        speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
+      }
+      ttsPlayer.speak(speechText);
     }
-    ttsPlayer.speak(speechText);
   }
 }
 
@@ -874,6 +887,9 @@ const STEP_START_MESSAGES = {
   }
 };
 
+const extensionSpokenStarts = {};
+const extensionSpokenCompletes = {};
+
 class TTSPlayer {
   constructor() {
     this.enabled = false;
@@ -925,17 +941,24 @@ class TTSPlayer {
 
     if (!cleanText) return;
 
+    // Detect if the text contains Tagalog keywords to dynamically adjust voice pronunciation
+    let textLanguage = this.currentLanguage;
+    const tagalogPattern = /\b(ang|mga|ng|sa|na|ni|ay|si|po|opo|ako|ikaw|siya|ito|iyon|doon|dito|namin|nila|kaya|kasi|pero|maging|dahil|ano|sino|bakit|paano)\b/i;
+    if (tagalogPattern.test(cleanText)) {
+      textLanguage = "tagalog";
+    }
+
     const sentences = cleanText.split(/[.!?；。]+/);
     for (const sentence of sentences) {
       const trimmed = sentence.trim();
       if (trimmed.length > 0) {
-        this.enqueue(trimmed);
+        this.enqueue(trimmed, textLanguage);
       }
     }
   }
 
-  enqueue(text) {
-    this.utteranceQueue.push(text);
+  enqueue(text, lang) {
+    this.utteranceQueue.push({ text, lang: lang || this.currentLanguage });
     this.processQueue();
   }
 
@@ -943,9 +966,9 @@ class TTSPlayer {
     if (this.isSpeaking || this.utteranceQueue.length === 0 || !window.speechSynthesis) return;
 
     this.isSpeaking = true;
-    const text = this.utteranceQueue.shift();
-    const utterance = new SpeechSynthesisUtterance(text);
-    const locale = this.getLocaleCode(this.currentLanguage);
+    const item = this.utteranceQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(item.text);
+    const locale = this.getLocaleCode(item.lang);
     utterance.lang = locale;
 
     const matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
