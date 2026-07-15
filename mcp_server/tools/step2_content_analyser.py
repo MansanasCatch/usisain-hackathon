@@ -68,7 +68,7 @@ def _verdict(real: float, edited: float, ai_gen: float) -> str:
 
 def generate_detailed_explanation(real: float, edited: float, ai_gen: float, signals: dict,
                                  image_path: str = None, is_video: bool = False, video_info: str = "",
-                                 provider: str = "ollama", language: str = "english") -> str:
+                                 provider: str = "ollama", language: str = "english", step1_result: dict = None) -> str:
     llm = get_provider(provider)
     system_prompt = SYSTEM_PROMPT
     if language in LANGUAGE_INSTRUCTIONS:
@@ -97,6 +97,13 @@ def generate_detailed_explanation(real: float, edited: float, ai_gen: float, sig
 
     ocr_context = f"\n- OCR Text found in media: '{ocr_text}'" if ocr_text else ""
     
+    # Speed Optimization: If we have Step 1 description and are running locally, 
+    # use text mode to prevent redundant heavy vision LLM workload and prevent timeouts.
+    step1_context = ""
+    if provider == "ollama" and step1_result and step1_result.get("insight"):
+        image_to_pass = None
+        step1_context = f"\n- Detailed description of the media content (from Step 1): {step1_result['insight']}"
+
     context = (
         f"{video_prefix}"
         f"Estimated Breakdown:\n"
@@ -109,6 +116,7 @@ def generate_detailed_explanation(real: float, edited: float, ai_gen: float, sig
         f"- Camera Metadata: {'Found' if has_meta else 'Not found'}"
         + (f", Software: {flagged_software}." if flagged_software else ".")
         + ocr_context
+        + step1_context
         + "\n\nTask: Explain the breakdown percentages (why it is X% real, Y% edited, Z% AI-generated) using the signals, and also describe in detail what you can see in the content."
     )
     
@@ -120,7 +128,7 @@ def generate_detailed_explanation(real: float, edited: float, ai_gen: float, sig
         return _explain(real, edited, ai_gen, signals) + f"\n\n(Detailed analysis unavailable: {e})"
 
 
-def analyze_image(image_path: str, provider: str = "ollama", language: str = "english") -> dict:
+def analyze_image(image_path: str, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
     image = Image.open(image_path)
     result = classify_frame(image)
     real, edited, ai_gen = result["real_pct"], result["edited_pct"], result["ai_generated_pct"]
@@ -128,7 +136,8 @@ def analyze_image(image_path: str, provider: str = "ollama", language: str = "en
     explanation = generate_detailed_explanation(
         real, edited, ai_gen, result["signals"],
         image_path=image_path, is_video=False,
-        provider=provider, language=language
+        provider=provider, language=language,
+        step1_result=step1_result
     )
 
     return {
@@ -141,7 +150,7 @@ def analyze_image(image_path: str, provider: str = "ollama", language: str = "en
     }
 
 
-def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama", language: str = "english") -> dict:
+def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
     frames, duration = sample_frames(video_path, max_frames)
     if not frames:
         return {
@@ -188,7 +197,8 @@ def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama
     explanation = generate_detailed_explanation(
         real, edited, ai_gen, signals,
         image_path=temp_frame_path, is_video=True, video_info=video_info,
-        provider=provider, language=language
+        provider=provider, language=language,
+        step1_result=step1_result
     )
 
     # Clean up temp file
@@ -211,10 +221,10 @@ def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama
     }
 
 
-def analyze_content(file_path: str, content_type: str, provider: str = "ollama", language: str = "english") -> dict:
+def analyze_content(file_path: str, content_type: str, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
     """Entry point the MCP tool calls — dispatches on content_type so the
     tool registration in server.py doesn't need two separate tools."""
     if content_type == "video":
-        return analyze_video(file_path, provider=provider, language=language)
-    return analyze_image(file_path, provider=provider, language=language)
+        return analyze_video(file_path, provider=provider, language=language, step1_result=step1_result)
+    return analyze_image(file_path, provider=provider, language=language, step1_result=step1_result)
 

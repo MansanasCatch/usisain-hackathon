@@ -124,6 +124,7 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
                 "content_type": content_type,
                 "provider": provider,
                 "language": language,
+                "step1_result": results["step1"],
             },
         )
         status2 = _status_for(results["step2"])
