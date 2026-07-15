@@ -1,97 +1,302 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>UsisAIn — Dashboard</title>
-<link rel="stylesheet" href="../shared/styles.css">
-<script src="../shared/chart.umd.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UsisAIn — Dashboard</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <!-- We add Google Fonts for that premium typography feel -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="../shared/chart.umd.min.js"></script>
+
 </head>
 <body>
-  <header>
-    <h1>UsisAIn</h1>
-    <nav>
-      <a href="/app/">Analyze</a>
-      <a href="/app/dashboard/" class="active">Dashboard</a>
+  <header class="app-header">
+    <div class="header-logo">
+      <span class="logo-icon">🔍</span>
+      <div class="logo-text">
+        <h1>UsisAIn</h1>
+        <span class="logo-sub">Multi-stage AI Integrity & Forensic Guard</span>
+      </div>
+    </div>
+    <nav class="app-nav">
+      <!-- Changed from a link to a high-profile button trigger -->
+      <button id="trigger-analyze-modal" class="btn btn-primary" style="padding: 10px 20px; font-weight: 700; background: linear-gradient(135deg, var(--accent), #6366f1);">
+          Run Analyze
+      </button>
     </nav>
   </header>
 
-  <main style="max-width: 1000px;">
-    <div style="display:flex; gap:8px; margin-bottom:16px;">
-      <button data-tab="overview" class="tab-btn">Overview</button>
-      <button data-tab="scans" class="tab-btn">Scan history</button>
-      <button data-tab="refdocs" class="tab-btn">Reference documents</button>
-      <button data-tab="errors" class="tab-btn">Error Log</button>
-      <button data-tab="stepinfo" class="tab-btn">Step Info</button>
+  <main class="dashboard-container">
+    <!-- Premium Glass Tab Navigation -->
+    <div class="tab-navigator">
+      <button data-tab="overview" class="tab-btn active">
+         Overview
+      </button>
+      <button data-tab="refdocs" class="tab-btn">
+         Reference Docs
+      </button>
+      <button data-tab="errors" class="tab-btn">
+         Error Log
+      </button>
+      <button data-tab="stepinfo" class="tab-btn">
+         Pipeline Architecture
+      </button>
     </div>
 
-    <section id="tab-overview">
-      <div class="cards" id="summary-cards"></div>
-      <div class="chart-box"><canvas id="trend-chart"></canvas></div>
-      <div class="chart-box small"><canvas id="verdict-chart"></canvas></div>
-    </section>
-
-    <section id="tab-scans" style="display:none;">
-      <div style="display:flex; gap:8px; margin-bottom:12px;">
-        <select id="filter-channel">
-          <option value="">All channels</option>
-          <option value="extension">Browser extension</option>
-          <option value="messenger">Messenger</option>
-          <option value="webapp">Web app</option>
-        </select>
-        <button id="refresh-scans">Refresh</button>
-        <button id="clear-scans" style="background:var(--bad);">Clear all history</button>
+    <!-- MAIN OVERVIEW (CONCATENATED WITH SCAN HISTORY) -->
+    <section id="tab-overview" class="tab-section">
+      <!-- High-Impact Stats Cards -->
+      <div class="cards-grid" id="summary-cards">
+        <!-- Filled Dynamically -->
       </div>
-      <table id="scans-table">
-        <thead><tr><th>Time</th><th>Channel</th><th>Type</th><th>Summary</th><th>Score</th><th>Verdict</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
 
-    <section id="tab-refdocs" style="display:none;">
-      <form id="refdoc-form" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
-        <input type="text" name="name" placeholder="Document name" required>
-        <input type="text" name="category" placeholder="Category (e.g. receipt, government_id)" required>
-        <input type="text" name="notes" placeholder="Notes (optional)">
-        <input type="file" name="file" accept="image/*" required>
-        <button type="submit">Upload reference</button>
-      </form>
-      <div id="refdoc-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px;"></div>
-    </section>
-
-    <section id="tab-errors" style="display:none;">
-      <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
-        <div style="flex:1;">
-          <span id="error-count" style="color:var(--muted); font-size:13px;"></span>
+      <!-- Visualization Grid -->
+      <div class="dashboard-grid">
+        <div class="chart-box main-chart">
+          <div class="chart-header">
+            <h3>Integrity Scans Over Time</h3>
+            <span class="chart-legend-indicator">Real-time data telemetry</span>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="trend-chart"></canvas>
+          </div>
         </div>
-        <button id="refresh-errors">Refresh</button>
-        <button id="clear-errors" style="background:var(--bad);">Clear all</button>
-      </div>
-      <table id="errors-table">
-        <thead><tr><th>Time</th><th>Step</th><th>Type</th><th>Error</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <section id="tab-stepinfo" style="display:none;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
-        <h2 style="margin:0; font-size:18px;">Pipeline Architecture & Active Models</h2>
-        <div id="active-llm-banner" style="background:var(--panel); border:1px solid var(--border); padding:8px 12px; border-radius:8px; font-size:13px;">
-          Active LLM Provider: <span class="badge" id="banner-provider-badge">...</span>
+        
+        <div class="chart-box side-chart">
+          <div class="chart-header">
+            <h3>Verdict Distribution</h3>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="verdict-chart"></canvas>
+          </div>
         </div>
       </div>
-      <div style="font-size:13px; color:var(--muted); margin-bottom:16px; line-height:1.5;">
-        Each analysis runs through a 5-step sequential pipeline (Step 1 → 2 → 3 → 4 → 5). Steps execute one after the other — each subsequent step builds on the outputs of the previous ones. Every step has a configurable timeout set in <code>.env</code> via <code>PIPELINE_STEP_TIMEOUT_SECONDS</code>. If a step fails or times out, the error is logged and the pipeline continues.
+
+      <!-- Merged Live Scan History Section -->
+      <div class="content-panel margin-top-30">
+        <div class="panel-header">
+          <div class="title-group">
+            <h3>Live Analysis Stream</h3>
+            <p>Real-time stream of parsed content and forensic outcomes</p>
+          </div>
+          <div class="action-group">
+            <select id="filter-channel" class="custom-select">
+              <option value="">All Channels</option>
+              <option value="extension">Browser Extension</option>
+              <option value="messenger">Messenger Bot</option>
+              <option value="webapp">Web Application</option>
+            </select>
+            <button id="refresh-scans" class="btn btn-secondary">Refresh</button>
+            <button id="clear-scans" class="btn btn-danger">Purge History</button>
+          </div>
+        </div>
+        
+        <div class="table-responsive">
+          <table id="scans-table" class="interactive-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Source Channel</th>
+                <th>Type</th>
+                <th>Content Summary</th>
+                <th>Credibility Score</th>
+                <th>Integrity Verdict</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
-      <div id="stepinfo-cards" style="display:flex; flex-direction:column; gap:16px;">
+    </section>
+
+    <!-- REFERENCE DOCUMENTS TAB -->
+    <section id="tab-refdocs" class="tab-section" style="display:none;">
+      <div class="content-panel">
+        <div class="panel-header">
+          <div class="title-group">
+            <h3>Reference Anchors</h3>
+            <p>Seed ground-truth documents to guide multi-stage cross-verifications</p>
+          </div>
+        </div>
+        
+        <form id="refdoc-form" class="glass-form">
+          <div class="form-inputs">
+            <input type="text" name="name" placeholder="Document Name (e.g. Official ID)" required>
+            <input type="text" name="category" placeholder="Category (e.g. Government Id, receipt)" required>
+            <input type="text" name="notes" placeholder="Notes (optional)">
+            <div class="file-uploader">
+              <label for="file-upload" class="custom-file-upload btn btn-secondary">
+                <span>Choose Image File</span>
+              </label>
+              <input id="file-upload" type="file" name="file" accept="image/*" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Upload Reference Anchor</button>
+        </form>
+
+        <div id="refdoc-grid" class="refdoc-grid"></div>
+      </div>
+    </section>
+
+    <!-- ERROR LOG TAB -->
+    <section id="tab-errors" class="tab-section" style="display:none;">
+      <div class="content-panel">
+        <div class="panel-header">
+          <div class="title-group">
+            <h3>System Resiliency Logs</h3>
+            <p>Self-healing runtime pipeline logs & fallback capture metrics</p>
+          </div>
+          <div class="action-group">
+            <span id="error-count" class="status-indicator-badge">0 errors logged</span>
+            <button id="refresh-errors" class="btn btn-secondary">Refresh</button>
+            <button id="clear-errors" class="btn btn-danger">Clear Logs</button>
+          </div>
+        </div>
+        
+        <div class="table-responsive">
+          <table id="errors-table" class="interactive-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Pipeline Step</th>
+                <th>Fail Type</th>
+                <th>Diagnostics Exception Message</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PIPELINE ARCHITECTURE TAB -->
+    <section id="tab-stepinfo" class="tab-section" style="display:none;">
+      <div class="pipeline-intro-card">
+        <div class="intro-main">
+          <div class="badge-accent">Core Engine</div>
+          <h2>5-Stage AI Synthesis Pipeline</h2>
+          <p>UsisAIn operates on an asynchronous, sequential consensus array. When content is ingested, it runs sequentially from Step 1 through Step 5, compiling a complete behavioral metadata graph.</p>
+        </div>
+        <div id="active-llm-banner" class="provider-showcase" style="margin-bottom: 10px;">
+          <span class="label">Primary LLM Provider:</span>
+          <span class="badge" id="banner-provider-badge">...</span>
+        </div>
+      </div>
+
+      <div id="stepinfo-cards" class="pipeline-timeline">
         <!-- Filled dynamically in JS -->
       </div>
     </section>
   </main>
 
+  <!-- Interactive JSON Inspector Modal -->
   <div class="modal" id="detail-modal">
-    <div class="modal-content">
-      <button class="modal-close" id="modal-close">&times;</button>
-      <pre id="modal-body"></pre>
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h3>🔍 Dynamic Pipeline Telemetry Inspector</h3>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body-container">
+        <pre id="modal-body"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ANALYZE MODAL ================= -->
+  <div class="modal" id="analyze-modal">
+    <div class="modal-content glass" style="max-width: 750px; width: 95%;">
+      <div class="modal-header" style="background: rgba(255, 255, 255, 0.01);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">🔬</span>
+          <div>
+            <h3 style="margin:0; font-size: 16px;">AI Forensic Analysis Console</h3>
+            <span style="font-size: 11px; color: var(--muted)">Submit content to run our sequential 5-step validation pipeline</span>
+          </div>
+        </div>
+        <button class="modal-close" id="analyze-modal-close">&times;</button>
+      </div>
+
+      <div class="modal-body-container" style="background: transparent; padding: 24px;">
+        <!-- Input Form Screen -->
+        <form id="analyze-form" style="display: flex; flex-direction: column; gap: 16px;">
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+              <label class="form-label">Input Text / Claim / URL</label>
+              <textarea name="text" placeholder="Paste claim text, social media caption, or suspected scam link here..." style="width: 100%; height: 100px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 12px; font-family: var(--font-main); resize: none;"></textarea>
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">Attach Media (Image/Video for ELA & Noise Analysis)</label>
+            <div class="drag-drop-zone" id="drop-zone">
+              <span style="font-size: 32px; margin-bottom: 8px; display: block;">📤</span>
+              <span style="font-weight: 600; color: var(--text);">Drag & Drop media here or <span style="color: var(--accent); text-decoration: underline; cursor: pointer;">browse</span></span>
+              <span style="display: block; font-size: 11px; color: var(--muted); margin-top: 4px;">Supports PNG, JPEG, MP4 up to 15MB</span>
+              <input type="file" id="analyze-file-input" name="file" accept="image/*,video/*" style="display: none;">
+            </div>
+            <div id="file-preview-banner" class="preview-banner" style="display: none;">
+              <span id="preview-file-name" style="font-weight: 600;"></span>
+              <span id="remove-preview" style="color: var(--bad); cursor: pointer; font-weight: 700; margin-left: auto;">✕ Remove</span>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">
+            <button type="button" class="btn btn-secondary" id="analyze-cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent), #6366f1); padding: 10px 24px;">Initialize Pipeline Engine</button>
+          </div>
+        </form>
+
+        <!-- Pipeline Execution Screen (Hidden initially) -->
+        <div id="pipeline-progress-screen" style="display: none; flex-direction: column; gap: 20px; padding: 10px 0;">
+          <div class="pulse-loader-container">
+            <div class="glowing-spinner"></div>
+            <div>
+              <h4 style="margin: 0; font-size: 15px; font-weight: 700;">Running Live Hardware Verification</h4>
+              <p style="margin: 4px 0 0; font-size: 12px; color: var(--muted);">Interrogating neural networks and scraping web sources...</p>
+            </div>
+          </div>
+
+          <!-- Dynamic Pipeline Progress Step List -->
+          <div class="pipeline-track">
+            <div class="track-step" id="p-step-1">
+              <div class="step-num-icon">1</div>
+              <div class="step-meta">
+                <h5>Step 1: Ingest & Content Summary</h5>
+                <span class="step-status-text">Pending...</span>
+              </div>
+            </div>
+            <div class="track-step" id="p-step-2">
+              <div class="step-num-icon">2</div>
+              <div class="step-meta">
+                <h5>Step 2: Metadata & Forensic Noise Check</h5>
+                <span class="step-status-text">Pending...</span>
+              </div>
+            </div>
+            <div class="track-step" id="p-step-3">
+              <div class="step-num-icon">3</div>
+              <div class="step-meta">
+                <h5>Step 3: Live Fact-Check & Consensus RAG</h5>
+                <span class="step-status-text">Pending...</span>
+              </div>
+            </div>
+            <div class="track-step" id="p-step-4">
+              <div class="step-num-icon">4</div>
+              <div class="step-meta">
+                <h5>Step 4: Threat Intelligence & Checklist</h5>
+                <span class="step-status-text">Pending...</span>
+              </div>
+            </div>
+            <div class="track-step" id="p-step-5">
+              <div class="step-num-icon">5</div>
+              <div class="step-meta">
+                <h5>Step 5: Educational Literacy Compilation</h5>
+                <span class="step-status-text">Pending...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
