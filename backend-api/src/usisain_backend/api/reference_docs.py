@@ -14,6 +14,18 @@ async def upload_reference_document(
     dest = settings.reference_images_dir / f"{uuid.uuid4().hex}_{file.filename}"
     dest.write_bytes(await file.read())
     doc_id = db.insert_reference_document(name=name, category=category, image_path=str(dest), notes=notes)
+    
+    # Index reference document into local RAG vector store for instant semantic checking
+    try:
+        from services.rag import retriever
+        retriever.add(f"Official advisory: {name}. Detail: {notes or ''}", {
+            "name": name,
+            "category": "reference",
+            "doc_id": doc_id,
+        })
+    except Exception as e:
+        print(f"Failed to index reference document in RAG: {e}")
+        
     return {"id": doc_id}
 
 

@@ -49,7 +49,7 @@ def add(text: str, metadata: dict) -> str:
     return entry_id
 
 
-def search(query: str, top_k: int = 3, min_score: float = 0.35) -> list[dict]:
+def search(query: str, top_k: int = 3, min_score: float = 0.35, category: str | None = None) -> list[dict]:
     entries = _load()
     if not entries:
         return []
@@ -60,19 +60,33 @@ def search(query: str, top_k: int = 3, min_score: float = 0.35) -> list[dict]:
         if "embedding" not in entry or not isinstance(entry["embedding"], list) or len(entry["embedding"]) != 768:
             entry["embedding"] = get_embedding(entry["text"])
             dirty = True
+        if "metadata" not in entry or entry["metadata"] is None:
+            entry["metadata"] = {}
+            dirty = True
+        if "category" not in entry["metadata"]:
+            entry["metadata"]["category"] = "investigation"
+            dirty = True
     if dirty:
         _save(entries)
         
-    # 2. Get embedding vector for the search query
+    # 2. Filter by category if specified
+    filtered_entries = entries
+    if category is not None:
+        filtered_entries = [e for e in entries if e.get("metadata", {}).get("category") == category]
+        
+    if not filtered_entries:
+        return []
+        
+    # 3. Get embedding vector for the search query
     query_vector = get_embedding(query)
     
-    # 3. Calculate similarities using numpy-accelerated cosine similarity
-    doc_vectors = [e["embedding"] for e in entries]
+    # 4. Calculate similarities using numpy-accelerated cosine similarity
+    doc_vectors = [e["embedding"] for e in filtered_entries]
     scores = rank_by_similarity(query_vector, doc_vectors)
     
-    # 4. Rank and filter by minimum similarity score
+    # 5. Rank and filter by minimum similarity score
     ranked = []
-    for entry, score in zip(entries, scores):
+    for entry, score in zip(filtered_entries, scores):
         # Exclude embedding vector from output payload for cleaner display
         clean_entry = {k: v for k, v in entry.items() if k != "embedding"}
         ranked.append((clean_entry, score))
