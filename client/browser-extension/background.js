@@ -79,23 +79,41 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     form.append("use_ocr", useOcr.toString());
     if (info.menuItemId === "snip-extract") {
       const extractedData = await safeSendMessage(tab.id, { action: "start-snipping" });
-      if (!extractedData) return;
-      form.append("source_url", extractedData.pageUrl || tab.url || "");
-      form.append("text", extractedData.selectedText || "");
+      if (!extractedData || !extractedData.cropRect) return;
       
-      if (extractedData.images && extractedData.images.length > 0) {
-        for (let i = 0; i < extractedData.images.length; i++) {
-          const img = extractedData.images[i];
-          
-          const fetchResponse = await fetch(img.base64);
+      form.append("source_url", extractedData.pageUrl || tab.url || "");
+      
+      let dataUrl;
+      try {
+        dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+      } catch (err) {
+        console.error("[UsisAIn] captureVisibleTab failed:", err.message);
+      }
+      
+      if (dataUrl) {
+        // Send screenshot back to content script to crop it with canvas
+        const cropRes = await safeSendMessage(tab.id, {
+          action: "crop-screenshot",
+          dataUrl: dataUrl,
+          cropRect: extractedData.cropRect
+        });
+        
+        if (cropRes && cropRes.croppedDataUrl) {
+          const fetchResponse = await fetch(cropRes.croppedDataUrl);
           const blob = await fetchResponse.blob();
-          
-          const urlFilename = img.url.split('/').pop().split('?')[0];
-          const filename = urlFilename || `image_${i}.png`;
-
-          form.append('file', blob, filename);
+          form.append("file", blob, "snip.png");
         }
       }
+      
+      // Append text as caption if we have an image file, otherwise as text
+      if (extractedData.selectedText) {
+        if (form.has("file")) {
+          form.append("caption", extractedData.selectedText);
+        } else {
+          form.append("text", extractedData.selectedText);
+        }
+      }
+      
       try {
         await streamAnalysis(tab.id, form);
       } finally {

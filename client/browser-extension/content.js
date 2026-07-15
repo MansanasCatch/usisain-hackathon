@@ -16,8 +16,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "start-snipping") {
     initializeSnippingTool(sendResponse);
     return true;
-  } else {
-    if (message.action === "get-context") {
+  }
+  
+  if (message.action === "crop-screenshot") {
+    cropScreenshot(message.dataUrl, message.cropRect).then(croppedUrl => {
+      sendResponse({ croppedDataUrl: croppedUrl });
+    });
+    return true;
+  }
+
+  if (message.action === "get-context") {
       const el = lastRightClickedEl;
       const post = getPostContext(el);
       sendResponse({
@@ -706,41 +714,41 @@ function initializeSnippingTool(sendResponse) {
     }
   });
 
-  overlay.addEventListener("mouseup", (e) => {
-    if (!isDrawing) return;
-    isDrawing = false;
-    autoScrollSpeed = 0;
-    
-    const endPageX = e.clientX + window.scrollX;
-    const endPageY = e.clientY + window.scrollY;
+    overlay.addEventListener("mouseup", (e) => {
+      if (!isDrawing) return;
+      isDrawing = false;
+      autoScrollSpeed = 0;
+      
+      const endPageX = e.clientX + window.scrollX;
+      const endPageY = e.clientY + window.scrollY;
 
-    // Cleanup UI
-    overlay.remove();
-    snipBox.remove();
+      // Cleanup UI
+      overlay.remove();
+      snipBox.remove();
 
-    // Map the absolute page crop-box coordinates BACK to relative viewport coordinates 
-    // for compatibility with getBoundingClientRect() during data extraction
-    const cropRect = {
-      left: Math.min(startPageX, endPageX) - window.scrollX,
-      right: Math.max(startPageX, endPageX) - window.scrollX,
-      top: Math.min(startPageY, endPageY) - window.scrollY,
-      bottom: Math.max(startPageY, endPageY) - window.scrollY,
-      width: Math.abs(endPageX - startPageX),
-      height: Math.abs(endPageY - startPageY)
-    };
+      // Map the absolute page crop-box coordinates BACK to relative viewport coordinates 
+      // for compatibility with getBoundingClientRect() during data extraction
+      const cropRect = {
+        left: Math.min(startPageX, endPageX) - window.scrollX,
+        right: Math.max(startPageX, endPageX) - window.scrollX,
+        top: Math.min(startPageY, endPageY) - window.scrollY,
+        bottom: Math.max(startPageY, endPageY) - window.scrollY,
+        width: Math.abs(endPageX - startPageX),
+        height: Math.abs(endPageY - startPageY)
+      };
 
-    if (cropRect.width < 10 || cropRect.height < 10) return;
+      if (cropRect.width < 10 || cropRect.height < 10) return;
 
-    extractDataFromRect(cropRect).then(data => {
-      sendResponse({
-        pageUrl: location.href,
-        selectedText: data.text || null,
-        images: data.images || [],
+      extractDataFromRect(cropRect).then(data => {
+        sendResponse({
+          pageUrl: location.href,
+          selectedText: data.text || null,
+          cropRect: cropRect
+        });
       });
+      
     });
-    
-  });
-}
+  }
 
 function extractDataFromRect(rect) {
   let extractedText = "";
@@ -771,55 +779,39 @@ function extractDataFromRect(rect) {
   }
 
   extractedText = Array.from(new Set(textSegments)).join("\n\n");
-
-  const extractedUrls = [];
-  const conversionTasks = []; 
-  const images = document.querySelectorAll("img");
-
-  for (const img of images) {
-    const imgRect = img.getBoundingClientRect();
-    
-    // Assuming 'rect' and 'isIntersecting' are in scope
-    if (isIntersecting(rect, imgRect)) {
-      if (imgRect.width > 60 && imgRect.height > 60 && img.src) {
-        if (!extractedUrls.includes(img.src) && !img.src.includes("rsrc.php")) {
-          extractedUrls.push(img.src);
-          conversionTasks.push(fetchAsBase64(img.src));
-        }
-      }
-    }
-  }
-
-  // RETURN the Promise chain. This resolves into the object you want.
-  return Promise.all(conversionTasks).then(results => {
-    const finalImages = results.filter(item => item !== null);
-    
-    // This is the object your function ultimately returns
-    return {
-      text: extractedText,
-      images: finalImages
-    };
+  
+  return Promise.resolve({
+    text: extractedText
   });
 }
 
-async function fetchAsBase64(url) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Network response was not ok");
-    
-    const blob = await response.blob();
-    
-    // Convert Blob to Base64
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve({ url: url, base64: reader.result });
-      reader.onerror = () => reject(new Error("Failed to read blob"));
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error("Failed to convert:", url, error);
-    return null; // Return null on failure to prevent crashing Promise.all
-  }
+function cropScreenshot(dataUrl, cropRect) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ratio = window.devicePixelRatio || 1;
+      
+      canvas.width = cropRect.width * ratio;
+      canvas.height = cropRect.height * ratio;
+      
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(
+        img,
+        cropRect.left * ratio,
+        cropRect.top * ratio,
+        cropRect.width * ratio,
+        cropRect.height * ratio,
+        0,
+        0,
+        cropRect.width * ratio,
+        cropRect.height * ratio
+      );
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
 }
 
 function isIntersecting(r1, r2) {
