@@ -201,10 +201,13 @@ async function getBackendSettings() {
 
 async function streamAnalysis(tabId, form) {
   const settings = await getBackendSettings();
-  if (settings?.pipeline_step_timeout_seconds) {
+  const selectedLanguage = form.get("language") || "english";
+  if (settings) {
     await safeSendMessage(tabId, {
       action: "pipeline-settings",
       pipeline_step_timeout_seconds: Number(settings.pipeline_step_timeout_seconds) || 120,
+      tts_enabled: settings.tts_enabled !== undefined ? settings.tts_enabled : false,
+      language: selectedLanguage,
     });
   }
 

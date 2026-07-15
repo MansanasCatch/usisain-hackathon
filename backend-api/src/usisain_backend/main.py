@@ -149,10 +149,10 @@ def get_settings():
         "ollama_model": os.environ.get("OLLAMA_MODEL", "llama3.2:1b"),
         "ollama_vision_model": os.environ.get("OLLAMA_VISION_MODEL", "moondream"),
         "pipeline_step_timeout_seconds": float(os.environ.get("PIPELINE_STEP_TIMEOUT_SECONDS", "120.0")),
+        "tts_enabled": os.environ.get("TTS_ENABLED", "False").lower() in ("true", "1", "yes"),
         "supported_languages": {
             "ollama": ["english"],
             "gemini": ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
         },
     }
-
 

@@ -36,6 +36,10 @@
             <option value="gemini" selected>Gemini (cloud)</option>
             <option value="ollama">Ollama (local)</option>
           </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); user-select:none; cursor:pointer;">
+            <input type="checkbox" id="tts-toggle" style="width:auto; cursor:pointer;">
+            Narrate with voice (TTS)
+          </label>
         </div>
 
         <textarea id="text-input" placeholder="Paste the claim, message, or caption to check..." rows="4" style="width:100%; margin-bottom:10px;"></textarea>
@@ -56,6 +60,7 @@
   </main>
 
   <script src="shared/sse_client.js"></script>
+  <script src="shared/tts_player.js"></script>
   <script src="analyze.js"></script>
 </body>
 </html>
