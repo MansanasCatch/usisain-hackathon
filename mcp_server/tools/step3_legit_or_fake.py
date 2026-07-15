@@ -229,8 +229,11 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
             "search_error": None,
         }
 
-    # 1. RAG cache — prior investigations
-    cached = retriever.search(search_query, top_k=1)
+    # 1. RAG cache — prior investigations (category="investigation")
+    cached = retriever.search(search_query, top_k=1, category="investigation")
+
+    # 2. RAG official advisories / reference documents (category="reference")
+    advisories = retriever.search(search_query, top_k=2, min_score=0.45, category="reference")
 
     # 2. Live web search (Google → DuckDuckGo fallback)
     search_error = None
@@ -307,6 +310,8 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
         f"System Verdict: {verdict.upper()} (based on credibility score of {score}/100)\n"
         f"Claim/Context: {claim or '(no text claim provided, checking the image)'}\n\n"
         f"Search query: {search_query}\n\n"
+        f"Official Advisories & Reference Documents:\n"
+        f"{chr(10).join(f'- {a[\'text\']} [Source: {a[\'metadata\'].get(\'name\')}]' for a in advisories) or 'None'}\n\n"
         f"Cached prior investigations:\n"
         f"{chr(10).join(c['text'][:150] for c in cached) or 'None'}\n\n"
         f"Web search results:\n{source_context}"
@@ -368,6 +373,7 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
         "score": score,
         "verdict": verdict,
         "top_url": top_sources[0]["url"] if top_sources else None,
+        "category": "investigation",
     })
 
     return {
