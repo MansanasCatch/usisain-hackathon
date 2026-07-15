@@ -288,12 +288,18 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
             "   - [Source Title/Domain](URL): Brief description of what this source verifies.\n"
         )
 
+    advisory_lines = []
+    for a in advisories:
+        advisory_name = a.get("metadata", {}).get("name", "Unknown Source")
+        advisory_lines.append(f"- {a['text']} [Source: {advisory_name}]")
+    advisory_context = "\n".join(advisory_lines) or "None"
+
     context = (
         f"System Verdict: {verdict.upper()} (based on credibility score of {score}/100)\n"
         f"Claim/Context: {claim or '(no text claim provided, checking the image)'}\n\n"
         f"Search query: {search_query}\n\n"
         f"Official Advisories & Reference Documents:\n"
-        f"{chr(10).join(f'- {a[\'text\']} [Source: {a[\'metadata\'].get(\'name\')}]' for a in advisories) or 'None'}\n\n"
+        f"{advisory_context}\n\n"
         f"Cached prior investigations:\n"
         f"{chr(10).join(c['text'][:150] for c in cached) or 'None'}\n\n"
         f"Web search results:\n{source_context}"
