@@ -3,6 +3,51 @@ const STEP_LABELS = {
   4: "(Step 4) Actionable Items", 5: "(Step 5) Learnings",
 };
 
+const STEP_START_MESSAGES = {
+  english: {
+    1: "Starting Step 1, AI Insights.",
+    2: "Starting Step 2, Content Analyser.",
+    3: "Starting Step 3, Authenticity check.",
+    4: "Starting Step 4, Actionable Items.",
+    5: "Starting Step 5, Learnings and educational resources."
+  },
+  taglish: {
+    1: "Sinisimulan ang step 1, AI Insights.",
+    2: "Sinisimulan ang step 2, Content Analyser.",
+    3: "Sinisimulan ang step 3, Authenticity check.",
+    4: "Sinisimulan ang step 4, Actionable Items.",
+    5: "Sinisimulan ang step 5, Learnings and educational resources."
+  },
+  tagalog: {
+    1: "Sinisimulan ang unang hakbang, AI Insights.",
+    2: "Sinisimulan ang ikalawang hakbang, Content Analyser.",
+    3: "Sinisimulan ang ikatlong hakbang, Authenticity check.",
+    4: "Sinisimulan ang ika-apat na hakbang, Actionable Items.",
+    5: "Sinisimulan ang ikalimang hakbang, Learnings."
+  },
+  cebuano: {
+    1: "Nagsugod sa unang lakang, AI Insights.",
+    2: "Nagsugod sa ikaduhang lakang, Content Analyser.",
+    3: "Nagsugod sa ikatlong lakang, Authenticity check.",
+    4: "Nagsugod sa ika-upat nga lakang, Actionable Items.",
+    5: "Nagsugod sa ikalimang lakang, Learnings."
+  },
+  bisaya: {
+    1: "Nagsugod sa unang lakang, AI Insights.",
+    2: "Nagsugod sa ikaduhang lakang, Content Analyser.",
+    3: "Nagsugod sa ikatlong lakang, Authenticity check.",
+    4: "Nagsugod sa ika-upat nga lakang, Actionable Items.",
+    5: "Nagsugod sa ikalimang lakang, Learnings."
+  },
+  ilocano: {
+    1: "Mairugi ti umuna a tukad, AI Insights.",
+    2: "Mairugi ti maikadua a tukad, Content Analyser.",
+    3: "Mairugi ti maikatlo a tukad, Authenticity check.",
+    4: "Mairugi ti maikapat a tukad, Actionable Items.",
+    5: "Mairugi ti maikalima a tukad, Learnings."
+  }
+};
+
 // ─── Provider-aware language map (updated from /api/settings if available) ───
 let supportedLanguages = {
   ollama: ["english"],
@@ -73,12 +118,20 @@ async function loadSettings() {
     if (settings?.default_llm_provider) {
       providerSelect.value = settings.default_llm_provider;
     }
+    if (settings?.tts_enabled !== undefined) {
+      document.getElementById("tts-toggle").checked = settings.tts_enabled;
+      window.ttsPlayer.setEnabled(settings.tts_enabled);
+    }
     // Update language dropdown based on loaded provider
     updateLanguageOptions();
   } catch (err) {
     console.warn("Unable to load settings:", err);
   }
 }
+
+document.getElementById("tts-toggle").addEventListener("change", (e) => {
+  window.ttsPlayer.setEnabled(e.target.checked);
+});
 
 loadSettings();
 
@@ -169,6 +222,13 @@ function updateStepRow(event) {
     row.dataset.status = "in_progress";
     let secondsLeft = pipelineTimeoutSeconds;
     body.textContent = `Working… (${secondsLeft}s remaining)`;
+    
+    // Narrate step start
+    const lang = document.getElementById("language").value;
+    const startMsgs = STEP_START_MESSAGES[lang] || STEP_START_MESSAGES.english;
+    const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
+    window.ttsPlayer.speak(startMsg);
+
     activeTimers[event.step] = setInterval(() => {
       secondsLeft--;
       if (secondsLeft <= 0) {
@@ -189,6 +249,9 @@ function updateStepRow(event) {
     row.dataset.status = "error";
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
     markFollowingStepsFailed(event.step + 1);
+
+    // Narrate step failure
+    window.ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
   } else if (event.status === "completed") {
     icon.textContent = "✅";
     icon.style.color = "";
@@ -196,6 +259,19 @@ function updateStepRow(event) {
     body.style.color = "";
     row.dataset.status = "completed";
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
+
+    // Narrate step output
+    const lang = document.getElementById("language").value;
+    window.ttsPlayer.setLanguage(lang);
+    let speechText = summarizeStep(event.step, event.result);
+    if (event.step === 2 && event.result.applicable !== false) {
+      speechText = `Visual analysis breakdown: ${event.result.real_pct}% real, ${event.result.edited_pct}% edited, and ${event.result.ai_generated_pct}% AI-generated. ${event.result.explanation}`;
+    } else if (event.step === 3) {
+      speechText = `Verdict: ${event.result.verdict}. Credibility score: ${event.result.score} out of 100. ${event.result.explanation}`;
+    } else if (event.step === 4) {
+      speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
+    }
+    window.ttsPlayer.speak(speechText);
   }
 }
 
@@ -222,6 +298,11 @@ form.addEventListener("submit", async (e) => {
 
   const mode = modeSelect.value;
   const language = document.getElementById("language").value;
+  
+  // Set language and stop previous speech
+  window.ttsPlayer.setLanguage(language);
+  window.ttsPlayer.stop();
+
   const provider = providerSelect.value || "ollama";
   const formData = new FormData();
   formData.append("language", language);

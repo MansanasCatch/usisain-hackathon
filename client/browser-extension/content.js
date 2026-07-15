@@ -71,9 +71,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
 
-    if (message.action === "pipeline-start") { showPanel(); return; }
+    if (message.action === "pipeline-start") {
+      ttsPlayer.stop();
+      showPanel();
+      return;
+    }
     if (message.action === "pipeline-settings") {
       pipelineTimeoutSeconds = Number(message.pipeline_step_timeout_seconds) || pipelineTimeoutSeconds;
+      if (message.tts_enabled !== undefined) {
+        ttsPlayer.setEnabled(message.tts_enabled);
+      }
+      if (message.language) {
+        ttsPlayer.setLanguage(message.language);
+      }
       return;
     }
     if (message.action === "pipeline-event") { updatePanelStep(message.event); return; }
@@ -472,6 +482,12 @@ function updatePanelStep(event) {
     row.dataset.status = "in_progress";
     let secondsLeft = pipelineTimeoutSeconds;
     body.textContent = `Analyzing… ${secondsLeft}s remaining`;
+
+    // Narrate step start
+    const startMsgs = STEP_START_MESSAGES[ttsPlayer.currentLanguage] || STEP_START_MESSAGES.english;
+    const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
+    ttsPlayer.speak(startMsg);
+
     activeTimers[event.step] = setInterval(() => {
       secondsLeft--;
       if (secondsLeft <= 0) {
@@ -491,10 +507,24 @@ function updatePanelStep(event) {
     row.dataset.status = "error";
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
     markRemainingStepsFailed(event.step + 1);
+
+    // Narrate step failure
+    ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
   } else if (event.status === "completed") {
     badge.textContent = "✓";
     row.dataset.status = "completed";
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
+
+    // Narrate step output
+    let speechText = summarizeStep(event.step, event.result);
+    if (event.step === 2 && event.result.applicable !== false) {
+      speechText = `Visual analysis breakdown: ${event.result.real_pct}% real, ${event.result.edited_pct}% edited, and ${event.result.ai_generated_pct}% AI-generated. ${event.result.explanation}`;
+    } else if (event.step === 3) {
+      speechText = `Verdict: ${event.result.verdict}. Credibility score: ${event.result.score} out of 100. ${event.result.explanation}`;
+    } else if (event.step === 4) {
+      speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
+    }
+    ttsPlayer.speak(speechText);
   }
 }
 
@@ -798,3 +828,152 @@ function isIntersecting(r1, r2) {
            r2.top > r1.bottom || 
            r2.bottom < r1.top);
 }
+
+const STEP_START_MESSAGES = {
+  english: {
+    1: "Starting Step 1, AI Insights.",
+    2: "Starting Step 2, Content Analyser.",
+    3: "Starting Step 3, Authenticity check.",
+    4: "Starting Step 4, Actionable Items.",
+    5: "Starting Step 5, Learnings and educational resources."
+  },
+  taglish: {
+    1: "Sinisimulan ang step 1, AI Insights.",
+    2: "Sinisimulan ang step 2, Content Analyser.",
+    3: "Sinisimulan ang step 3, Authenticity check.",
+    4: "Sinisimulan ang step 4, Actionable Items.",
+    5: "Sinisimulan ang step 5, Learnings and educational resources."
+  },
+  tagalog: {
+    1: "Sinisimulan ang unang hakbang, AI Insights.",
+    2: "Sinisimulan ang ikalawang hakbang, Content Analyser.",
+    3: "Sinisimulan ang ikatlong hakbang, Authenticity check.",
+    4: "Sinisimulan ang ika-apat na hakbang, Actionable Items.",
+    5: "Sinisimulan ang ikalimang hakbang, Learnings."
+  },
+  cebuano: {
+    1: "Nagsugod sa unang lakang, AI Insights.",
+    2: "Nagsugod sa ikaduhang lakang, Content Analyser.",
+    3: "Nagsugod sa ikatlong lakang, Authenticity check.",
+    4: "Nagsugod sa ika-upat nga lakang, Actionable Items.",
+    5: "Nagsugod sa ikalimang lakang, Learnings."
+  },
+  bisaya: {
+    1: "Nagsugod sa unang lakang, AI Insights.",
+    2: "Nagsugod sa ikaduhang lakang, Content Analyser.",
+    3: "Nagsugod sa ikatlong lakang, Authenticity check.",
+    4: "Nagsugod sa ika-upat nga lakang, Actionable Items.",
+    5: "Nagsugod sa ikalimang lakang, Learnings."
+  },
+  ilocano: {
+    1: "Mairugi ti umuna a tukad, AI Insights.",
+    2: "Mairugi ti maikadua a tukad, Content Analyser.",
+    3: "Mairugi ti maikatlo a tukad, Authenticity check.",
+    4: "Mairugi ti maikapat a tukad, Actionable Items.",
+    5: "Mairugi ti maikalima a tukad, Learnings."
+  }
+};
+
+class TTSPlayer {
+  constructor() {
+    this.enabled = false;
+    this.currentLanguage = "english";
+    this.utteranceQueue = [];
+    this.isSpeaking = false;
+    this.voices = [];
+
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      this.voices = window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        this.voices = window.speechSynthesis.getVoices();
+      };
+    }
+  }
+
+  setEnabled(val) {
+    this.enabled = !!val;
+    if (!this.enabled) {
+      this.stop();
+    }
+  }
+
+  setLanguage(lang) {
+    this.currentLanguage = lang || "english";
+  }
+
+  getLocaleCode(lang) {
+    const map = {
+      "english": "en-US",
+      "taglish": "tl-PH",
+      "tagalog": "tl-PH",
+      "cebuano": "fil-PH",
+      "bisaya": "fil-PH",
+      "ilocano": "fil-PH"
+    };
+    return map[lang.toLowerCase()] || "en-US";
+  }
+
+  speak(text) {
+    if (!this.enabled || !text) return;
+
+    const cleanText = text
+      .replace(/<[^>]*>/g, "")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/[\*\#\_]/g, "")
+      .trim();
+
+    if (!cleanText) return;
+
+    const sentences = cleanText.split(/[.!?；。]+/);
+    for (const sentence of sentences) {
+      const trimmed = sentence.trim();
+      if (trimmed.length > 0) {
+        this.enqueue(trimmed);
+      }
+    }
+  }
+
+  enqueue(text) {
+    this.utteranceQueue.push(text);
+    this.processQueue();
+  }
+
+  processQueue() {
+    if (this.isSpeaking || this.utteranceQueue.length === 0 || !window.speechSynthesis) return;
+
+    this.isSpeaking = true;
+    const text = this.utteranceQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const locale = this.getLocaleCode(this.currentLanguage);
+    utterance.lang = locale;
+
+    const matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
+    if (matchingVoice) {
+      utterance.voice = matchingVoice;
+    }
+
+    utterance.onend = () => {
+      this.isSpeaking = false;
+      this.processQueue();
+    };
+
+    utterance.onerror = (e) => {
+      console.warn("TTS Playback error:", e);
+      this.isSpeaking = false;
+      this.processQueue();
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  stop() {
+    this.utteranceQueue = [];
+    this.isSpeaking = false;
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+  }
+}
+
+const ttsPlayer = new TTSPlayer();
