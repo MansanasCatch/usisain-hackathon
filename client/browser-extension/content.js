@@ -96,7 +96,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     if (message.action === "pipeline-event") { updatePanelStep(message.event); return; }
     if (message.action === "pipeline-error") { showPanelError(message.error); return; }
-  }
 });
 
 // ---------- results panel — enterprise UI ----------
