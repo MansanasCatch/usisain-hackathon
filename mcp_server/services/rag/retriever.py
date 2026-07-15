@@ -15,7 +15,7 @@ import json
 import uuid
 from pathlib import Path
 
-from .embeddings import rank_by_similarity
+from .embeddings import get_embedding, rank_by_similarity
 
 STORE_PATH = Path(__file__).resolve().parents[3] / "data" / "vector_index" / "store.json"
 STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -24,7 +24,10 @@ STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
 def _load() -> list[dict]:
     if not STORE_PATH.exists():
         return []
-    return json.loads(STORE_PATH.read_text(encoding="utf-8"))
+    try:
+        return json.loads(STORE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return []
 
 
 def _save(entries: list[dict]) -> None:
@@ -34,7 +37,14 @@ def _save(entries: list[dict]) -> None:
 def add(text: str, metadata: dict) -> str:
     entries = _load()
     entry_id = uuid.uuid4().hex
-    entries.append({"id": entry_id, "text": text, "metadata": metadata})
+    # Fetch semantic embedding for the new document entry
+    vector = get_embedding(text)
+    entries.append({
+        "id": entry_id,
+        "text": text,
+        "embedding": vector,
+        "metadata": metadata
+    })
     _save(entries)
     return entry_id
 
@@ -43,8 +53,32 @@ def search(query: str, top_k: int = 3, min_score: float = 0.35) -> list[dict]:
     entries = _load()
     if not entries:
         return []
-    scores = rank_by_similarity(query, [e["text"] for e in entries])
-    ranked = sorted(zip(entries, scores), key=lambda pair: pair[1], reverse=True)
+    
+    # 1. Backward-compatibility auto-migration for legacy entries that lack vectors
+    dirty = False
+    for entry in entries:
+        if "embedding" not in entry or not isinstance(entry["embedding"], list) or len(entry["embedding"]) != 768:
+            entry["embedding"] = get_embedding(entry["text"])
+            dirty = True
+    if dirty:
+        _save(entries)
+        
+    # 2. Get embedding vector for the search query
+    query_vector = get_embedding(query)
+    
+    # 3. Calculate similarities using numpy-accelerated cosine similarity
+    doc_vectors = [e["embedding"] for e in entries]
+    scores = rank_by_similarity(query_vector, doc_vectors)
+    
+    # 4. Rank and filter by minimum similarity score
+    ranked = []
+    for entry, score in zip(entries, scores):
+        # Exclude embedding vector from output payload for cleaner display
+        clean_entry = {k: v for k, v in entry.items() if k != "embedding"}
+        ranked.append((clean_entry, score))
+        
+    ranked.sort(key=lambda pair: pair[1], reverse=True)
+    
     return [
         {**entry, "similarity": round(score, 3)}
         for entry, score in ranked[:top_k] if score >= min_score
