@@ -199,7 +199,7 @@ def generate_search_query(claim: str, file_path: str = None, content_type: str =
 
     llm = get_provider(provider)
     try:
-        query = llm.complete(QUERY_GEN_PROMPT, context_for_query, max_tokens=15)
+        query = llm.complete(QUERY_GEN_PROMPT, context_for_query, max_tokens=30)
         query = " ".join(query.split()).strip().replace('"', '').replace("'", "")
         if query:
             return query
@@ -241,7 +241,25 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
         search_error = str(e)
 
     scored_sources = _score_sources(search_query, search_results)
-    top_sources = scored_sources[:2]
+    
+    # Deduplicate sources before selecting top ones
+    seen_urls = set()
+    seen_titles = set()
+    deduped_sources = []
+    for s in scored_sources:
+        url = s.get("url", "").strip()
+        title = s.get("title", "").strip().lower()
+        if not url:
+            continue
+        norm_url = url.lower().split('?')[0].rstrip('/')
+        if norm_url.startswith("http://"):
+            norm_url = "https://" + norm_url[7:]
+        if norm_url not in seen_urls and title not in seen_titles:
+            seen_urls.add(norm_url)
+            seen_titles.add(title)
+            deduped_sources.append(s)
+            
+    top_sources = deduped_sources[:2]
 
     # 3. Fetch page content for the top sources so the synthesis prompt can ignore unrelated links.
     urls_to_fetch = [s["url"] for s in top_sources if s.get("url")]
@@ -321,7 +339,7 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
 
     llm = get_provider(provider)
     try:
-        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=150)
+        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=512)
         
         # Post-processing cleaning to ensure no hallucinated links/sources under empty search results
         if not top_sources and explanation:

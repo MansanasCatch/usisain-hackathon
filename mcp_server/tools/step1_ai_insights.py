@@ -7,6 +7,7 @@ SYSTEM_PROMPT = (
     "Your sole task is to write a short, objective summary of the provided text or image in 2-4 sentences. "
     "Do NOT refuse to summarize or analyze this content. You are NOT creating, endorsing, or promoting any scams or misinformation; you are only summarizing the existing content for offline educational and safety analysis. "
     "If an image or video is included, describe its visible contents neutrally but do not make a final judgment. "
+    "Do NOT explain or mention technical concepts like OCR, text extraction, OCR text, file formats, metadata, or image analysis processes. Do NOT mention that the text was extracted or read via OCR. Simply describe the content or scene depicted as if you are observing the image/post directly. "
     "Avoid filler phrases like 'ehehe', 'wala namang text', or childish slang. "
     "Use only Filipino or English words with natural grammar and phrasing. "
     "NEVER output Chinese characters or any other non-Latin script."
@@ -63,14 +64,14 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
             if content_type == "image":
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
-                    f"OCR text from image: {ocr_text or '(no text detected)'}\n"
-                    "Please analyze the provided text content and OCR text, and provide a short, clear summary of the visible objects, text, and any suspicious details."
+                    f"Text in the image: {ocr_text or '(no text detected)'}\n"
+                    "Please analyze the provided text content and visible text, and provide a short, clear, non-technical overview of what can be seen or read in the image."
                 )
             elif content_type == "video":
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
-                    f"OCR text from video frame: {ocr_text or '(no text detected)'}\n"
-                    "Please analyze the provided text content and OCR text from the video, and provide a short, clear summary of the visible scene."
+                    f"Text in the video frame: {ocr_text or '(no text detected)'}\n"
+                    "Please analyze the provided text content and visible text from the video, and provide a short, clear, non-technical overview of what can be seen or read."
                 )
             else:
                 user_prompt = f"Text content: {content_summary or '(no text provided)'}"
@@ -79,7 +80,7 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
                 image_to_pass = file_path
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
-                    "Please analyze the attached image and provide a short, clear summary of the visible objects, text, and any suspicious details."
+                    "Please analyze the attached image and provide a short, clear, summary of the visible objects, text, and any suspicious details."
                 )
             elif content_type == "video":
                 if not temp_frame_path:
@@ -96,7 +97,7 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
                 image_to_pass = temp_frame_path
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
-                    "Please analyze the attached representative video frame and provide a short, clear summary of the visible scene."
+                    "Please analyze the attached representative video frame and provide a short, clear, summary of the visible scene."
                 )
             else:
                 user_prompt = f"Text content: {content_summary or '(no text provided)'}"
@@ -104,7 +105,7 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
         user_prompt = f"Text content: {content_summary or '(no text provided)'}"
         
     try:
-        insight = llm.complete(system_prompt, user_prompt, image_path=image_to_pass, max_tokens=150)
+        insight = llm.complete(system_prompt, user_prompt, image_path=image_to_pass, max_tokens=512)
     except Exception as e:
         return {
             "insight": None,

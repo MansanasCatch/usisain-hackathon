@@ -12,10 +12,9 @@ chrome.runtime.onInstalled.addListener(() => {
     contexts: ["image", "selection", "page", "video"],
   });
   chrome.contextMenus.create({ id: "analyzeimage", parentId: "usisain-parent", title: "Usisain ang imahe", contexts: ["image"] });
-  chrome.contextMenus.create({ id: "analyzetext", parentId: "usisain-parent", title: "Usisain ang teksto", contexts: ["selection"] });
+  chrome.contextMenus.create({ id: "analyzetext", parentId: "usisain-parent", title: "Usisain ang text", contexts: ["selection"] });
   chrome.contextMenus.create({ id: "analyzevideo", parentId: "usisain-parent", title: "Usisain ang video", contexts: ["video"] });
-  chrome.contextMenus.create({ id: "analyzepost", parentId: "usisain-parent", title: "Usisain ang post", contexts: ["image", "page", "selection"] });
-  chrome.contextMenus.create({id: "snip-extract", parentId: "usisain-parent", title: "Snip Extract", contexts: ["all"]});
+  chrome.contextMenus.create({id: "snip-extract", parentId: "usisain-parent", title: "Usisain Snipping", contexts: ["all"]});
 });
 
 

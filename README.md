@@ -58,7 +58,9 @@ client/messenger_bot ───────┘         │                       
 
 ## 3. Prerequisites (Windows)
 
-1. **Python 3.11+**
+1. **Python 3.12
+  Download Here: https://www.python.org/downloads/release/python-3120/
+  Choose Windows installer (64-bit)
 2. **Ollama** — install from \installers\OllamaSetup.exe or download from https://ollama.com/download/windows, then:
 
 Using CMD Run: 
@@ -67,6 +69,7 @@ Using CMD Run:
    ollama pull llama3.2:1b
    ```
 3. **Tesseract OCR** :install from \installers\tesseract-ocr-w64-setup-5.5.0.20241111.exe or download from https://github.com/UB-Mannheim/tesseract/wiki
+Choose tesseract-ocr-w64-setup-5.5.0.20241111.exe (64 bit)
 
 ## 4. Where to get each API key
 

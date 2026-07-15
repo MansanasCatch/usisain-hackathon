@@ -55,7 +55,7 @@ def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
     )
 
     try:
-        actions_text = llm.complete(system_prompt, context, max_tokens=100)
+        actions_text = llm.complete(system_prompt, context, max_tokens=512)
     except Exception as e:
         return {"actions": [], "explanation": f"Action generation unavailable: {e}"}
 

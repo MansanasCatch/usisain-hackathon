@@ -114,7 +114,7 @@ def generate_detailed_explanation(real: float, edited: float, ai_gen: float, sig
     )
     
     try:
-        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=180)
+        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=512)
         return explanation
     except Exception as e:
         # Fallback to static explanation if LLM fails

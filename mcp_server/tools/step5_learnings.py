@@ -27,6 +27,61 @@ LANGUAGE_INSTRUCTIONS = {
 }
 
 
+def is_related(result: dict, query: str, verdict: str) -> bool:
+    title = result.get("title", "").lower()
+    snippet = result.get("snippet", "").lower()
+    url = result.get("url", "").lower()
+    
+    # Check for obvious ad/spam/malicious links in url
+    if any(spam in url for spam in ["adclick", "doubleclick", "promoted", "sponsor", "clickbank"]):
+        return False
+        
+    # Get keywords from the query (words longer than 3 characters, excluding very common terms)
+    stopwords = {"guide", "digital", "media", "literacy", "fact", "check", "news", "scam", "fake", "resource", "resources"}
+    query_words = [w.strip("?,.:;\"'()").lower() for w in query.split()]
+    keywords = [w for w in query_words if len(w) > 3 and w not in stopwords]
+    
+    # If query is too short or has no keywords after filtering, use all non-short query words
+    if not keywords:
+        keywords = [w for w in query_words if len(w) > 3]
+        
+    if not keywords:
+        return True # Fallback if query contains only very short words
+        
+    # We want at least one keyword or part of a keyword to match the title or snippet or URL
+    # Or, if it's a known educational site, it's fine
+    if any(d in url for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
+        return True
+        
+    for kw in keywords:
+        if kw in title or kw in snippet or kw in url:
+            return True
+            
+    return False
+
+
+def deduplicate_sources(sources: list[dict]) -> list[dict]:
+    seen_urls = set()
+    seen_titles = set()
+    unique_sources = []
+    for s in sources:
+        url = s.get("url", "").strip()
+        title = s.get("title", "").strip().lower()
+        if not url:
+            continue
+        # Normalize URL to avoid minor differences (like trailing slash, query params, http vs https)
+        norm_url = url.lower().split('?')[0].rstrip('/')
+        if norm_url.startswith("http://"):
+            norm_url = "https://" + norm_url[7:]
+        
+        # Deduplicate URL and Title
+        if norm_url not in seen_urls and title not in seen_titles:
+            seen_urls.add(norm_url)
+            seen_titles.add(title)
+            unique_sources.append(s)
+    return unique_sources
+
+
 def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dict,
                        provider: str = "ollama", language: str = "english") -> dict:
     llm = get_provider(provider)
@@ -45,48 +100,56 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
             f"AI-generated={step2_result.get('ai_generated_pct') or 0}%.\n"
         )
     
-    # 2. Get verified sources from Step 3 if available, to ensure they are related to the context
-    top_sources = []
-    if step3_result and step3_result.get("sources"):
-        top_sources = step3_result["sources"][:2]
+    # Generate search query for educational materials
+    search_query = ""
+    try:
+        search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, f"Verdict: {verdict}\nInsight: {insight}", max_tokens=30)
+        if search_query:
+            search_query = search_query.strip().replace('"', '').replace("'", "")
+    except Exception:
+        pass
 
-    # If no verified sources are found in Step 3, search for educational fact-check/literacy resources
-    if not top_sources:
-        search_query = ""
-        if provider != "gemini":
-            try:
-                search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, f"Verdict: {verdict}\nInsight: {insight}", max_tokens=15)
-                if search_query:
-                    search_query = search_query.strip().replace('"', '').replace("'", "")
-            except Exception:
-                pass
+    if not search_query:
+        verdict_term = "scam fake news fact check" if verdict in ("flagged", "inconclusive") else "credible source news"
+        search_query = f"{verdict_term} guide digital media literacy"
 
-        if not search_query:
-            verdict_term = "scam fake news fact check" if verdict in ("flagged", "inconclusive") else "credible source news"
-            search_query = f"{verdict_term} guide digital media literacy"
+    search_results = []
+    try:
+        # Prefer official, educational, and wikipedia domains for learning materials
+        query_filter = f"{search_query} site:gov.ph OR site:edu.ph OR site:wikipedia.org OR site:factcheck.org"
+        search_results = google_search.search(query_filter, max_results=3)
+    except Exception:
+        pass
 
-        search_results = []
+    if not search_results:
         try:
-            # Prefer official, educational, and wikipedia domains for learning materials
-            query_filter = f"{search_query} site:gov.ph OR site:edu.ph OR site:wikipedia.org OR site:factcheck.org"
-            search_results = google_search.search(query_filter, max_results=1)
-            if not search_results:
-                search_results = google_search.search(search_query, max_results=1)
+            search_results = google_search.search(search_query, max_results=3)
         except Exception:
             pass
-        
-        from shared.text_utils import domain_trust
-        scored_sources = []
-        for r in search_results:
-            trust = domain_trust(r["url"])
+
+    from shared.text_utils import domain_trust
+    scored_sources = []
+    for r in search_results:
+        trust = domain_trust(r["url"])
+        if is_related(r, search_query, verdict):
             # Only include high-trust domains or specifically trusted domains to avoid unrelated spam
-            if trust >= 0.6 or any(d in r["url"] for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
+            if trust >= 0.4 or any(d in r["url"] for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
                 scored_sources.append({
                     **r,
                     "combined": trust
                 })
-        scored_sources = sorted(scored_sources, key=lambda s: s["combined"], reverse=True)
-        top_sources = scored_sources[:2]
+
+    # If no results found via Google Search, fallback to Step 3's sources (if any and if relevant)
+    if not scored_sources and step3_result and step3_result.get("sources"):
+        for s in step3_result["sources"]:
+            if is_related(s, search_query, verdict):
+                scored_sources.append({
+                    **s,
+                    "combined": 0.5
+                })
+
+    scored_sources = sorted(scored_sources, key=lambda s: s["combined"], reverse=True)
+    top_sources = deduplicate_sources(scored_sources)[:2]
 
     # Default fallback to generic digital literacy pages if still empty
     if not top_sources:
@@ -114,7 +177,7 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
         system_prompt = f"{SYSTEM_PROMPT_TEMPLATE} {LANGUAGE_INSTRUCTIONS[language]}"
 
     try:
-        material = llm.complete(system_prompt, final_context, max_tokens=150)
+        material = llm.complete(system_prompt, final_context, max_tokens=512)
         
         # Clean up any potential markdown links from LLM
         if material:
