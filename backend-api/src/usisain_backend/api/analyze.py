@@ -23,6 +23,7 @@ async def analyze(
     provider: str = Form(settings.default_llm_provider),
     channel: str = Form("webapp"),
     source_url: str | None = Form(None),
+    use_ocr: bool = Form(True),
 ):
     provider = (provider or settings.default_llm_provider).strip().lower()
     if provider not in ("ollama", "gemini"):
@@ -42,7 +43,7 @@ async def analyze(
         content = extract_text(text or "")
 
     try:
-        results = await run_pipeline_blocking(content, language=language, provider=provider)
+        results = await run_pipeline_blocking(content, language=language, provider=provider, use_ocr=use_ocr)
 
         input_summary = (text or caption or (file.filename if file else ""))[:200]
         scan_id = db.insert_scan(

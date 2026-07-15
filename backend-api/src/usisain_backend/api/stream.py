@@ -16,10 +16,10 @@ router = APIRouter(prefix="/api/analyze", tags=["analyze"])
 
 
 async def _sse_stream(content: dict, channel: str, language: str, provider: str,
-                       source_url: str | None, input_summary: str | None):
+                       source_url: str | None, input_summary: str | None, use_ocr: bool = True):
     results: dict[str, dict] = {}
     try:
-        async for event in run_pipeline(content, language=language, provider=provider):
+        async for event in run_pipeline(content, language=language, provider=provider, use_ocr=use_ocr):
             if event.status in ("completed", "error"):
                 results[f"step{event.step}"] = event.result
             yield f"data: {json.dumps(event.to_dict())}\n\n"
@@ -50,6 +50,7 @@ async def analyze_stream(
     language: str = Form(settings.default_language),
     provider: str = Form(settings.default_llm_provider),
     source_url: str | None = Form(None),
+    use_ocr: bool = Form(True),
 ):
     provider = (provider or settings.default_llm_provider).strip().lower()
     if provider not in ("ollama", "gemini"):
@@ -71,7 +72,7 @@ async def analyze_stream(
     input_summary = (text or caption or (file.filename if file else ""))[:200]
 
     return StreamingResponse(
-        _sse_stream(content, "extension", language, provider, source_url, input_summary),
+        _sse_stream(content, "extension", language, provider, source_url, input_summary, use_ocr),
         media_type="text/event-stream",
         status_code=202,
     )

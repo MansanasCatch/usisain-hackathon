@@ -73,7 +73,7 @@ def _skip_remaining_steps(start_step: int, reason: str) -> list[StepEvent]:
     return [StepEvent(step, STEP_NAMES[step], "error", {"error": reason}) for step in range(start_step, 6)]
 
 
-async def run_pipeline(content: dict, language: str = "english", provider: str = "ollama") -> AsyncGenerator[StepEvent, None]:
+async def run_pipeline(content: dict, language: str = "english", provider: str = "ollama", use_ocr: bool = True) -> AsyncGenerator[StepEvent, None]:
     """`content` is the output of the extraction layer:
     {"content_type": "text"|"image"|"video"|"post", "text": str|None, "file_path": str|None}
     """
@@ -101,6 +101,7 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
             "content_type": content_type,
             "provider": provider,
             "language": language,
+            "use_ocr": use_ocr,
         },
     )
     status1 = _status_for(results["step1"])
@@ -213,12 +214,12 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
                 yield StepEvent(step, step_name, status, results[f"step{step}"])
 
 
-async def run_pipeline_blocking(content: dict, language: str = "english", provider: str = "ollama") -> dict:
+async def run_pipeline_blocking(content: dict, language: str = "english", provider: str = "ollama", use_ocr: bool = True) -> dict:
     """Collects every event and returns one aggregated dict — used by
     channels that can't consume a stream (e.g. the Messenger bot replies
     with a sequence of chat messages instead of live UI updates)."""
     results: dict[str, dict] = {}
-    async for event in run_pipeline(content, language, provider):
+    async for event in run_pipeline(content, language, provider, use_ocr=use_ocr):
         if event.status in ("completed", "error"):
             results[f"step{event.step}"] = event.result
     return results

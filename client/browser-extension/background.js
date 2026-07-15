@@ -71,10 +71,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return;
   
   try {
-    const storage = await chrome.storage.local.get("preferredLanguage");
+    const storage = await chrome.storage.local.get(["preferredLanguage", "useOcr"]);
     const selectedLanguage = storage.preferredLanguage || DEFAULT_LANGUAGE;
+    const useOcr = storage.useOcr !== undefined ? storage.useOcr : true;
     const form = new FormData();
     form.append("language", selectedLanguage);
+    form.append("use_ocr", useOcr.toString());
     if (info.menuItemId === "snip-extract") {
       const extractedData = await safeSendMessage(tab.id, { action: "start-snipping" });
       if (!extractedData) return;
