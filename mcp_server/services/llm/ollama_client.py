@@ -14,7 +14,7 @@ from .base import LLMProvider
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
 OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "moondream")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_CLIENT_TIMEOUT = float(os.environ.get("OLLAMA_CLIENT_TIMEOUT", "60.0"))
+OLLAMA_CLIENT_TIMEOUT = float(os.environ.get("OLLAMA_CLIENT_TIMEOUT", "120.0"))
 DEBUG_OLLAMA_PROMPTS = os.environ.get("USISAIN_DEBUG_PROMPTS", "0").lower() in ("1", "true", "yes")
 
 _OLLAMA_CLIENT = None

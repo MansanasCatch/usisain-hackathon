@@ -87,7 +87,6 @@ def generate_detailed_explanation(real: float, edited: float, ai_gen: float, sig
     image_to_pass = image_path
     
     if provider == "ollama" and image_path and os.path.exists(image_path):
-        image_to_pass = None
         from shared.ocr_utils import extract_text as ocr_extract
         from PIL import Image
         try:

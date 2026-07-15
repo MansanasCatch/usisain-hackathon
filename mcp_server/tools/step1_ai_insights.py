@@ -63,12 +63,14 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
 
         if provider == "ollama":
             if content_type == "image":
+                image_to_pass = file_path
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
                     f"Text in the image: {ocr_text or '(no text detected)'}\n"
                     "Please analyze the provided text content and visible text, and provide a short, clear, non-technical overview of what can be seen or read in the image."
                 )
             elif content_type == "video":
+                image_to_pass = temp_frame_path
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
                     f"Text in the video frame: {ocr_text or '(no text detected)'}\n"

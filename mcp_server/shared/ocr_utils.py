@@ -23,25 +23,21 @@ def extract_text(image: Image.Image) -> str:
         gray = image.convert('L')
         large = gray.resize((gray.width * 2, gray.height * 2), Image.Resampling.LANCZOS)
         
-        text_raw = pytesseract.image_to_string(image).strip()
-        text_processed = pytesseract.image_to_string(large).strip()
-        text_psm11 = pytesseract.image_to_string(large, config='--psm 11').strip()
+        # Run OCR on the processed image (which is standard and very clean)
+        text = pytesseract.image_to_string(large).strip()
         
-        # Combine lines, filtering out duplicates and junk symbols
+        # If the processed OCR is empty or very short, fallback to raw image
+        if len(text) < 5:
+            text = pytesseract.image_to_string(image).strip()
+            
+        # Basic cleaning of lines
         lines = []
-        seen = set()
-        for t in [text_raw, text_processed, text_psm11]:
-            for line in t.splitlines():
-                line_cleaned = line.strip()
-                # Clean up junk symbols if any
-                line_cleaned = "".join(c for c in line_cleaned if c.isprintable()).strip()
-                # Basic length and junk characters filter
-                if len(line_cleaned) >= 2 and not all(c in r"\/|~_<>*#@+[]{}()=" for c in line_cleaned):
-                    key = line_cleaned.lower()
-                    if key not in seen:
-                        seen.add(key)
-                        lines.append(line_cleaned)
-        
+        for line in text.splitlines():
+            line_cleaned = line.strip()
+            line_cleaned = "".join(c for c in line_cleaned if c.isprintable()).strip()
+            if len(line_cleaned) >= 2 and not all(c in r"\/|~_<>*#@+[]{}()=" for c in line_cleaned):
+                lines.append(line_cleaned)
+                
         return "\n".join(lines)
     except Exception:
         try:
