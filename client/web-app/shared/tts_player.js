@@ -54,18 +54,25 @@ class TTSPlayer {
 
     if (!cleanText) return;
 
+    // Detect if the text contains Tagalog keywords to dynamically adjust voice pronunciation
+    let textLanguage = this.currentLanguage;
+    const tagalogPattern = /\b(ang|mga|ng|sa|na|ni|ay|si|po|opo|ako|ikaw|siya|ito|iyon|doon|dito|namin|nila|kaya|kasi|pero|maging|dahil|ano|sino|bakit|paano)\b/i;
+    if (tagalogPattern.test(cleanText)) {
+      textLanguage = "tagalog";
+    }
+
     // Split text into shorter clauses to avoid speech synth buffer truncation or hangs
     const sentences = cleanText.split(/[.!?；。]+/);
     for (const sentence of sentences) {
       const trimmed = sentence.trim();
       if (trimmed.length > 0) {
-        this.enqueue(trimmed);
+        this.enqueue(trimmed, textLanguage);
       }
     }
   }
 
-  enqueue(text) {
-    this.utteranceQueue.push(text);
+  enqueue(text, lang) {
+    this.utteranceQueue.push({ text, lang: lang || this.currentLanguage });
     this.processQueue();
   }
 
@@ -73,13 +80,19 @@ class TTSPlayer {
     if (this.isSpeaking || this.utteranceQueue.length === 0 || !window.speechSynthesis) return;
 
     this.isSpeaking = true;
-    const text = this.utteranceQueue.shift();
-    const utterance = new SpeechSynthesisUtterance(text);
-    const locale = this.getLocaleCode(this.currentLanguage);
+    const item = this.utteranceQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(item.text);
+    const locale = this.getLocaleCode(item.lang);
     utterance.lang = locale;
 
     // Locate the best matching voice
-    const matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
+    let matchingVoice = null;
+    if (this.selectedVoiceName) {
+      matchingVoice = this.voices.find(v => v.name === this.selectedVoiceName);
+    }
+    if (!matchingVoice) {
+      matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
+    }
     if (matchingVoice) {
       utterance.voice = matchingVoice;
     }
