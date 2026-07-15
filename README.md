@@ -67,6 +67,7 @@ Using CMD Run:
    ```
    ollama pull moondream
    ollama pull llama3.2:1b
+   ollama pull nomic-embed-text
    ```
 3. **Tesseract OCR** :install from \installers\tesseract-ocr-w64-setup-5.5.0.20241111.exe or download from https://github.com/UB-Mannheim/tesseract/wiki
 Choose tesseract-ocr-w64-setup-5.5.0.20241111.exe (64 bit)
@@ -136,9 +137,10 @@ nothing else to install or start.
   - *Overview*: total scans, a 30-day trend chart by channel, verdict breakdown.
   - *Scan history*: filterable table across all channels (extension,
     Messenger, web app); click a row for the full structured result.
-  - *Reference documents*: upload verified "known good" images (receipts,
-    IDs) under a category — stored via `/api/reference-documents`, ready
-    for a future step 2 enhancement that compares new uploads against them.
+  - *Reference documents*: upload official advisories, notices, or verified
+    documents. These are automatically vectorized locally using `nomic-embed-text`
+    and queried during Step 3 (Authenticity Check) to semantically cross-reference
+    claims against official ground-truth source material.
 
 ## 9. Messenger bot setup (mobile)
 
