@@ -1,0 +1,5 @@
+# CODEOWNERS file to designate required approvers for pull requests
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# All files in the repository require approval from the repository owner
+* @MansanasCatch
