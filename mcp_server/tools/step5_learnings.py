@@ -1,3 +1,4 @@
+import re
 from services.llm.gemini_client import get_provider
 from services.search import google_search
 
@@ -53,6 +54,43 @@ def is_related(result: dict, query: str, verdict: str) -> bool:
     if any(d in url for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
         return True
         
+    for kw in keywords:
+        if kw in title or kw in snippet or kw in url:
+            return True
+            
+    return False
+
+
+def is_related_to_context(result: dict, context_text: str) -> bool:
+    if not context_text:
+        return True
+    
+    title = result.get("title", "").lower()
+    snippet = result.get("snippet", "").lower()
+    url = result.get("url", "").lower()
+    
+    # Check for obvious ad/spam/malicious links in url
+    if any(spam in url for spam in ["adclick", "doubleclick", "promoted", "sponsor", "clickbank"]):
+        return False
+
+    # Extract keywords from context_text (words >= 4 chars, excluding very common terms)
+    common_words = {
+        "this", "that", "with", "from", "your", "have", "here", "news", "post", "claim", 
+        "video", "image", "media", "about", "would", "could", "should", "there", "their",
+        "please", "report", "social", "account", "profile", "verify", "verifying", "official",
+        "credible", "source", "safety", "content", "summary", "verdict", "system", "guide",
+        "education", "educational", "literacy", "general", "pattern", "recognize", "scam",
+        "misinformation"
+    }
+    
+    # Extract alphabetic words of length >= 4
+    words = re.findall(r'\b[a-zA-Z]{4,}\b', context_text)
+    keywords = [w.lower() for w in words if w.lower() not in common_words]
+    
+    if not keywords:
+        return True # if no keywords, fallback to True
+        
+    # We want at least one key word from the scanned post context to be present in the search result's title, snippet, or URL.
     for kw in keywords:
         if kw in title or kw in snippet or kw in url:
             return True
@@ -131,7 +169,7 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
     scored_sources = []
     for r in search_results:
         trust = domain_trust(r["url"])
-        if is_related(r, search_query, verdict):
+        if is_related(r, search_query, verdict) and is_related_to_context(r, insight):
             # Only include high-trust domains or specifically trusted domains to avoid unrelated spam
             if trust >= 0.4 or any(d in r["url"] for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
                 scored_sources.append({
@@ -142,7 +180,7 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
     # If no results found via Google Search, fallback to Step 3's sources (if any and if relevant)
     if not scored_sources and step3_result and step3_result.get("sources"):
         for s in step3_result["sources"]:
-            if is_related(s, search_query, verdict):
+            if is_related(s, search_query, verdict) and is_related_to_context(s, insight):
                 scored_sources.append({
                     **s,
                     "combined": 0.5
@@ -150,19 +188,6 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
 
     scored_sources = sorted(scored_sources, key=lambda s: s["combined"], reverse=True)
     top_sources = deduplicate_sources(scored_sources)[:2]
-
-    # Default fallback to generic digital literacy pages if still empty
-    if not top_sources:
-        top_sources = [
-            {
-                "title": "FactCheck.org — How to Spot Fake News",
-                "url": "https://www.factcheck.org/2016/11/how-to-spot-fake-news/"
-            },
-            {
-                "title": "DICT Philippines — Digital Literacy Resources",
-                "url": "https://dict.gov.ph/"
-            }
-        ]
 
     # 3. Build final context for the LLM — include Step 3 explanation for contextual grounding
     final_context = (

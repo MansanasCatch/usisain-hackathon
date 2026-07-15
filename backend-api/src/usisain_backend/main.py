@@ -84,7 +84,25 @@ def _ensure_ollama_model(model_name: str):
     # 3. Auto-pull the model
     logger.info("[Ollama] Model '%s' not found locally -- pulling now (this may take a while on first run)...", model_name)
     try:
-        client.pull(model_name)
+        current_digest = None
+        last_logged_pct = -10
+        for progress in client.pull(model_name, stream=True):
+            status = progress.get("status", "")
+            digest = progress.get("digest", "")
+            completed = progress.get("completed", 0)
+            total = progress.get("total", 0)
+            
+            if digest != current_digest:
+                current_digest = digest
+                if status:
+                    logger.info("[Ollama] Pull: %s %s", status, digest[:12] if digest else "")
+            elif total > 0:
+                pct = int(completed / total * 100)
+                # Print progress every 10% to keep logs clean
+                if pct % 10 == 0 and pct != last_logged_pct:
+                    last_logged_pct = pct
+                    logger.info("[Ollama] Pull progress for '%s': %d%% completed", model_name, pct)
+                    
         logger.info("[Ollama] Successfully pulled '%s'", model_name)
     except Exception as e:
         logger.error("[Ollama] Failed to pull model '%s': %s", model_name, e)

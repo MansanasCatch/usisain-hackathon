@@ -47,8 +47,7 @@ client/messenger_bot ───────┘         │                       
   speech from the final output (`/api/tts`).
 - **`mcp_server/`** — the 5 pipeline steps, each an MCP tool. Spawned
   automatically by the backend — you never run this by hand.
-- **`client/browser-extension/`** — right-click text/images/video to
-  analyze; results stream in live via a panel injected into the page.
+- **`client/browser-extension/`** — right-click text/images/video or use the **Usisain Snipping** tool to analyze; results stream in live via a panel injected into the page.
 - **`client/messenger_bot/`** — a user forwards a suspicious message/
   image/video to your Facebook Page; the bot replies with each step's
   result as a chat message.
@@ -56,11 +55,75 @@ client/messenger_bot ───────┘         │                       
   directly by the backend at `/app` (analyze page) and `/app/dashboard`
   (history, trends, reference document manager) — no separate server needed.
 
-## 3. Prerequisites (Windows)
+## 3. The 5-Step Analysis Pipeline
 
-1. **Python 3.12
-  Download Here: https://www.python.org/downloads/release/python-3120/
-  Choose Windows installer (64-bit)
+Each query runs sequentially through a 5-step analysis pipeline. The steps are registered as MCP tools in `mcp_server/server.py` and run in-process inside the backend API:
+
+### Step 1: AI Insights (First-Pass Content Review)
+* **Goal**: Provide an initial neutral overview and extract text/context.
+* **How it works**:
+  * **Text-only**: The LLM summarizes claims and flags urgent language, emotional framing, and suspicious links.
+  * **Images & Video Frames**: Uses **Tesseract OCR** to extract text overlays. If using the cloud-based **Gemini** provider, it passes the image file directly to the multimodal model. If using local **Ollama**, it uses the extracted OCR text and claim text as a prompt fallback to the local text model.
+  * **Usisain Snipping**: Extracts text and images within a selected region of any webpage, allowing for unified multimodal analysis.
+  * **Video**: Extracts the first frame using **OpenCV** to run OCR/visual analysis.
+* **Outputs**: A concise summary of the content (passed to Steps 3, 4, and 5).
+* **Tech**: LLM (text/vision), Tesseract OCR, OpenCV.
+
+### Step 2: Content Analyser (Digital Image Forensics)
+* **Goal**: Analyze images and videos locally for manipulation, edits, or AI generation signals. (Skipped for text-only inputs).
+* **How it works**:
+  * **Error Level Analysis (ELA)**: Resaves the image at a known quality level (95%) and checks differences to find mismatched compression zones (e.g., spliced/pasted items).
+  * **Frequency-Domain Analysis**: Runs a Discrete Cosine Transform (DCT) to check the ratio of high-to-low frequencies. Real camera sensors add high-frequency noise, while AI-generated images are smooth or pattern-based.
+  * **EXIF Metadata**: Inspects headers for camera model information and editing software tags (Photoshop, GIMP, etc.).
+  * **Percentage Breakdown**: Computes an estimated breakdown (Real% / Edited% / AI-Generated%) and assigns a verdict (`likely_authentic`, `likely_edited`, `likely_ai_generated`, or `inconclusive`).
+  * **Forensic Explanation**: Under Gemini, passes the image directly; under Ollama, passes numeric signals and OCR text. Writes a user-friendly analysis explanation.
+  * **Video Mode**: Samples up to 24 frames via OpenCV, runs image heuristics on each frame, and averages results. Also transcribes audio (if available) using **Faster-Whisper**.
+* **Outputs**: Percentage breakdown, forensic explanation, and video transcript.
+* **Tech**: NumPy + SciPy (DCT), OpenCV, Pillow, Faster-Whisper, LLM.
+
+### Step 3: Authenticity (Fact-Check & Source Verification)
+* **Goal**: Cross-reference claims against fresh web search results and local reference documents.
+* **How it works**:
+  * **Search Query Generation**: By default, uses a **Fast Query Generator** (`STEP3_FAST_QUERY_GEN=True`) that uses regex/heuristics to extract key entities and URLs from the claim text. If disabled or fails, falls back to an LLM-generated 3-4 word query.
+  * **RAG Lookup**: Queries the local vector database for the top 1 cached prior investigation and up to 2 official advisories (reference documents) with a minimum score of 0.45.
+  * **Google Search**: Sends the query to Google Custom Search API (fallback to DuckDuckGo/etc.), retrieving up to 3 results.
+  * **Source Scoring & Deduplication**: Scores results based on `Domain Trust (60%)` and `Text Similarity (40%)`. Deduplicates by URL and Title, selecting the top 2 sources.
+  * **Page Scraping (Optional)**: If `STEP3_FETCH_FULL_PAGE` is set to `True` in `.env`, fetches the webpage text of the top 2 sources in parallel using **ThreadPoolExecutor** and parses it using **BeautifulSoup** (up to 1,500 chars).
+  * **LLM Synthesis**: The LLM receives the RAG advisories, search snippets/web text, and system verdict (`likely_true`, `inconclusive`, `flagged`). It writes an explanation and outputs the corresponding verdict mapping (`LEGIT`, `QUESTIONABLE`, `FAKE`) with verified links.
+  * **Cache Storage**: Caches the query, verdict, score, and top source URL into the RAG vector store.
+* **Outputs**: Credibility score (0-100), verdict (likely_true / inconclusive / flagged), and verified sources.
+* **Tech**: Google Custom Search API, RAG Vector Store, BeautifulSoup, ThreadPoolExecutor, LLM.
+
+### Step 4: Actionable Items (Personalized Security Recommendations)
+* **Goal**: Provide 3-5 concrete next-step recommendations.
+* **How it works**:
+  * Receives Step 1 summary (capped at 180 chars), Step 2 visual breakdown, and Step 3 verdict/explanation (capped at 180 chars).
+  * The LLM creates a numbered list strictly tailored to the verdict:
+    * **Likely True (LEGIT)**: Promotes safe engagement and official link checking (no block/report suggestions).
+    * **Flagged (FAKE)**: Recommends defensive measures (block account, unfollow, report, warn others).
+    * **Inconclusive (QUESTIONABLE)**: Advises caution and further verification.
+  * Privacy-preserving rules forbid the LLM from outputting specific usernames, handles (@username), or names of individuals.
+* **Outputs**: A numbered list of 3-5 concrete action items.
+* **Tech**: LLM.
+
+### Step 5: Learnings (Educational Resources & Digital Literacy)
+* **Goal**: Educate the user on threat patterns and provide credible digital literacy links.
+* **How it works**:
+  * Receives Step 3 verdict, Step 1 summary (capped at 200 chars), Step 2 visual breakdown, and Step 3 explanation (capped at 300 chars).
+  * The LLM generates a 3-6 word educational query.
+  * Searches Google Custom Search API (up to 3 results), filtering for official domains like `site:gov.ph`, `site:edu.ph`, `wikipedia.org`, and `factcheck.org`. Falls back to Step 3 sources if search results are empty.
+  * The LLM writes a 2-3 sentence educational overview explaining the scam/threat pattern (e.g. emotional framing, clickbait). **To avoid hallucination, the LLM is prohibited from generating URLs**.
+  * The Python script programmatically appends the verified educational resources as clickable markdown links at the end of the text.
+* **Outputs**: 2-3 sentence educational synthesis and recommended learning links.
+* **Tech**: Google Custom Search API, LLM.
+
+---
+
+## 4. Prerequisites (Windows)
+
+1. **Python 3.12**
+   Download Here: https://www.python.org/downloads/release/python-3120/
+   Choose Windows installer (64-bit)
 2. **Ollama** — install from \installers\OllamaSetup.exe or download from https://ollama.com/download/windows, then:
 
 Using CMD Run: 
@@ -72,7 +135,7 @@ Using CMD Run:
 3. **Tesseract OCR** :install from \installers\tesseract-ocr-w64-setup-5.5.0.20241111.exe or download from https://github.com/UB-Mannheim/tesseract/wiki
 Choose tesseract-ocr-w64-setup-5.5.0.20241111.exe (64 bit)
 
-## 4. Where to get each API key
+## 5. Where to get each API key
 
 ## Search Engine
 | `GOOGLE_API_KEY` | https://console.cloud.google.com/apis/credentials — enable the "Custom Search API" |
@@ -86,7 +149,7 @@ Choose tesseract-ocr-w64-setup-5.5.0.20241111.exe (64 bit)
 | `META_PAGE_ACCESS_TOKEN` | https://developers.facebook.com/apps → create an app → add the "Messenger" product → generate a Page Access Token for a Page you control | 
 | `META_APP_SECRET` | Same Meta App → Settings → Basic → "App Secret" (verifies incoming webhook signatures) |
 
-## 5. One-time setup
+## 6. One-time setup
 
 ```powershell
 cd usisain
@@ -104,7 +167,7 @@ py data\scripts\init_db.py
 That's the entire install — one venv, one `requirements.txt`, one `.env`,
 shared by the backend, the MCP server, and the Messenger bot.
 
-## 6. Running the application
+## 7. Running the application
 
 ```powershell
 set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass 
@@ -114,25 +177,20 @@ set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 The MCP tools (`mcp_server/tools/`) run **in-process** inside the backend —
 no separate process is spawned. You never run `server.py` directly.
 
-## 7. Browser extension setup (desktop)
+## 8. Browser extension setup (desktop)
 
 1. `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select `client/browser-extension/`
-2. Keep the backend running. Right-click selected text, an image, or a
-   video anywhere on the web — a results panel appears bottom-right and
-   fills in as each of the 5 steps completes.
+2. Keep the backend running. Right-click selected text, an image, a video, or select **Usisain Snipping** to draw a selection box anywhere on a webpage — a results panel appears bottom-right and fills in as each of the 5 steps completes.
 3. **Known limitation:** videos served via `blob:` URLs (common on
    Facebook/Instagram/X's own players) can't be fetched by the extension.
    Direct `<video src="...mp4">` elements work fine.
 
-## 8. Web app
+## 9. Web app
 
 With the backend running, just open **`http://localhost:8000/app`** —
 nothing else to install or start.
 
-- **Analyze page** (`/app`) — paste text, or upload an image/video, or
-  submit a combined caption + image ("post" mode). Pick a language, hit
-  Analyze, and watch each of the 5 steps fill in live as it completes —
-  same streaming behavior as the extension's panel, just as a full page.
+- **Analyze page** (`/app`) — paste text, or upload an image/video. Pick a language, hit Analyze, and watch each of the 5 steps fill in live as it completes — same streaming behavior as the extension's panel, just as a full page.
 - **Dashboard** (`/app/dashboard`) — three tabs:
   - *Overview*: total scans, a 30-day trend chart by channel, verdict breakdown.
   - *Scan history*: filterable table across all channels (extension,
@@ -142,7 +200,7 @@ nothing else to install or start.
     and queried during Step 3 (Authenticity Check) to semantically cross-reference
     claims against official ground-truth source material.
 
-## 9. Messenger bot setup (mobile)
+## 10. Messenger bot setup (mobile)
 
 The bot needs a **public HTTPS URL** for Meta to send webhooks to. For
 local development, use ngrok:
@@ -177,7 +235,7 @@ Note: while your Meta App is in development mode, only users added as
 testers/admins on the app can message the Page. Submitting for App Review
 is required before the general public can use it.
 
-## 10. Localization
+## 11. Localization
 
 Every request accepts a `language` field: `english`, `taglish` (the
 `.env` default), `tagalog`, `cebuano`, `bisaya`, or `ilocano`. Steps 1, 4, and 5
@@ -187,7 +245,7 @@ Every request accepts a `language` field: `english`, `taglish` (the
 settings UI if you want it user-configurable. The Messenger bot reads
 `DEFAULT_LANGUAGE` from the shared `.env`.
 
-## 11. Text-to-speech
+## 12. Text-to-speech
 
 `POST /api/tts?text=...&language=...` returns a `.wav` file, generated
 locally via `pyttsx3` (wraps Windows' built-in SAPI5 voices — no API key,
@@ -199,7 +257,7 @@ mispronounce Tagalog text. This isn't wired into the pipeline
 automatically; call it on the aggregated explanation text once analysis
 finishes, from whichever client wants audio.
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 - **Extension panel shows a fetch error** → confirm `uvicorn` is running
   on port 8000 and nothing else is bound to that port.
