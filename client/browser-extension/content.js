@@ -13,67 +13,72 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  if (message.action === "get-context") {
-    const el = lastRightClickedEl;
-    const post = getPostContext(el);
-    sendResponse({
-      pageUrl: location.href,
-      selectedText: window.getSelection()?.toString() || null,
-      clickedImageSrc: message.srcUrl || (el && el.tagName === "IMG" ? el.src : null),
-      clickedVideoSrc: message.srcUrl || (el && el.tagName === "VIDEO" ? el.currentSrc : null),
-      postCaption: post.caption,
-      postImages: post.images,
-    });
+  if (message.action === "start-snipping") {
+    initializeSnippingTool(sendResponse);
     return true;
-  }
+  } else {
+    if (message.action === "get-context") {
+      const el = lastRightClickedEl;
+      const post = getPostContext(el);
+      sendResponse({
+        pageUrl: location.href,
+        selectedText: window.getSelection()?.toString() || null,
+        clickedImageSrc: message.srcUrl || (el && el.tagName === "IMG" ? el.src : null),
+        clickedVideoSrc: message.srcUrl || (el && el.tagName === "VIDEO" ? el.currentSrc : null),
+        postCaption: post.caption,
+        postImages: post.images,
+      });
+      return true;
+    }
 
-  if (message.action === "fetch-as-dataurl") {
-    fetch(message.url).then(res => res.blob()).then(blob => new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(blob);
-    })).then(dataUrl => sendResponse({ dataUrl })).catch(err => sendResponse({ error: String(err) }));
-    return true;
-  }
-  
-  if (message.action === "fetch-and-resize") {
-    // message: { action: 'fetch-and-resize', url, maxDim, quality }
-    const { url, maxDim = 1024, quality = 0.75 } = message;
-    (async () => {
-      try {
-        showTemporaryBanner('Resizing image...');
-        const resp = await fetch(url);
-        const blob = await resp.blob();
-        const dataUrl = await resizeBlobToDataUrl(blob, maxDim, quality);
-        clearTemporaryBanner();
-        sendResponse({ dataUrl });
-      } catch (err) {
-        clearTemporaryBanner();
-        sendResponse({ error: String(err) });
-      }
-    })();
-    return true;
-  }
+    if (message.action === "fetch-as-dataurl") {
+      fetch(message.url).then(res => res.blob()).then(blob => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      })).then(dataUrl => sendResponse({ dataUrl })).catch(err => sendResponse({ error: String(err) }));
+      return true;
+    }
+    
+    if (message.action === "fetch-and-resize") {
+      // message: { action: 'fetch-and-resize', url, maxDim, quality }
+      const { url, maxDim = 1024, quality = 0.75 } = message;
+      (async () => {
+        try {
+          showTemporaryBanner('Resizing image...');
+          const resp = await fetch(url);
+          const blob = await resp.blob();
+          const dataUrl = await resizeBlobToDataUrl(blob, maxDim, quality);
+          clearTemporaryBanner();
+          sendResponse({ dataUrl });
+        } catch (err) {
+          clearTemporaryBanner();
+          sendResponse({ error: String(err) });
+        }
+      })();
+      return true;
+    }
 
-  if (message.action === 'upload-start') {
-    showTemporaryBanner('Uploading…');
-    sendResponse({ ok: true });
-    return true;
-  }
+    if (message.action === 'upload-start') {
+      showTemporaryBanner('Uploading…');
+      sendResponse({ ok: true });
+      return true;
+    }
 
-  if (message.action === 'upload-end') {
-    clearTemporaryBanner();
-    sendResponse({ ok: true });
-    return true;
-  }
+    if (message.action === 'upload-end') {
+      clearTemporaryBanner();
+      sendResponse({ ok: true });
+      return true;
+    }
 
-  if (message.action === "pipeline-start") { showPanel(); return; }
-  if (message.action === "pipeline-settings") {
-    pipelineTimeoutSeconds = Number(message.pipeline_step_timeout_seconds) || pipelineTimeoutSeconds;
-    return;
+    if (message.action === "pipeline-start") { showPanel(); return; }
+    if (message.action === "pipeline-settings") {
+      pipelineTimeoutSeconds = Number(message.pipeline_step_timeout_seconds) || pipelineTimeoutSeconds;
+      return;
+    }
+    if (message.action === "pipeline-event") { updatePanelStep(message.event); return; }
+    if (message.action === "pipeline-error") { showPanelError(message.error); return; }
   }
-  if (message.action === "pipeline-event") { updatePanelStep(message.event); return; }
-  if (message.action === "pipeline-error") { showPanelError(message.error); return; }
 });
 
 // ---------- results panel — enterprise UI ----------
@@ -530,4 +535,266 @@ function showPanelError(error) {
     }
   }
   banner.textContent = "⚠️ " + error;
+}
+
+//Snip Function
+function initializeSnippingTool(sendResponse) {
+  if (document.getElementById("snip-overlay")) return;
+
+  // Append overlay CSS dynamically to Facebook page
+  const style = document.createElement("style");
+  style.id = "snip-styles";
+  style.innerHTML = `
+    #snip-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 99999999 !important;
+      cursor: crosshair;
+    }
+    #snip-box {
+      border: 2px dashed #3b82f6;
+      background: rgba(59, 130, 246, 0.15);
+      position: absolute; /* Changed to absolute to anchor to page scroll */
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+      z-index: 999999999 !important; /* Above the overlay */
+    }
+    .snip-popup-panel {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      width: 380px; max-height: 500px;
+      background: #1e293b; color: #f1f5f9;
+      border-radius: 16px; border: 1px solid #334155;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+      z-index: 999999999 !important;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .snip-popup-header {
+      background: #0f172a; padding: 12px 16px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #334155;
+    }
+    .snip-popup-content {
+      padding: 16px; overflow-y: auto; flex-grow: 1;
+    }
+    .snip-btn-primary {
+      background: #2563eb; color: white; padding: 8px 12px;
+      border-radius: 8px; font-weight: 500; font-size: 12px;
+      cursor: pointer; border: none; text-align: center;
+    }
+    .snip-btn-secondary {
+      background: #334155; color: #cbd5e1; padding: 8px 12px;
+      border-radius: 8px; font-size: 12px; cursor: pointer; border: none;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Overlay covers viewport to catch mouse events
+  const overlay = document.createElement("div");
+  overlay.id = "snip-overlay";
+  
+  // Snip box appended to body so it scrolls with the page
+  const snipBox = document.createElement("div");
+  snipBox.id = "snip-box";
+  
+  document.body.appendChild(snipBox);
+  document.body.appendChild(overlay);
+
+  let startPageX, startPageY;
+  let lastMouseX = 0, lastMouseY = 0;
+  let isDrawing = false;
+  let autoScrollSpeed = 0;
+
+  // Redraws the box continuously, factoring in any page scrolling
+  function updateBox() {
+    if (!isDrawing) return;
+    
+    // Calculate current global document coordinates
+    const currentPageX = lastMouseX + window.scrollX;
+    const currentPageY = lastMouseY + window.scrollY;
+
+    const width = Math.abs(currentPageX - startPageX);
+    const height = Math.abs(currentPageY - startPageY);
+    
+    snipBox.style.width = width + "px";
+    snipBox.style.height = height + "px";
+    snipBox.style.left = Math.min(currentPageX, startPageX) + "px";
+    snipBox.style.top = Math.min(currentPageY, startPageY) + "px";
+  }
+
+  // Animation frame loop handling the auto-scrolling engine
+  function scrollLoop() {
+    if (!isDrawing) return;
+
+    if (autoScrollSpeed !== 0) {
+      window.scrollBy(0, autoScrollSpeed);
+    }
+    
+    updateBox();
+    requestAnimationFrame(scrollLoop);
+  }
+
+  overlay.addEventListener("mousedown", (e) => {
+    isDrawing = true;
+    
+    // Anchor the start position to the page, not the screen
+    startPageX = e.clientX + window.scrollX;
+    startPageY = e.clientY + window.scrollY;
+    
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+
+    snipBox.style.left = startPageX + "px";
+    snipBox.style.top = startPageY + "px";
+    snipBox.style.width = "0px";
+    snipBox.style.height = "0px";
+    snipBox.style.display = "block";
+
+    // Kick off the drawing and scrolling monitor
+    requestAnimationFrame(scrollLoop);
+  });
+
+  overlay.addEventListener("mousemove", (e) => {
+    if (!isDrawing) return;
+    
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+
+    // Detect if mouse is near the top or bottom of the screen (60px threshold)
+    const edgeThreshold = 60;
+    if (lastMouseY > window.innerHeight - edgeThreshold) {
+      // Scroll down based on how close to the edge you are
+      autoScrollSpeed = 15;
+    } else if (lastMouseY < edgeThreshold) {
+      // Scroll up
+      autoScrollSpeed = -15;
+    } else {
+      autoScrollSpeed = 0;
+    }
+  });
+
+  overlay.addEventListener("mouseup", (e) => {
+    if (!isDrawing) return;
+    isDrawing = false;
+    autoScrollSpeed = 0;
+    
+    const endPageX = e.clientX + window.scrollX;
+    const endPageY = e.clientY + window.scrollY;
+
+    // Cleanup UI
+    overlay.remove();
+    snipBox.remove();
+
+    // Map the absolute page crop-box coordinates BACK to relative viewport coordinates 
+    // for compatibility with getBoundingClientRect() during data extraction
+    const cropRect = {
+      left: Math.min(startPageX, endPageX) - window.scrollX,
+      right: Math.max(startPageX, endPageX) - window.scrollX,
+      top: Math.min(startPageY, endPageY) - window.scrollY,
+      bottom: Math.max(startPageY, endPageY) - window.scrollY,
+      width: Math.abs(endPageX - startPageX),
+      height: Math.abs(endPageY - startPageY)
+    };
+
+    if (cropRect.width < 10 || cropRect.height < 10) return;
+
+    extractDataFromRect(cropRect).then(data => {
+      sendResponse({
+        pageUrl: location.href,
+        selectedText: data.text || null,
+        images: data.images || [],
+      });
+    });
+    
+  });
+}
+
+function extractDataFromRect(rect) {
+  let extractedText = "";
+  const textBlocks = document.querySelectorAll('div[dir="auto"], span[dir="auto"], [data-ad-preview="message"]');
+  let textSegments = [];
+
+  textBlocks.forEach(block => {
+    const blockRect = block.getBoundingClientRect();
+    if (isIntersecting(rect, blockRect)) {
+      const text = block.innerText ? block.innerText.trim() : "";
+      if (text && text.length > 5) {
+        textSegments.push(text);
+      }
+    }
+  });
+
+  if (textSegments.length === 0) {
+    const fallbackElements = document.querySelectorAll('p, div[role="article"] h3, span');
+    fallbackElements.forEach(el => {
+      const elRect = el.getBoundingClientRect();
+      if (isIntersecting(rect, elRect) && el.innerText) {
+        const txt = el.innerText.trim();
+        if (txt.length > 15 && txt.length < 1500) {
+          textSegments.push(txt);
+        }
+      }
+    });
+  }
+
+  extractedText = Array.from(new Set(textSegments)).join("\n\n");
+
+  const extractedUrls = [];
+  const conversionTasks = []; 
+  const images = document.querySelectorAll("img");
+
+  for (const img of images) {
+    const imgRect = img.getBoundingClientRect();
+    
+    // Assuming 'rect' and 'isIntersecting' are in scope
+    if (isIntersecting(rect, imgRect)) {
+      if (imgRect.width > 60 && imgRect.height > 60 && img.src) {
+        if (!extractedUrls.includes(img.src) && !img.src.includes("rsrc.php")) {
+          extractedUrls.push(img.src);
+          conversionTasks.push(fetchAsBase64(img.src));
+        }
+      }
+    }
+  }
+
+  // RETURN the Promise chain. This resolves into the object you want.
+  return Promise.all(conversionTasks).then(results => {
+    const finalImages = results.filter(item => item !== null);
+    
+    // This is the object your function ultimately returns
+    return {
+      text: extractedText,
+      images: finalImages
+    };
+  });
+}
+
+async function fetchAsBase64(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Network response was not ok");
+    
+    const blob = await response.blob();
+    
+    // Convert Blob to Base64
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve({ url: url, base64: reader.result });
+      reader.onerror = () => reject(new Error("Failed to read blob"));
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Failed to convert:", url, error);
+    return null; // Return null on failure to prevent crashing Promise.all
+  }
+}
+
+function isIntersecting(r1, r2) {
+  return !(r2.left > r1.right || 
+           r2.right < r1.left || 
+           r2.top > r1.bottom || 
+           r2.bottom < r1.top);
 }
