@@ -102,6 +102,8 @@ updateFormFields();
 
 let pipelineTimeoutSeconds = 120;
 const activeTimers = {};
+const spokenStarts = {};
+const spokenCompletes = {};
 
 async function loadSettings() {
   try {
@@ -129,9 +131,71 @@ async function loadSettings() {
   }
 }
 
+const ttsVoiceSelect = document.getElementById("tts-voice");
+const ttsReplayBtn = document.getElementById("tts-replay");
+
+function updateVoiceDropdownVisibility() {
+  const ttsEnabled = document.getElementById("tts-toggle").checked;
+  ttsVoiceSelect.style.display = ttsEnabled ? "inline-block" : "none";
+  
+  // Show replay button if TTS is enabled and there is completed text to replay
+  const hasCompletedStep = Array.from(document.querySelectorAll(".step-row"))
+    .some(row => row.dataset.status === "completed" && row.dataset.speechText);
+  ttsReplayBtn.style.display = (ttsEnabled && hasCompletedStep) ? "inline-block" : "none";
+}
+
+function populateVoices() {
+  ttsVoiceSelect.innerHTML = "";
+  const voices = window.ttsPlayer.getVoices();
+  for (const voice of voices) {
+    const opt = document.createElement("option");
+    opt.value = voice.name;
+    opt.textContent = `${voice.name} (${voice.lang})`;
+    ttsVoiceSelect.appendChild(opt);
+  }
+  if (window.ttsPlayer.selectedVoiceName) {
+    ttsVoiceSelect.value = window.ttsPlayer.selectedVoiceName;
+  }
+}
+
 document.getElementById("tts-toggle").addEventListener("change", (e) => {
   window.ttsPlayer.setEnabled(e.target.checked);
+  updateVoiceDropdownVisibility();
 });
+
+ttsVoiceSelect.addEventListener("change", (e) => {
+  window.ttsPlayer.setSelectedVoice(e.target.value);
+});
+
+ttsReplayBtn.addEventListener("click", () => {
+  window.ttsPlayer.stop();
+  for (let i = 1; i <= 5; i++) {
+    delete spokenCompletes[i];
+  }
+  
+  // Enqueue all already-completed steps in order
+  for (let i = 1; i <= 5; i++) {
+    const row = document.getElementById(`step-${i}`);
+    if (row && row.dataset.status === "completed" && row.dataset.speechText) {
+      spokenCompletes[i] = true;
+      window.ttsPlayer.speak(row.dataset.speechText);
+    }
+  }
+});
+
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    window.ttsPlayer.initVoices();
+    populateVoices();
+  };
+}
+
+// Check initial load
+setTimeout(() => {
+  window.ttsPlayer.initVoices();
+  populateVoices();
+  updateVoiceDropdownVisibility();
+}, 500);
 
 loadSettings();
 
@@ -223,11 +287,14 @@ function updateStepRow(event) {
     let secondsLeft = pipelineTimeoutSeconds;
     body.textContent = `Working… (${secondsLeft}s remaining)`;
     
-    // Narrate step start
-    const lang = document.getElementById("language").value;
-    const startMsgs = STEP_START_MESSAGES[lang] || STEP_START_MESSAGES.english;
-    const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
-    window.ttsPlayer.speak(startMsg);
+    // Narrate step start (ensure we only narrate it once)
+    if (!spokenStarts[event.step]) {
+      spokenStarts[event.step] = true;
+      const lang = document.getElementById("language").value;
+      const startMsgs = STEP_START_MESSAGES[lang] || STEP_START_MESSAGES.english;
+      const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
+      window.ttsPlayer.speak(startMsg);
+    }
 
     activeTimers[event.step] = setInterval(() => {
       secondsLeft--;
@@ -251,7 +318,10 @@ function updateStepRow(event) {
     markFollowingStepsFailed(event.step + 1);
 
     // Narrate step failure
-    window.ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
+    if (!spokenCompletes[event.step]) {
+      spokenCompletes[event.step] = true;
+      window.ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
+    }
   } else if (event.status === "completed") {
     icon.textContent = "✅";
     icon.style.color = "";
@@ -271,7 +341,15 @@ function updateStepRow(event) {
     } else if (event.step === 4) {
       speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
     }
-    window.ttsPlayer.speak(speechText);
+    
+    // Store speech text representation on the element for replay
+    row.dataset.speechText = speechText;
+    updateVoiceDropdownVisibility();
+
+    if (!spokenCompletes[event.step]) {
+      spokenCompletes[event.step] = true;
+      window.ttsPlayer.speak(speechText);
+    }
   }
 }
 
@@ -299,6 +377,15 @@ form.addEventListener("submit", async (e) => {
   const mode = modeSelect.value;
   const language = document.getElementById("language").value;
   
+  // Clear step spoken states on new submit session
+  for (let i = 1; i <= 5; i++) {
+    delete spokenStarts[i];
+    delete spokenCompletes[i];
+    const row = document.getElementById(`step-${i}`);
+    if (row) delete row.dataset.speechText;
+  }
+  updateVoiceDropdownVisibility();
+
   // Set language and stop previous speech
   window.ttsPlayer.setLanguage(language);
   window.ttsPlayer.stop();

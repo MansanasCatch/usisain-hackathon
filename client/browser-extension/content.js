@@ -538,7 +538,7 @@ function showPanel(previewText, previewImageUrl) {
   const header = document.createElement("div");
   header.className = "usisain-header";
   header.innerHTML = `
-    <div class="usisain-header-inner">
+    <div class="usisain-header-inner" style="padding: 12px 14px;">
       <div class="usisain-header-icon">🛡️</div>
       <div class="usisain-header-text">
         <div class="usisain-header-title">UsisAIn</div>
@@ -546,7 +546,15 @@ function showPanel(previewText, previewImageUrl) {
       </div>
       <button class="usisain-minimize-btn" title="Minimize panel" style="margin-right: 8px;">🗕</button>
       <button class="usisain-close-btn" title="Close panel">✕</button>
+    </div>
+    <div style="display:flex; gap:6px; align-items:center; background:rgba(15,23,42,0.4); padding:6px 14px; border-bottom:1px solid rgba(56,68,102,0.2); font-family:'Inter',system-ui,sans-serif; font-size:11px; color:#8892a8; flex-wrap:wrap;">
+      <label style="display:flex; align-items:center; gap:4px; margin:0; cursor:pointer; user-select:none; color:#8892a8;">
+        <input type="checkbox" id="usisain-tts-toggle" style="margin:0; width:auto; cursor:pointer;"> Voice (TTS)
+      </label>
+      <select id="usisain-tts-voice" style="display:none; max-width:130px; font-size:10px; padding:1px 4px; background:#0f172a; border:1px solid rgba(56,68,102,0.4); color:#c8d0e0; border-radius:3px; height:auto;"></select>
+      <button id="usisain-tts-replay" style="display:none; font-size:10px; padding:1px 6px; background:rgba(56,68,102,0.3); border:1px solid rgba(56,68,102,0.5); color:#c8d0e0; cursor:pointer; border-radius:3px; height:auto; margin-left:auto;">Re-play</button>
     </div>`;
+
   header.querySelector(".usisain-close-btn").onclick = () => {
     panel.style.animation = "none";
     panel.style.opacity = "0";
@@ -573,6 +581,71 @@ function showPanel(previewText, previewImageUrl) {
   };
   panel.appendChild(header);
 
+  // Setup TTS Controls
+  const ttsToggle = header.querySelector("#usisain-tts-toggle");
+  const ttsVoice = header.querySelector("#usisain-tts-voice");
+  const ttsReplay = header.querySelector("#usisain-tts-replay");
+
+  ttsToggle.checked = ttsPlayer.enabled;
+
+  function updateDropdowns() {
+    const enabled = ttsToggle.checked;
+    ttsVoice.style.display = enabled ? "inline-block" : "none";
+    const hasCompleted = Array.from(panel.querySelectorAll(".usisain-step-row"))
+      .some(row => row.dataset.status === "completed" && row.dataset.speechText);
+    ttsReplay.style.display = (enabled && hasCompleted) ? "inline-block" : "none";
+  }
+
+  function populateVoicesDropdown() {
+    ttsVoice.innerHTML = "";
+    const voices = ttsPlayer.voices || [];
+    for (const voice of voices) {
+      const opt = document.createElement("option");
+      opt.value = voice.name;
+      opt.textContent = `${voice.name} (${voice.lang})`;
+      ttsVoice.appendChild(opt);
+    }
+    if (ttsPlayer.selectedVoiceName) {
+      ttsVoice.value = ttsPlayer.selectedVoiceName;
+    }
+  }
+
+  ttsToggle.addEventListener("change", (e) => {
+    ttsPlayer.setEnabled(e.target.checked);
+    updateDropdowns();
+  });
+
+  ttsVoice.addEventListener("change", (e) => {
+    ttsPlayer.selectedVoiceName = e.target.value;
+  });
+
+  ttsReplay.addEventListener("click", () => {
+    ttsPlayer.stop();
+    for (let i = 1; i <= 5; i++) {
+      delete extensionSpokenCompletes[i];
+    }
+    for (let i = 1; i <= 5; i++) {
+      const row = panel.querySelector(`#usisain-step-${i}`);
+      if (row && row.dataset.status === "completed" && row.dataset.speechText) {
+        extensionSpokenCompletes[i] = true;
+        ttsPlayer.speak(row.dataset.speechText);
+      }
+    }
+  });
+
+  if (window.speechSynthesis) {
+    ttsPlayer.voices = window.speechSynthesis.getVoices();
+    populateVoicesDropdown();
+    updateDropdowns();
+    window.speechSynthesis.onvoiceschanged = () => {
+      ttsPlayer.voices = window.speechSynthesis.getVoices();
+      populateVoicesDropdown();
+      updateDropdowns();
+    };
+  }
+
+  panel.updateVoiceUI = updateDropdowns;
+
   // Dragging logic on header
   let isDragging = false;
   let startX = 0;
@@ -581,7 +654,7 @@ function showPanel(previewText, previewImageUrl) {
   let initialTop = 0;
 
   header.addEventListener("mousedown", (e) => {
-    if (e.target.closest("button")) return;
+    if (e.target.closest("button") || e.target.closest("select") || e.target.closest("input") || e.target.closest("label")) return;
 
     isDragging = true;
     const rect = panel.getBoundingClientRect();
@@ -749,6 +822,11 @@ function updatePanelStep(event) {
       speechText = `Verdict: ${event.result.verdict}. Credibility score: ${event.result.score} out of 100. ${event.result.explanation}`;
     } else if (event.step === 4) {
       speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
+    }
+    row.dataset.speechText = speechText;
+    const panelEl = document.getElementById("usisain-panel");
+    if (panelEl && panelEl.updateVoiceUI) {
+      panelEl.updateVoiceUI();
     }
     ttsPlayer.speak(speechText);
   }
@@ -1109,26 +1187,47 @@ class TTSPlayer {
   speak(text) {
     if (!this.enabled || !text) return;
 
-    const cleanText = text
-      .replace(/<[^>]*>/g, "")
+    // 1. Remove dangerous script, style, and iframe blocks along with their inner contents (XSS/Audio poisoning mitigation)
+    let sanitized = text
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "");
+
+    // 2. Strip remaining HTML tags
+    sanitized = sanitized.replace(/<[^>]*>/g, "");
+
+    // 3. Remove raw javascript commands and coding operators/brackets
+    sanitized = sanitized
+      .replace(/(?:console\.log|alert\s*\(|eval\s*\(|prompt\s*\(|confirm\s*\(|window\.|document\.)/gi, "")
+      .replace(/[\{\}\[\]\(\)\<\>\=\+\-\*\/\\`_]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // 4. Clean markdown formatting
+    const cleanText = sanitized
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
       .replace(/\*\*([^*]+)\*\*/g, "$1")
-      .replace(/[\*\#\_]/g, "")
       .trim();
 
     if (!cleanText) return;
+
+    let textLanguage = this.currentLanguage;
+    const tagalogPattern = /\b(ang|mga|ng|sa|na|ni|ay|si|po|opo|ako|ikaw|siya|ito|iyon|doon|dito|namin|nila|kaya|kasi|pero|maging|dahil|ano|sino|bakit|paano)\b/i;
+    if (tagalogPattern.test(cleanText)) {
+      textLanguage = "tagalog";
+    }
 
     const sentences = cleanText.split(/[.!?；。]+/);
     for (const sentence of sentences) {
       const trimmed = sentence.trim();
       if (trimmed.length > 0) {
-        this.enqueue(trimmed);
+        this.enqueue(trimmed, textLanguage);
       }
     }
   }
 
-  enqueue(text) {
-    this.utteranceQueue.push(text);
+  enqueue(text, lang) {
+    this.utteranceQueue.push({ text, lang: lang || this.currentLanguage });
     this.processQueue();
   }
 
@@ -1136,12 +1235,21 @@ class TTSPlayer {
     if (this.isSpeaking || this.utteranceQueue.length === 0 || !window.speechSynthesis) return;
 
     this.isSpeaking = true;
-    const text = this.utteranceQueue.shift();
-    const utterance = new SpeechSynthesisUtterance(text);
-    const locale = this.getLocaleCode(this.currentLanguage);
+    const item = this.utteranceQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(item.text);
+    const locale = this.getLocaleCode(item.lang);
     utterance.lang = locale;
 
-    const matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
+    let matchingVoice = null;
+    if (locale === "tl-PH") {
+      matchingVoice = this.voices.find(v => v.lang.toLowerCase().startsWith("tl") || v.lang.toLowerCase().includes("fil"));
+    }
+    if (!matchingVoice && this.selectedVoiceName) {
+      matchingVoice = this.voices.find(v => v.name === this.selectedVoiceName);
+    }
+    if (!matchingVoice) {
+      matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
+    }
     if (matchingVoice) {
       utterance.voice = matchingVoice;
     }
