@@ -261,7 +261,7 @@ async def generate_learnings(step1_result: dict, step2_result: dict, step3_resul
         system_prompt = f"{SYSTEM_PROMPT_TEMPLATE} {LANGUAGE_INSTRUCTIONS[language]}"
 
     try:
-        material = await llm.complete(system_prompt, final_context, max_tokens=512)
+        material = await llm.complete(system_prompt, final_context, max_tokens=256)
         
         # Clean up any potential markdown links from LLM
         if material:

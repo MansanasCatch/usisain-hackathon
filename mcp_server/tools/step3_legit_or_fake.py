@@ -171,7 +171,7 @@ def extract_fast_query(claim: str) -> str:
 async def generate_search_query(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", step1_result: dict = None, step2_result: dict = None) -> str:
     # Check if fast query generation is enabled
     fast_gen = os.environ.get("STEP3_FAST_QUERY_GEN", "True").lower() in ("1", "true", "yes")
-    if fast_gen:
+    if fast_gen and claim:
         fast_query = extract_fast_query(claim)
         if fast_query:
             return fast_query
@@ -185,6 +185,11 @@ async def generate_search_query(claim: str, file_path: str = None, content_type:
         step2_text = step2_result.get("explanation") or ""
 
     desc_text = f"{step1_text} {step2_text}".strip()
+
+    if fast_gen and not claim and desc_text:
+        fast_query = extract_fast_query(desc_text)
+        if fast_query:
+            return fast_query
 
     # Construct context for query generation
     context_for_query = ""

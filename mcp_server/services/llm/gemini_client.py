@@ -154,7 +154,7 @@ class GeminiProvider(LLMProvider):
                 await asyncio.sleep(retry_delay)
             else:
                 logger.warning("Gemini local RPM limit reached after retries — falling back to Ollama.")
-                return await OllamaProvider().complete(system, user, image_path, max_tokens)
+                return await OllamaProvider().complete(system, user, image_path=None, max_tokens=max_tokens)
 
         # If an explicit key was provided at construction time, just use it always.
         if self._explicit_key:
@@ -163,7 +163,7 @@ class GeminiProvider(LLMProvider):
             except Exception as exc:
                 self._log_error_to_db(exc, f"...{self._explicit_key[-6:]}" if self._explicit_key else "none", system, error_type="api")
                 logger.warning("Gemini request failed with explicit key — falling back to Ollama. Error: %s", exc)
-                return await OllamaProvider().complete(system, user, image_path, max_tokens)
+                return await OllamaProvider().complete(system, user, image_path=None, max_tokens=max_tokens)
 
         # One key per request, rotate keys round-robin across requests.
         # Run the attempt OUTSIDE of the _REQUEST_LOCK to allow concurrency.
@@ -176,7 +176,7 @@ class GeminiProvider(LLMProvider):
             
             if not api_key:
                 logger.warning("No Gemini API keys configured in pool — falling back to Ollama.")
-                return await OllamaProvider().complete(system, user, image_path, max_tokens)
+                return await OllamaProvider().complete(system, user, image_path=None, max_tokens=max_tokens)
 
             key_hint = f"...{api_key[-6:]}"
             attempts += 1
@@ -189,14 +189,17 @@ class GeminiProvider(LLMProvider):
                 )
                 self._log_error_to_db(exc, key_hint, system, error_type="api")
 
-                # Retry with the next key in the pool for ANY failure (quota, network timeouts, invalid keys, etc.)
-                if attempts < max_attempts:
-                    logger.warning("Attempt failed. Retrying with the next key in the pool...")
+                # Only retry other keys if it's a quota/rate-limit error or key auth issue.
+                # Connection/DNS/Network errors will fail for all keys, so abort immediately to prevent long timeouts.
+                is_quota = _is_quota_error(exc)
+                is_auth = any(term in str(exc).lower() for term in ["api key", "invalid key", "403", "unauthorized", "permission", "blocked"])
+                
+                if (is_quota or is_auth) and attempts < max_attempts:
+                    logger.warning("Attempt failed with quota/auth error. Retrying with the next key in the pool...")
                     continue
                 else:
-                    # All keys in the pool have been tried and failed. Fall back to Ollama.
-                    logger.warning("All Gemini keys in the pool failed — falling back to Ollama. Last error: %s", exc)
-                    return await OllamaProvider().complete(system, user, image_path, max_tokens)
+                    logger.warning("Gemini attempt failed with non-retryable error (network/timeout/etc.) — falling back to Ollama. Last error: %s", exc)
+                    return await OllamaProvider().complete(system, user, image_path=None, max_tokens=max_tokens)
 
 
     # ------------------------------------------------------------------
