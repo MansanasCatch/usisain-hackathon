@@ -118,7 +118,8 @@ async function loadSettings() {
 
 function updateVoiceControlsVisibility() {
   const enabled = ttsToggle.checked;
-  if (ttsVoice) ttsVoice.style.display = enabled ? "inline-block" : "none";
+  const voiceRow = document.getElementById("tts-voice-row");
+  if (voiceRow) voiceRow.style.display = enabled ? "block" : "none";
   
   let hasCompletedSpeech = false;
   for (let i = 1; i <= 5; i++) {

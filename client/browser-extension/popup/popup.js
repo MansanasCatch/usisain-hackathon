@@ -43,6 +43,41 @@ btnDashboard.addEventListener("click", () => {
 
 const ocrToggle = document.getElementById("ocr-toggle");
 const ttsToggle = document.getElementById("tts-toggle");
+const ttsVoiceRow = document.getElementById("tts-voice-row");
+const ttsVoiceSelect = document.getElementById("tts-voice-select");
+
+// ─── Voice dropdown population ───
+function populateVoiceDropdown() {
+  if (!ttsVoiceSelect) return;
+  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+  ttsVoiceSelect.innerHTML = "";
+  for (const voice of voices) {
+    const opt = document.createElement("option");
+    opt.value = voice.name;
+    opt.textContent = `${voice.name} (${voice.lang})`;
+    ttsVoiceSelect.appendChild(opt);
+  }
+  // Restore saved voice
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.get(["selectedVoice"], (data) => {
+      if (data.selectedVoice && ttsVoiceSelect.querySelector(`option[value="${CSS.escape(data.selectedVoice)}"]`)) {
+        ttsVoiceSelect.value = data.selectedVoice;
+      }
+    });
+  }
+}
+
+function updateTtsVoiceVisibility() {
+  if (ttsVoiceRow) {
+    ttsVoiceRow.style.display = ttsToggle.checked ? "flex" : "none";
+  }
+}
+
+// Populate voices — speechSynthesis loads async in some browsers
+if (window.speechSynthesis) {
+  populateVoiceDropdown();
+  window.speechSynthesis.onvoiceschanged = populateVoiceDropdown;
+}
 
 // ─── Load saved language, OCR, and TTS preferences ───
 if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
@@ -56,6 +91,7 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     if (data.useTts !== undefined) {
       ttsToggle.checked = data.useTts;
     }
+    updateTtsVoiceVisibility();
   });
 }
 
@@ -73,12 +109,22 @@ ocrToggle.addEventListener("change", () => {
   }
 });
 
-// ─── Save TTS preference on change ───
+// ─── Save TTS preference on change & toggle voice row ───
 ttsToggle.addEventListener("change", () => {
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     chrome.storage.local.set({ useTts: ttsToggle.checked });
   }
+  updateTtsVoiceVisibility();
 });
+
+// ─── Save selected voice on change ───
+if (ttsVoiceSelect) {
+  ttsVoiceSelect.addEventListener("change", () => {
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ selectedVoice: ttsVoiceSelect.value });
+    }
+  });
+}
 
 // ─── Populate language dropdown based on provider ───
 function populateLanguages(provider) {

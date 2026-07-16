@@ -290,17 +290,23 @@
             </div>
           </div>
 
-          <div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:12px; align-items:center;">
-            <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); user-select:none; cursor:pointer;">
-              <input type="checkbox" id="tts-toggle" style="width:auto; cursor:pointer;">
-              Narrate with voice (TTS)
-            </label>
-            <select id="tts-voice" style="display:none; max-width:200px; font-size:12px; padding:2px 6px; height:auto; margin-left:5px; background:var(--bg-accent); border:1px solid var(--border); color:var(--text); border-radius:4px;"></select>
-            <button id="tts-replay" type="button" style="display:none; font-size:12px; padding:2px 6px; height:auto; background:var(--bg-accent); border:1px solid var(--border); color:var(--text); cursor:pointer; border-radius:4px; margin-left:5px;">Re-play Speech</button>
-            <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); user-select:none; cursor:pointer; margin-left:12px;">
-              <input type="checkbox" id="ocr-toggle" style="width:auto; cursor:pointer;" checked>
-              Use Tesseract-OCR
-            </label>
+          <div style="border-top:1px solid var(--border); padding-top:12px; margin-bottom:16px;">
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); user-select:none; cursor:pointer;">
+                <input type="checkbox" id="tts-toggle" style="width:auto; cursor:pointer;">
+                Narrate with voice (TTS)
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); user-select:none; cursor:pointer;">
+                <input type="checkbox" id="ocr-toggle" style="width:auto; cursor:pointer;" checked>
+                Use Tesseract-OCR
+              </label>
+            </div>
+            <!-- Voice selector row (shown when TTS is enabled) -->
+            <div id="tts-voice-row" style="display:none; margin-bottom:6px;">
+              <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; display:block; margin-bottom:4px;">Voice</label>
+              <select id="tts-voice" style="width:100%; font-size:12px; padding:6px 10px; background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px; appearance:none; -webkit-appearance:none; cursor:pointer;"></select>
+            </div>
+            <button id="tts-replay" type="button" style="display:none; font-size:11px; padding:4px 10px; background:var(--panel); border:1px solid var(--border); color:var(--accent-light); cursor:pointer; border-radius:6px; font-weight:600;">▶ Re-play Speech</button>
           </div>
 
           <div style="margin-bottom:16px;">

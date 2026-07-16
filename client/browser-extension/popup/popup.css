@@ -220,6 +220,14 @@ body {
   pointer-events: none;
 }
 
+#tts-voice-row .styled-select {
+  width: 100%;
+}
+
+#tts-voice-row .styled-select select {
+  width: 100%;
+}
+
 /* ---- Navigation Buttons ---- */
 .nav-buttons {
   display: flex;
