@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from .core.logging import setup_logging
 from .core.config import settings
@@ -168,9 +169,87 @@ def get_settings():
         "ollama_vision_model": os.environ.get("OLLAMA_VISION_MODEL", "moondream"),
         "pipeline_step_timeout_seconds": float(os.environ.get("PIPELINE_STEP_TIMEOUT_SECONDS", "120.0")),
         "tts_enabled": os.environ.get("TTS_ENABLED", "False").lower() in ("true", "1", "yes"),
+        "max_reference_doc_size_mb": float(os.environ.get("MAX_REFERENCE_DOC_SIZE_MB", "10.0")),
         "supported_languages": {
             "ollama": ["english"],
             "gemini": ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
         },
     }
+
+
+class SwitchModelRequest(BaseModel):
+    model: str
+
+
+@app.get("/api/ollama/models")
+def list_ollama_models():
+    """List all locally available Ollama models with their sizes and modification dates."""
+    active_model = os.environ.get("OLLAMA_MODEL", "llama3.2:1b").strip()
+    active_vision = os.environ.get("OLLAMA_VISION_MODEL", "moondream").strip()
+    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").strip()
+
+    try:
+        import ollama as _ollama
+    except ImportError:
+        return {"models": [], "active_model": active_model, "active_vision_model": active_vision, "error": "ollama package not installed"}
+
+    try:
+        client = _ollama.Client(host=host)
+        raw = client.list()
+    except Exception as e:
+        return {"models": [], "active_model": active_model, "active_vision_model": active_vision, "error": f"Cannot reach Ollama: {e}"}
+
+    models_out = []
+    items = []
+    if hasattr(raw, "models"):
+        items = raw.models
+    elif isinstance(raw, dict) and "models" in raw:
+        items = raw["models"]
+    elif isinstance(raw, list):
+        items = raw
+
+    for m in items:
+        name = getattr(m, "model", None) or (m.get("model") if isinstance(m, dict) else str(m))
+        size = getattr(m, "size", None) or (m.get("size", 0) if isinstance(m, dict) else 0)
+        modified_at = getattr(m, "modified_at", None) or (m.get("modified_at") if isinstance(m, dict) else None)
+        
+        # Format modified_at if it's a datetime object
+        if modified_at and not isinstance(modified_at, str):
+            try:
+                modified_at = modified_at.isoformat()
+            except Exception:
+                modified_at = str(modified_at)
+
+        models_out.append({
+            "name": str(name).strip(),
+            "size_bytes": int(size or 0),
+            "modified_at": str(modified_at or "")
+        })
+
+    return {"models": models_out, "active_model": active_model, "active_vision_model": active_vision}
+
+
+@app.post("/api/ollama/switch-model")
+def switch_ollama_model(req: SwitchModelRequest):
+    """Switch the active Ollama text model and persist to .env."""
+    new_model = req.model.strip()
+    os.environ["OLLAMA_MODEL"] = new_model
+
+    # Persist to .env file
+    env_path = settings.project_root / ".env"
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+        found = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith("OLLAMA_MODEL="):
+                lines[i] = f"OLLAMA_MODEL={new_model}"
+                found = True
+                break
+        if not found:
+            lines.append(f"OLLAMA_MODEL={new_model}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        logger.warning("Failed to persist OLLAMA_MODEL to .env: %s", e)
+
+    return {"status": "ok", "active_model": new_model}
 

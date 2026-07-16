@@ -45,6 +45,9 @@ class Settings:
     # Video analysis
     max_video_frames: int = int(os.environ.get("MAX_VIDEO_FRAMES", "24"))
 
+    # Upload restrictions (reference documents)
+    max_reference_doc_size_mb: float = float(os.environ.get("MAX_REFERENCE_DOC_SIZE_MB", "10.0"))
+
 
 settings = Settings()
 settings.uploads_dir.mkdir(parents=True, exist_ok=True)
