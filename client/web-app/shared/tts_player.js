@@ -8,6 +8,7 @@ class TTSPlayer {
     this.utteranceQueue = [];
     this.isSpeaking = false;
     this.voices = [];
+    this.selectedVoiceName = "";
 
     // Retrieve initial voices list
     if (typeof window !== "undefined" && window.speechSynthesis) {

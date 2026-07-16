@@ -94,8 +94,40 @@ async function loadSettings() {
     if (settings?.tts_enabled !== undefined) {
       document.getElementById("tts-toggle").checked = settings.tts_enabled;
       window.ttsPlayer.setEnabled(settings.tts_enabled);
+      populateVoiceDropdown();
+      updateVoiceControlsVisibility();
     }
     updateLanguageOptions();
+
+function updateVoiceControlsVisibility() {
+  const enabled = ttsToggle.checked;
+  if (ttsVoice) ttsVoice.style.display = enabled ? "inline-block" : "none";
+  
+  let hasCompletedSpeech = false;
+  for (let i = 1; i <= 5; i++) {
+    const row = document.getElementById(`step-${i}`);
+    if (row && row.dataset.speechText) {
+      hasCompletedSpeech = true;
+      break;
+    }
+  }
+  if (ttsReplay) ttsReplay.style.display = (enabled && hasCompletedSpeech) ? "inline-block" : "none";
+}
+
+function populateVoiceDropdown() {
+  if (!ttsVoice) return;
+  ttsVoice.innerHTML = "";
+  const voices = window.ttsPlayer.voices || [];
+  for (const voice of voices) {
+    const opt = document.createElement("option");
+    opt.value = voice.name;
+    opt.textContent = `${voice.name} (${voice.lang})`;
+    ttsVoice.appendChild(opt);
+  }
+  if (window.ttsPlayer.selectedVoiceName) {
+    ttsVoice.value = window.ttsPlayer.selectedVoiceName;
+  }
+}
   } catch (err) {
     console.warn("Unable to load settings:", err);
   }
@@ -708,6 +740,8 @@ const fileInput = document.getElementById("file-input");
 const providerSelect = document.getElementById("llm-provider");
 const languageSelect = document.getElementById("language");
 const ttsToggle = document.getElementById("tts-toggle");
+const ttsVoice = document.getElementById("tts-voice");
+const ttsReplay = document.getElementById("tts-replay");
 const ocrToggle = document.getElementById("ocr-toggle");
 const dropZone = document.getElementById("drop-zone");
 const previewContainer = document.getElementById("file-preview-container");
@@ -819,6 +853,16 @@ function resetAnalyzeModal() {
   textInput.value = "";
   clearFileSelection();
   updateFormFields();
+
+  // Clear speech states
+  window.ttsPlayer.stop();
+  for (let i = 1; i <= 5; i++) {
+    const row = document.getElementById(`step-${i}`);
+    if (row) {
+      delete row.dataset.speechText;
+    }
+  }
+  updateVoiceControlsVisibility();
 }
 
 function updateLanguageOptions() {
@@ -867,6 +911,21 @@ modeSelect.addEventListener("change", updateFormFields);
 
 ttsToggle.addEventListener("change", (e) => {
   window.ttsPlayer.setEnabled(e.target.checked);
+  updateVoiceControlsVisibility();
+});
+
+ttsVoice.addEventListener("change", (e) => {
+  window.ttsPlayer.selectedVoiceName = e.target.value;
+});
+
+ttsReplay.addEventListener("click", () => {
+  window.ttsPlayer.stop();
+  for (let i = 1; i <= 5; i++) {
+    const row = document.getElementById(`step-${i}`);
+    if (row && row.dataset.speechText) {
+      window.ttsPlayer.speak(row.dataset.speechText);
+    }
+  }
 });
 
 // ---------- Multi-Step Execution State Managers ----------
@@ -1044,6 +1103,8 @@ function updateStepRow(event) {
     } else if (event.step === 4) {
       speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
     }
+    row.dataset.speechText = speechText;
+    updateVoiceControlsVisibility();
     window.ttsPlayer.speak(speechText);
     
     if (ttsToggle.checked) {
