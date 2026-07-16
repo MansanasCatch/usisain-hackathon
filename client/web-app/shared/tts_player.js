@@ -88,7 +88,10 @@ class TTSPlayer {
 
     // Locate the best matching voice
     let matchingVoice = null;
-    if (this.selectedVoiceName) {
+    if (locale === "tl-PH") {
+      matchingVoice = this.voices.find(v => v.lang.toLowerCase().startsWith("tl") || v.lang.toLowerCase().includes("fil"));
+    }
+    if (!matchingVoice && this.selectedVoiceName) {
       matchingVoice = this.voices.find(v => v.name === this.selectedVoiceName);
     }
     if (!matchingVoice) {

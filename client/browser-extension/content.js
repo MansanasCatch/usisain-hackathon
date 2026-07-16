@@ -638,7 +638,7 @@ function showPanel(previewText, previewImageUrl) {
   let initialTop = 0;
 
   header.addEventListener("mousedown", (e) => {
-    if (e.target.closest("button")) return;
+    if (e.target.closest("button") || e.target.closest("select") || e.target.closest("input") || e.target.closest("label")) return;
 
     isDragging = true;
     const rect = panel.getBoundingClientRect();
@@ -806,6 +806,11 @@ function updatePanelStep(event) {
       speechText = `Verdict: ${event.result.verdict}. Credibility score: ${event.result.score} out of 100. ${event.result.explanation}`;
     } else if (event.step === 4) {
       speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
+    }
+    row.dataset.speechText = speechText;
+    const panelEl = document.getElementById("usisain-panel");
+    if (panelEl && panelEl.updateVoiceUI) {
+      panelEl.updateVoiceUI();
     }
     ttsPlayer.speak(speechText);
   }
@@ -1175,17 +1180,23 @@ class TTSPlayer {
 
     if (!cleanText) return;
 
+    let textLanguage = this.currentLanguage;
+    const tagalogPattern = /\b(ang|mga|ng|sa|na|ni|ay|si|po|opo|ako|ikaw|siya|ito|iyon|doon|dito|namin|nila|kaya|kasi|pero|maging|dahil|ano|sino|bakit|paano)\b/i;
+    if (tagalogPattern.test(cleanText)) {
+      textLanguage = "tagalog";
+    }
+
     const sentences = cleanText.split(/[.!?；。]+/);
     for (const sentence of sentences) {
       const trimmed = sentence.trim();
       if (trimmed.length > 0) {
-        this.enqueue(trimmed);
+        this.enqueue(trimmed, textLanguage);
       }
     }
   }
 
-  enqueue(text) {
-    this.utteranceQueue.push(text);
+  enqueue(text, lang) {
+    this.utteranceQueue.push({ text, lang: lang || this.currentLanguage });
     this.processQueue();
   }
 
@@ -1193,12 +1204,21 @@ class TTSPlayer {
     if (this.isSpeaking || this.utteranceQueue.length === 0 || !window.speechSynthesis) return;
 
     this.isSpeaking = true;
-    const text = this.utteranceQueue.shift();
-    const utterance = new SpeechSynthesisUtterance(text);
-    const locale = this.getLocaleCode(this.currentLanguage);
+    const item = this.utteranceQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(item.text);
+    const locale = this.getLocaleCode(item.lang);
     utterance.lang = locale;
 
-    const matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
+    let matchingVoice = null;
+    if (locale === "tl-PH") {
+      matchingVoice = this.voices.find(v => v.lang.toLowerCase().startsWith("tl") || v.lang.toLowerCase().includes("fil"));
+    }
+    if (!matchingVoice && this.selectedVoiceName) {
+      matchingVoice = this.voices.find(v => v.name === this.selectedVoiceName);
+    }
+    if (!matchingVoice) {
+      matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
+    }
     if (matchingVoice) {
       utterance.voice = matchingVoice;
     }
