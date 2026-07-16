@@ -941,18 +941,22 @@ function initializeSnippingTool(sendResponse) {
       // Scroll the viewport to the top-left of the selection area to ensure capture has it fully visible
       window.scrollTo(minPageX, minPageY);
 
-      // Relative coordinates after the scroll (top-left is at 0, 0)
-      const captureCropRect = {
-        left: 0,
-        right: width,
-        top: 0,
-        bottom: height,
-        width: width,
-        height: height
-      };
-
       // Brief delay to allow browser repaint/rendering at the new scroll position
       setTimeout(() => {
+        // Calculate crop coordinates relative to the actual scroll position achieved by the browser
+        // (accounts for horizontal/vertical scroll limits on the page)
+        const actualScrollX = window.scrollX;
+        const actualScrollY = window.scrollY;
+
+        const captureCropRect = {
+          left: minPageX - actualScrollX,
+          right: Math.max(startPageX, endPageX) - actualScrollX,
+          top: minPageY - actualScrollY,
+          bottom: Math.max(startPageY, endPageY) - actualScrollY,
+          width: width,
+          height: height
+        };
+
         sendResponse({
           pageUrl: location.href,
           selectedText: null, // No manual text scraping
