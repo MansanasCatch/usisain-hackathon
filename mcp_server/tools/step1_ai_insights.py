@@ -26,7 +26,7 @@ LANGUAGE_INSTRUCTIONS = {
 }
 
 
-def generate_insight(content_summary: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english", use_ocr: bool = True) -> dict:
+async def generate_insight(content_summary: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english", use_ocr: bool = True) -> dict:
     llm = get_provider(provider)
     system_prompt = SYSTEM_PROMPT
     if language in LANGUAGE_INSTRUCTIONS:
@@ -108,7 +108,7 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
         user_prompt = f"Text content: {content_summary or '(no text provided)'}"
         
     try:
-        insight = llm.complete(system_prompt, user_prompt, image_path=image_to_pass, max_tokens=512)
+        insight = await llm.complete(system_prompt, user_prompt, image_path=image_to_pass, max_tokens=512)
     except Exception as e:
         return {
             "insight": None,

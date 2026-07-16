@@ -138,6 +138,11 @@ function injectPanelStyles() {
       font-size: 13px; line-height: 1.5;
       backdrop-filter: blur(16px);
       animation: usisainSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  top 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  left 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-radius 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.35s ease;
     }
 
     @keyframes usisainSlideIn {
@@ -333,7 +338,7 @@ function injectPanelStyles() {
     .usisain-minimize-btn:hover { background: rgba(96,165,250,0.15); color: #60a5fa; }
 
     #usisain-panel.usisain-minimized {
-      height: auto !important;
+      height: 60px !important;
       bottom: auto !important;
       border-radius: 16px !important;
       border: 1px solid rgba(56, 68, 102, 0.35) !important;
@@ -347,7 +352,16 @@ function injectPanelStyles() {
     #usisain-panel.usisain-minimized .usisain-steps-container,
     #usisain-panel.usisain-minimized #usisain-error-banner,
     #usisain-panel.usisain-minimized #usisain-temp-banner {
-      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
+
+    .usisain-preview-box,
+    .usisain-steps-container,
+    #usisain-error-banner,
+    #usisain-temp-banner {
+      transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
     }
 
     .usisain-preview-box {
@@ -595,6 +609,7 @@ function showPanel(previewText, previewImageUrl) {
       isDragging = false;
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
+      panel.style.transition = "";
     }
   }
 
@@ -607,12 +622,6 @@ function showPanel(previewText, previewImageUrl) {
     img.className = "usisain-preview-img";
     previewContainer.appendChild(img);
     
-    if (previewText) {
-      const captionDiv = document.createElement("div");
-      captionDiv.className = "usisain-preview-caption";
-      captionDiv.textContent = previewText;
-      previewContainer.appendChild(captionDiv);
-    }
     panel.appendChild(previewContainer);
   } else if (previewText) {
     const previewContainer = document.createElement("div");
@@ -927,81 +936,34 @@ function initializeSnippingTool(sendResponse) {
       const width = Math.abs(endPageX - startPageX);
       const height = Math.abs(endPageY - startPageY);
 
-      // Relative coordinates before scrolling, used for OCR/text extraction
-      const originalCropRect = {
-        left: minPageX - originalScrollX,
-        right: Math.max(startPageX, endPageX) - originalScrollX,
-        top: minPageY - originalScrollY,
-        bottom: Math.max(startPageY, endPageY) - originalScrollY,
+      if (width < 10 || height < 10) return;
+
+      // Scroll the viewport to the top-left of the selection area to ensure capture has it fully visible
+      window.scrollTo(minPageX, minPageY);
+
+      // Relative coordinates after the scroll (top-left is at 0, 0)
+      const captureCropRect = {
+        left: 0,
+        right: width,
+        top: 0,
+        bottom: height,
         width: width,
         height: height
       };
 
-      if (originalCropRect.width < 10 || originalCropRect.height < 10) return;
-
-      extractDataFromRect(originalCropRect).then(data => {
-        // Scroll the viewport to the top-left of the selection area to ensure capture has it fully visible
-        window.scrollTo(minPageX, minPageY);
-
-        // Relative coordinates after the scroll (top-left is at 0, 0)
-        const captureCropRect = {
-          left: 0,
-          right: width,
-          top: 0,
-          bottom: height,
-          width: width,
-          height: height
-        };
-
-        // Brief delay to allow browser repaint/rendering at the new scroll position
-        setTimeout(() => {
-          sendResponse({
-            pageUrl: location.href,
-            selectedText: data.text || null,
-            cropRect: captureCropRect,
-            originalScrollX: originalScrollX,
-            originalScrollY: originalScrollY
-          });
-        }, 50);
-      });
+      // Brief delay to allow browser repaint/rendering at the new scroll position
+      setTimeout(() => {
+        sendResponse({
+          pageUrl: location.href,
+          selectedText: null, // No manual text scraping
+          cropRect: captureCropRect,
+          originalScrollX: originalScrollX,
+          originalScrollY: originalScrollY
+        });
+      }, 50);
       
     });
   }
-
-function extractDataFromRect(rect) {
-  let extractedText = "";
-  const textBlocks = document.querySelectorAll('div[dir="auto"], span[dir="auto"], [data-ad-preview="message"]');
-  let textSegments = [];
-
-  textBlocks.forEach(block => {
-    const blockRect = block.getBoundingClientRect();
-    if (isIntersecting(rect, blockRect)) {
-      const text = block.innerText ? block.innerText.trim() : "";
-      if (text && text.length > 5) {
-        textSegments.push(text);
-      }
-    }
-  });
-
-  if (textSegments.length === 0) {
-    const fallbackElements = document.querySelectorAll('p, div[role="article"] h3, span');
-    fallbackElements.forEach(el => {
-      const elRect = el.getBoundingClientRect();
-      if (isIntersecting(rect, elRect) && el.innerText) {
-        const txt = el.innerText.trim();
-        if (txt.length > 15 && txt.length < 1500) {
-          textSegments.push(txt);
-        }
-      }
-    });
-  }
-
-  extractedText = Array.from(new Set(textSegments)).join("\n\n");
-  
-  return Promise.resolve({
-    text: extractedText
-  });
-}
 
 function cropScreenshot(dataUrl, cropRect) {
   return new Promise((resolve) => {

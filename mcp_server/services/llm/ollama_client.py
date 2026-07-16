@@ -35,7 +35,7 @@ def safe_print(text: str, prefix: str = "", suffix: str = ""):
 def _get_ollama_client(host: str | None = None):
     global _OLLAMA_CLIENT
     if _OLLAMA_CLIENT is None:
-        _OLLAMA_CLIENT = ollama.Client(host=host or OLLAMA_HOST, timeout=OLLAMA_CLIENT_TIMEOUT)
+        _OLLAMA_CLIENT = ollama.AsyncClient(host=host or OLLAMA_HOST, timeout=OLLAMA_CLIENT_TIMEOUT)
     return _OLLAMA_CLIENT
 
 
@@ -45,7 +45,7 @@ class OllamaProvider(LLMProvider):
         self.vision_model = OLLAMA_VISION_MODEL
         self.client = _get_ollama_client(host)
 
-    def complete(self, system: str, user: str, image_path: str = None, max_tokens: int | None = None) -> str:
+    async def complete(self, system: str, user: str, image_path: str = None, max_tokens: int | None = None) -> str:
         needs_vision = image_path and os.path.exists(image_path)
 
         # Pick the right model based on whether we have an image
@@ -76,7 +76,7 @@ class OllamaProvider(LLMProvider):
         else:
             options["num_predict"] = 256 if not needs_vision else 384
 
-        response = self.client.chat(
+        response = await self.client.chat(
             model=active_model,
             messages=[
                 {"role": "system", "content": system},

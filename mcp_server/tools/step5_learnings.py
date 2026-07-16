@@ -170,7 +170,7 @@ def deduplicate_sources(sources: list[dict]) -> list[dict]:
     return unique_sources
 
 
-def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dict,
+async def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dict,
                        provider: str = "ollama", language: str = "english") -> dict:
     llm = get_provider(provider)
     
@@ -191,7 +191,7 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
     # Generate search query for educational materials
     search_query = ""
     try:
-        search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, f"Verdict: {verdict}\nInsight: {insight}", max_tokens=30)
+        search_query = await llm.complete(LEARNING_QUERY_GEN_PROMPT, f"Verdict: {verdict}\nInsight: {insight}", max_tokens=30)
         if search_query:
             search_query = search_query.strip().replace('"', '').replace("'", "")
     except Exception:
@@ -261,7 +261,7 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
         system_prompt = f"{SYSTEM_PROMPT_TEMPLATE} {LANGUAGE_INSTRUCTIONS[language]}"
 
     try:
-        material = llm.complete(system_prompt, final_context, max_tokens=512)
+        material = await llm.complete(system_prompt, final_context, max_tokens=512)
         
         # Clean up any potential markdown links from LLM
         if material:

@@ -26,7 +26,7 @@ LANGUAGE_INSTRUCTIONS = {
 }
 
 
-def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
+async def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
                      provider: str = "ollama", language: str = "english") -> dict:
     llm = get_provider(provider)
     system_prompt = SYSTEM_PROMPT
@@ -34,7 +34,7 @@ def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
         system_prompt = f"{SYSTEM_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
 
     # Distill only what the LLM needs — keeps context short for speed
-    verdict = step3_result.get("verdict", "unknown")
+    verdict = step3_result.get("verdict") or "unknown"
     score = step3_result.get("score", "?")
     insight = (step1_result.get("insight") or "")[:180]
     step3_exp = (step3_result.get("explanation") or "")[:180]
@@ -56,7 +56,7 @@ def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
     )
 
     try:
-        actions_text = llm.complete(system_prompt, context, max_tokens=512)
+        actions_text = await llm.complete(system_prompt, context, max_tokens=512)
     except Exception as e:
         return {"actions": [], "explanation": f"Action generation unavailable: {e}"}
 

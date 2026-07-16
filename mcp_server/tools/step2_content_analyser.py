@@ -66,7 +66,7 @@ def _verdict(real: float, edited: float, ai_gen: float) -> str:
     return "inconclusive"
 
 
-def generate_detailed_explanation(real: float, edited: float, ai_gen: float, signals: dict,
+async def generate_detailed_explanation(real: float, edited: float, ai_gen: float, signals: dict,
                                  image_path: str = None, is_video: bool = False, video_info: str = "",
                                  provider: str = "ollama", language: str = "english", step1_result: dict = None) -> str:
     llm = get_provider(provider)
@@ -121,19 +121,19 @@ def generate_detailed_explanation(real: float, edited: float, ai_gen: float, sig
     )
     
     try:
-        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=512)
+        explanation = await llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=512)
         return explanation
     except Exception as e:
         # Fallback to static explanation if LLM fails
         return _explain(real, edited, ai_gen, signals) + f"\n\n(Detailed analysis unavailable: {e})"
 
 
-def analyze_image(image_path: str, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
+async def analyze_image(image_path: str, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
     image = Image.open(image_path)
     result = classify_frame(image)
     real, edited, ai_gen = result["real_pct"], result["edited_pct"], result["ai_generated_pct"]
 
-    explanation = generate_detailed_explanation(
+    explanation = await generate_detailed_explanation(
         real, edited, ai_gen, result["signals"],
         image_path=image_path, is_video=False,
         provider=provider, language=language,
@@ -150,7 +150,7 @@ def analyze_image(image_path: str, provider: str = "ollama", language: str = "en
     }
 
 
-def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
+async def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
     frames, duration = sample_frames(video_path, max_frames)
     if not frames:
         return {
@@ -194,7 +194,7 @@ def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama
     if transcript:
         video_info += f" Audio transcript: '{transcript}'"
 
-    explanation = generate_detailed_explanation(
+    explanation = await generate_detailed_explanation(
         real, edited, ai_gen, signals,
         image_path=temp_frame_path, is_video=True, video_info=video_info,
         provider=provider, language=language,
@@ -221,10 +221,10 @@ def analyze_video(video_path: str, max_frames: int = 24, provider: str = "ollama
     }
 
 
-def analyze_content(file_path: str, content_type: str, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
+async def analyze_content(file_path: str, content_type: str, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
     """Entry point the MCP tool calls — dispatches on content_type so the
     tool registration in server.py doesn't need two separate tools."""
     if content_type == "video":
-        return analyze_video(file_path, provider=provider, language=language, step1_result=step1_result)
-    return analyze_image(file_path, provider=provider, language=language, step1_result=step1_result)
+        return await analyze_video(file_path, provider=provider, language=language, step1_result=step1_result)
+    return await analyze_image(file_path, provider=provider, language=language, step1_result=step1_result)
 
