@@ -1175,6 +1175,7 @@ loadOverview();
 loadScans();
 loadRefDocs();
 loadErrors();
+initOllamaModelSelector();
 
 // Dynamic Window Resize Listener to adapt chart parameters instantly and smoothly
 window.addEventListener('resize', () => {
@@ -1195,3 +1196,269 @@ window.addEventListener('resize', () => {
     verdictChartInstance.update('none');
   }
 });
+
+// ---------- Ollama Model Selector Logic ----------
+let allOllamaModels = [];
+let activeOllamaModel = "";
+let activeVisionModel = "";
+
+async function initOllamaModelSelector() {
+  const container = document.getElementById("ollama-selector-container");
+  const trigger = document.getElementById("model-trigger");
+  const dropdown = document.getElementById("model-dropdown");
+  const searchInput = document.getElementById("model-search");
+  const listContainer = document.getElementById("model-list");
+  const activeNameSpan = document.getElementById("active-model-name");
+  const overlay = document.getElementById("model-switch-overlay");
+  const statusIndicator = container?.querySelector(".model-status-indicator");
+
+  if (!trigger || !dropdown || !searchInput || !listContainer) return;
+
+  // Toggle dropdown on click
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = trigger.classList.toggle("open");
+    dropdown.classList.toggle("visible");
+    trigger.setAttribute("aria-expanded", isOpen);
+    if (isOpen) {
+      searchInput.focus();
+      searchInput.value = "";
+      renderModelList("");
+    }
+  });
+
+  // Close dropdown on outside click
+  document.addEventListener("click", (e) => {
+    if (!container.contains(e.target)) {
+      trigger.classList.remove("open");
+      dropdown.classList.remove("visible");
+      trigger.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  // Handle search filtering
+  searchInput.addEventListener("input", (e) => {
+    renderModelList(e.target.value);
+  });
+
+  // Prevent dropdown closing when clicking inside search input
+  searchInput.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  // Load models from API
+  try {
+    // Show trigger loading state
+    activeNameSpan.innerHTML = '<span class="loading-dot" style="display:inline-block; vertical-align:middle; margin-right:4px;"></span> Fetching...';
+    trigger.disabled = true;
+
+    const data = await ApiClient.getOllamaModels();
+    
+    trigger.disabled = false;
+    allOllamaModels = data.models || [];
+    activeOllamaModel = data.active_model || "";
+    activeVisionModel = data.active_vision_model || "";
+
+    if (data.error) {
+      console.warn("Ollama model API returned error status:", data.error);
+      if (statusIndicator) {
+        statusIndicator.style.backgroundColor = "var(--bad)";
+        statusIndicator.style.boxShadow = "0 0 8px var(--bad)";
+      }
+    } else {
+      if (statusIndicator) {
+        statusIndicator.style.backgroundColor = "var(--good)";
+        statusIndicator.style.boxShadow = "0 0 8px var(--good)";
+      }
+    }
+
+    updateActiveModelUI();
+  } catch (err) {
+    trigger.disabled = false;
+    activeNameSpan.textContent = "Offline";
+    if (statusIndicator) {
+      statusIndicator.style.backgroundColor = "var(--bad)";
+      statusIndicator.style.boxShadow = "0 0 8px var(--bad)";
+    }
+    console.error("Failed to load Ollama models:", err);
+    renderEmptyState("Unable to reach Ollama host. Make sure it is running.");
+  }
+
+  function updateActiveModelUI() {
+    if (activeOllamaModel) {
+      activeNameSpan.textContent = cleanModelName(activeOllamaModel);
+    } else {
+      activeNameSpan.textContent = "Select Model";
+    }
+    renderModelList("");
+  }
+
+  function cleanModelName(rawName) {
+    if (!rawName) return "Unknown";
+    let name = rawName;
+    if (name.includes(":")) {
+      const parts = name.split(":");
+      name = parts[0];
+    }
+    name = name.replace(/[-_]/g, " ");
+    
+    const lower = name.toLowerCase();
+    if (lower.includes("llama3.2")) return "Llama 3.2";
+    if (lower.includes("llama3.1")) return "Llama 3.1";
+    if (lower.includes("llama3")) return "Llama 3";
+    if (lower.includes("deepseek")) return "DeepSeek R1";
+    if (lower.includes("qwen")) return "Qwen 2.5";
+    if (lower.includes("gemma")) return "Gemma 3";
+    if (lower.includes("moondream")) return "Moondream 2";
+    
+    return name.split(" ").map(word => {
+      if (word.length === 0) return "";
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(" ");
+  }
+
+  function formatSize(bytes) {
+    if (!bytes || bytes === 0) return "0.0 GB";
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(1)} GB`;
+  }
+
+  function formatRelativeTime(isoString) {
+    if (!isoString) return "";
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return "";
+      
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.round(diffMs / 60000);
+      const diffHours = Math.round(diffMs / 3600000);
+      const diffDays = Math.round(diffMs / 86400000);
+      
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 30) return `${diffDays}d ago`;
+      
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function renderModelList(query) {
+    listContainer.innerHTML = "";
+    const filter = query.toLowerCase().trim();
+    const filtered = allOllamaModels.filter(m => m.name.toLowerCase().includes(filter));
+
+    if (filtered.length === 0) {
+      if (allOllamaModels.length === 0) {
+        renderEmptyState("No local Ollama models found. Pull models with `ollama pull`.");
+      } else {
+        renderEmptyState("No matching models found.");
+      }
+      return;
+    }
+
+    filtered.forEach(model => {
+      const isTxtActive = model.name === activeOllamaModel || model.name.split(":")[0] === activeOllamaModel.split(":")[0];
+      const isActive = isTxtActive;
+
+      const item = document.createElement("div");
+      item.className = `model-item ${isActive ? 'active-model' : ''}`;
+      
+      const isVision = model.name.includes("vision") || model.name.includes("moondream") || model.name.includes("minicpm") || model.name.includes("llava");
+      const relativeTime = formatRelativeTime(model.modified_at);
+
+      item.innerHTML = `
+        <div class="model-item-info">
+          <div class="model-item-header">
+            <span class="model-item-name" title="${model.name}">${cleanModelName(model.name)}</span>
+            <span class="model-item-status-badge ${isActive ? 'status-active' : 'status-available'}">
+              ${isActive ? 'Active' : 'Available'}
+            </span>
+          </div>
+          <div class="model-item-details">
+            <span class="model-item-size">${formatSize(model.size_bytes)}</span>
+            ${relativeTime ? `<span class="model-item-divider">•</span> <span class="model-item-modified">Modified ${relativeTime}</span>` : ''}
+          </div>
+        </div>
+        ${isActive ? '<span class="model-item-check">✓</span>' : ''}
+      `;
+
+      item.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (isActive) {
+          trigger.classList.remove("open");
+          dropdown.classList.remove("visible");
+          trigger.setAttribute("aria-expanded", "false");
+          return;
+        }
+
+        // Show overlay loader inside dropdown
+        if (overlay) {
+          overlay.querySelector(".loading-text").textContent = `Switching to ${cleanModelName(model.name)}...`;
+          overlay.classList.add("show");
+        }
+
+        try {
+          const res = await ApiClient.switchOllamaModel(model.name);
+          
+          if (overlay) overlay.classList.remove("show");
+          trigger.classList.remove("open");
+          dropdown.classList.remove("visible");
+          trigger.setAttribute("aria-expanded", "false");
+
+          if (res && res.status === "ok") {
+            activeOllamaModel = model.name;
+            showToast(`Switched active model to <strong>${cleanModelName(model.name)}</strong>`);
+            loadSettings(); // refresh setting bindings
+          } else {
+            showToast("Failed to switch active model", true);
+          }
+        } catch (err) {
+          console.error("Error switching model:", err);
+          if (overlay) overlay.classList.remove("show");
+          trigger.classList.remove("open");
+          dropdown.classList.remove("visible");
+          trigger.setAttribute("aria-expanded", "false");
+          showToast("Network error switching active model", true);
+        } finally {
+          updateActiveModelUI();
+        }
+      });
+
+      listContainer.appendChild(item);
+    });
+  }
+
+  function renderEmptyState(message) {
+    listContainer.innerHTML = `
+      <div class="model-selector-empty">
+        <div class="empty-icon">🧠</div>
+        <div>${message}</div>
+      </div>
+    `;
+  }
+
+  function showToast(message, isError = false) {
+    const toast = document.getElementById("model-switch-toast");
+    const toastMsg = document.getElementById("model-switch-toast-message");
+    const toastIcon = toast?.querySelector(".toast-icon");
+    if (!toast || !toastMsg) return;
+
+    toastMsg.innerHTML = message;
+    if (isError) {
+      toast.style.borderColor = "var(--bad-border)";
+      if (toastIcon) toastIcon.textContent = "❌";
+    } else {
+      toast.style.borderColor = "var(--good-border)";
+      if (toastIcon) toastIcon.textContent = "✅";
+    }
+
+    toast.classList.add("show");
+    setTimeout(() => {
+      toast.classList.remove("show");
+    }, 4000);
+  }
+}

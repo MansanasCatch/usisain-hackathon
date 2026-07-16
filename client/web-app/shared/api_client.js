@@ -48,4 +48,17 @@ const ApiClient = {
   async clearScans() {
     return fetch(`${API}/api/scans`, { method: "DELETE" }).then(r => r.json());
   },
+
+  // ---------- ollama models ----------
+  async getOllamaModels() {
+    return fetch(`${API}/api/ollama/models`).then(r => r.json());
+  },
+
+  async switchOllamaModel(modelName) {
+    return fetch(`${API}/api/ollama/switch-model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelName }),
+    }).then(r => r.json());
+  },
 };

@@ -11,6 +11,28 @@
   <header>
     <h1>UsisAIn</h1>
     <nav style="display: flex; align-items: center; gap: 12px;">
+      <!-- Active Ollama Model Selector -->
+      <div class="model-selector-wrapper" id="ollama-selector-container">
+        <button class="model-selector-trigger" id="model-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <span class="model-status-indicator"></span>
+          <span class="model-name-text" id="active-model-name">Loading...</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="model-selector-dropdown" id="model-dropdown">
+          <!-- Switching overlay loader -->
+          <div class="model-switch-overlay" id="model-switch-overlay">
+            <div class="spinner"></div>
+            <div class="loading-text">Switching active model...</div>
+          </div>
+          <div class="model-selector-search-box">
+            <input type="text" id="model-search" placeholder="Search models..." autocomplete="off">
+          </div>
+          <div class="model-selector-list" id="model-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
       <button id="header-analyze-btn" class="btn btn-primary-gradient" style="font-weight: 600;">Analyze</button>
       <a href="/app/dashboard/" class="active">Dashboard</a>
     </nav>
@@ -324,9 +346,16 @@
     }
   </style>
 
+  <!-- Model switch feedback toast -->
+  <div id="model-switch-toast" class="model-switch-toast">
+    <span class="toast-icon"></span>
+    <span id="model-switch-toast-message">Model updated successfully</span>
+  </div>
+
   <script src="../shared/api_client.js"></script>
   <script src="../shared/sse_client.js"></script>
   <script src="../shared/tts_player.js"></script>
   <script src="dashboard.js"></script>
 </body>
 </html>
+
