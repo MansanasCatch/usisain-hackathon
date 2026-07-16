@@ -111,6 +111,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         console.error("[UsisAIn] captureVisibleTab failed:", err.message);
       }
       
+      if (extractedData.originalScrollX !== undefined && extractedData.originalScrollY !== undefined) {
+        await safeSendMessage(tab.id, {
+          action: "restore-scroll",
+          scrollX: extractedData.originalScrollX,
+          scrollY: extractedData.originalScrollY
+        });
+      }
+      
       if (dataUrl) {
         // Send screenshot back to content script to crop it with canvas
         const cropRes = await safeSendMessage(tab.id, {

@@ -9,6 +9,7 @@ import logging
 import traceback
 import uuid
 from typing import AsyncGenerator
+from fastapi import Request
 
 from ..core.config import settings
 from ..core.request_context import REQUEST_ID
@@ -73,7 +74,7 @@ def _skip_remaining_steps(start_step: int, reason: str) -> list[StepEvent]:
     return [StepEvent(step, STEP_NAMES[step], "error", {"error": reason}) for step in range(start_step, 6)]
 
 
-async def run_pipeline(content: dict, language: str = "english", provider: str = "ollama", use_ocr: bool = True) -> AsyncGenerator[StepEvent, None]:
+async def run_pipeline(content: dict, language: str = "english", provider: str = "ollama", use_ocr: bool = True, request: Request | None = None) -> AsyncGenerator[StepEvent, None]:
     """`content` is the output of the extraction layer:
     {"content_type": "text"|"image"|"video"|"post", "text": str|None, "file_path": str|None}
     """
@@ -90,6 +91,9 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
 
     print(f"INFO:     [Pipeline] Using provider: {provider}", flush=True)
     # ---- Step 1: AI Insights ----
+    if request is not None and await request.is_disconnected():
+        print("INFO:     [Pipeline] Client disconnected before Step 1. Aborting.", flush=True)
+        return
     print("INFO:     [Step 1/5] Starting AI Insights...", flush=True)
     yield StepEvent(1, "ai_insights", "in_progress")
 
@@ -114,6 +118,9 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
         return
 
     # ---- Step 2: Content Analyser ----
+    if request is not None and await request.is_disconnected():
+        print("INFO:     [Pipeline] Client disconnected before Step 2. Aborting.", flush=True)
+        return
     if file_path and content_type in ("image", "video"):
         print("INFO:     [Step 2/5] Starting Content Analyser...", flush=True)
         yield StepEvent(2, "content_analyser", "in_progress")
@@ -140,6 +147,9 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
         yield StepEvent(2, "content_analyser", "completed", results["step2"])
 
     # ---- Step 3: Legit or Fake ----
+    if request is not None and await request.is_disconnected():
+        print("INFO:     [Pipeline] Client disconnected before Step 3. Aborting.", flush=True)
+        return
     print("INFO:     [Step 3/5] Starting Authenticity...", flush=True)
     yield StepEvent(3, "legit_or_fake", "in_progress")
     claim = text_summary or content.get("caption", "") or ""
@@ -180,6 +190,9 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
 
     if provider == "ollama":
         # Under local Ollama, run sequentially to avoid overloading local CPU/GPU memory and preventing timeouts
+        if request is not None and await request.is_disconnected():
+            print("INFO:     [Pipeline] Client disconnected before Step 4. Aborting.", flush=True)
+            return
         print("INFO:     [Step 4/5] Starting Actionable Items...", flush=True)
         yield StepEvent(4, "actionable_items", "in_progress")
         results["step4"] = await _safe_call("step4_actionable_items", common_args)
@@ -187,6 +200,9 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
         print(f"INFO:     [Step 4/5] Completed Actionable Items. Status: {status4}", flush=True)
         yield StepEvent(4, "actionable_items", status4, results["step4"])
 
+        if request is not None and await request.is_disconnected():
+            print("INFO:     [Pipeline] Client disconnected before Step 5. Aborting.", flush=True)
+            return
         print("INFO:     [Step 5/5] Starting Learnings...", flush=True)
         yield StepEvent(5, "learnings", "in_progress")
         results["step5"] = await _safe_call("step5_learnings", common_args)
@@ -195,6 +211,9 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
         yield StepEvent(5, "learnings", status5, results["step5"])
     else:
         # Under Gemini (cloud), run concurrently for maximum speed
+        if request is not None and await request.is_disconnected():
+            print("INFO:     [Pipeline] Client disconnected before concurrent Steps 4 & 5. Aborting.", flush=True)
+            return
         print("INFO:     [Step 4/5] Starting Actionable Items...", flush=True)
         print("INFO:     [Step 5/5] Starting Learnings...", flush=True)
         yield StepEvent(4, "actionable_items", "in_progress")
@@ -205,6 +224,11 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
 
         pending = {step4_task: 4, step5_task: 5}
         while pending:
+            if request is not None and await request.is_disconnected():
+                print("INFO:     [Pipeline] Client disconnected during concurrent Steps 4 & 5. Cancelling pending tasks.", flush=True)
+                for task in pending:
+                    task.cancel()
+                return
             done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 step = pending.pop(task)

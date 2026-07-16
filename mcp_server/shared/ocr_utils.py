@@ -21,10 +21,14 @@ def extract_text(image: Image.Image) -> str:
     try:
         # Preprocessing: Grayscale + 2x resize for better OCR on small/low-res text
         gray = image.convert('L')
-        large = gray.resize((gray.width * 2, gray.height * 2), Image.Resampling.LANCZOS)
         
-        # Run OCR on the processed image (which is standard and very clean)
-        text = pytesseract.image_to_string(large).strip()
+        # Only resize if the image resolution is small/low-res to avoid massive scaling
+        # which slows down pytesseract dramatically and could cause timeouts on large screen captures.
+        if gray.width < 1200 and gray.height < 1200:
+            large = gray.resize((gray.width * 2, gray.height * 2), Image.Resampling.LANCZOS)
+            text = pytesseract.image_to_string(large).strip()
+        else:
+            text = pytesseract.image_to_string(gray).strip()
         
         # If the processed OCR is empty or very short, fallback to raw image
         if len(text) < 5:

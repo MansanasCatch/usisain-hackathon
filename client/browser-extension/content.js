@@ -25,6 +25,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "restore-scroll") {
+    window.scrollTo(message.scrollX, message.scrollY);
+    sendResponse({ ok: true });
+    return;
+  }
+
   if (message.action === "get-context") {
       const el = lastRightClickedEl;
       const post = getPostContext(el);
@@ -328,6 +334,7 @@ function injectPanelStyles() {
 
     #usisain-panel.usisain-minimized {
       height: auto !important;
+      bottom: auto !important;
       border-radius: 16px !important;
       border: 1px solid rgba(56, 68, 102, 0.35) !important;
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
@@ -911,25 +918,51 @@ function initializeSnippingTool(sendResponse) {
       overlay.remove();
       snipBox.remove();
 
-      // Map the absolute page crop-box coordinates BACK to relative viewport coordinates 
-      // for compatibility with getBoundingClientRect() during data extraction
-      const cropRect = {
-        left: Math.min(startPageX, endPageX) - window.scrollX,
-        right: Math.max(startPageX, endPageX) - window.scrollX,
-        top: Math.min(startPageY, endPageY) - window.scrollY,
-        bottom: Math.max(startPageY, endPageY) - window.scrollY,
-        width: Math.abs(endPageX - startPageX),
-        height: Math.abs(endPageY - startPageY)
+      // Original scroll position
+      const originalScrollX = window.scrollX;
+      const originalScrollY = window.scrollY;
+
+      const minPageX = Math.min(startPageX, endPageX);
+      const minPageY = Math.min(startPageY, endPageY);
+      const width = Math.abs(endPageX - startPageX);
+      const height = Math.abs(endPageY - startPageY);
+
+      // Relative coordinates before scrolling, used for OCR/text extraction
+      const originalCropRect = {
+        left: minPageX - originalScrollX,
+        right: Math.max(startPageX, endPageX) - originalScrollX,
+        top: minPageY - originalScrollY,
+        bottom: Math.max(startPageY, endPageY) - originalScrollY,
+        width: width,
+        height: height
       };
 
-      if (cropRect.width < 10 || cropRect.height < 10) return;
+      if (originalCropRect.width < 10 || originalCropRect.height < 10) return;
 
-      extractDataFromRect(cropRect).then(data => {
-        sendResponse({
-          pageUrl: location.href,
-          selectedText: data.text || null,
-          cropRect: cropRect
-        });
+      extractDataFromRect(originalCropRect).then(data => {
+        // Scroll the viewport to the top-left of the selection area to ensure capture has it fully visible
+        window.scrollTo(minPageX, minPageY);
+
+        // Relative coordinates after the scroll (top-left is at 0, 0)
+        const captureCropRect = {
+          left: 0,
+          right: width,
+          top: 0,
+          bottom: height,
+          width: width,
+          height: height
+        };
+
+        // Brief delay to allow browser repaint/rendering at the new scroll position
+        setTimeout(() => {
+          sendResponse({
+            pageUrl: location.href,
+            selectedText: data.text || null,
+            cropRect: captureCropRect,
+            originalScrollX: originalScrollX,
+            originalScrollY: originalScrollY
+          });
+        }, 50);
       });
       
     });

@@ -71,9 +71,9 @@ _KEY_LOCK = threading.Lock()  # thread-safe under uvicorn workers
 _REQUEST_LOCK = threading.Lock()
 
 # Simple in-process token bucket to avoid exceeding project RPM from this
-# application instance. Configure via GEMINI_RPM_LIMIT in .env (default 5).
-GEMINI_RPM_LIMIT = int(os.environ.get("GEMINI_RPM_LIMIT", "5"))
-_TOKENS = GEMINI_RPM_LIMIT
+# application instance. Configure via GEMINI_RPM_LIMIT in .env (default 15 per key).
+GEMINI_RPM_LIMIT_PER_KEY = int(os.environ.get("GEMINI_RPM_LIMIT", "15"))
+_TOKENS = GEMINI_RPM_LIMIT_PER_KEY * max(1, len(_KEY_POOL))
 _LAST_REFILL = time.time()
 _TOKEN_LOCK = threading.Lock()
 
@@ -85,12 +85,13 @@ def _try_consume_token() -> bool:
     """
     global _TOKENS, _LAST_REFILL
     now = time.time()
+    limit = GEMINI_RPM_LIMIT_PER_KEY * max(1, len(_KEY_POOL))
     with _TOKEN_LOCK:
         # refill once per minute proportional to elapsed time
         elapsed = now - _LAST_REFILL
         if elapsed >= 60:
             # refill fully each minute
-            _TOKENS = GEMINI_RPM_LIMIT
+            _TOKENS = limit
             _LAST_REFILL = now
         if _TOKENS > 0:
             _TOKENS -= 1
@@ -186,13 +187,13 @@ class GeminiProvider(LLMProvider):
                 )
                 self._log_error_to_db(exc, key_hint, system, error_type="api")
 
-                # If it's a quota error and we have more keys in the pool, try the next key
-                if _is_quota_error(exc) and attempts < max_attempts:
-                    logger.warning("Quota/rate limit hit. Retrying with the next key in the pool.")
+                # Retry with the next key in the pool for ANY failure (quota, network timeouts, invalid keys, etc.)
+                if attempts < max_attempts:
+                    logger.warning("Attempt failed. Retrying with the next key in the pool...")
                     continue
                 else:
-                    # Non-quota error, or we've run out of keys in the pool. Fall back to Ollama immediately.
-                    logger.warning("Falling back to Ollama after Gemini failure. Error: %s", exc)
+                    # All keys in the pool have been tried and failed. Fall back to Ollama.
+                    logger.warning("All Gemini keys in the pool failed — falling back to Ollama. Last error: %s", exc)
                     return OllamaProvider().complete(system, user, image_path, max_tokens)
 
 
