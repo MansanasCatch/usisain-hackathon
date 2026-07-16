@@ -28,7 +28,7 @@ mcp = FastMCP("usisain-pipeline")
 
 
 @mcp.tool()
-def step1_ai_insights(content_summary: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english") -> dict:
+def step1_ai_insights(content_summary: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english", use_ocr: bool = True) -> dict:
     """Step 1: give an initial LLM read of the content before deeper analysis.
 
     Args:
@@ -37,12 +37,13 @@ def step1_ai_insights(content_summary: str, file_path: str = None, content_type:
         content_type: 'text', 'image', or 'video'.
         provider: 'ollama' (local, default) or 'gemini' (cloud).
         language: 'english' (default), 'taglish', 'tagalog', 'cebuano', 'ilocano', or 'bisaya'.
+        use_ocr: Whether to run OCR on the image/video content (default True).
     """
-    return generate_insight(content_summary, file_path, content_type, provider, language)
+    return generate_insight(content_summary, file_path, content_type, provider, language, use_ocr)
 
 
 @mcp.tool()
-def step2_content_analyser(file_path: str, content_type: str, provider: str = "ollama", language: str = "english") -> dict:
+def step2_content_analyser(file_path: str, content_type: str, provider: str = "ollama", language: str = "english", step1_result: dict = None) -> dict:
     """Step 2: break an image or video into real / edited / AI-generated percentages.
 
     Args:
@@ -50,8 +51,9 @@ def step2_content_analyser(file_path: str, content_type: str, provider: str = "o
         content_type: 'image' or 'video'.
         provider: 'ollama' (local, default) or 'gemini' (cloud).
         language: 'english' (default), 'taglish', 'tagalog', 'cebuano', 'ilocano', or 'bisaya'.
+        step1_result: Optional result from Step 1 containing AI insights.
     """
-    return analyze_content(file_path, content_type, provider, language)
+    return analyze_content(file_path, content_type, provider, language, step1_result)
 
 
 @mcp.tool()

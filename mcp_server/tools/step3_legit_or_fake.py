@@ -168,10 +168,10 @@ def extract_fast_query(claim: str) -> str:
     return result_query or " ".join(words[:5])
 
 
-def generate_search_query(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", step1_result: dict = None, step2_result: dict = None) -> str:
+async def generate_search_query(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", step1_result: dict = None, step2_result: dict = None) -> str:
     # Check if fast query generation is enabled
     fast_gen = os.environ.get("STEP3_FAST_QUERY_GEN", "True").lower() in ("1", "true", "yes")
-    if fast_gen:
+    if fast_gen and claim:
         fast_query = extract_fast_query(claim)
         if fast_query:
             return fast_query
@@ -186,6 +186,11 @@ def generate_search_query(claim: str, file_path: str = None, content_type: str =
 
     desc_text = f"{step1_text} {step2_text}".strip()
 
+    if fast_gen and not claim and desc_text:
+        fast_query = extract_fast_query(desc_text)
+        if fast_query:
+            return fast_query
+
     # Construct context for query generation
     context_for_query = ""
     if claim:
@@ -199,7 +204,7 @@ def generate_search_query(claim: str, file_path: str = None, content_type: str =
 
     llm = get_provider(provider)
     try:
-        query = llm.complete(QUERY_GEN_PROMPT, context_for_query, max_tokens=30)
+        query = await llm.complete(QUERY_GEN_PROMPT, context_for_query, max_tokens=30)
         query = " ".join(query.split()).strip().replace('"', '').replace("'", "")
         if query:
             return query
@@ -216,8 +221,8 @@ def generate_search_query(claim: str, file_path: str = None, content_type: str =
     return ""
 
 
-def check_claim(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english", step1_result: dict = None, step2_result: dict = None) -> dict:
-    search_query = generate_search_query(claim, file_path, content_type, provider, step1_result, step2_result)
+async def check_claim(claim: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english", step1_result: dict = None, step2_result: dict = None) -> dict:
+    search_query = await generate_search_query(claim, file_path, content_type, provider, step1_result, step2_result)
     
     if not search_query or not search_query.strip():
         return {
@@ -350,7 +355,7 @@ def check_claim(claim: str, file_path: str = None, content_type: str = "text", p
 
     llm = get_provider(provider)
     try:
-        explanation = llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=512)
+        explanation = await llm.complete(system_prompt, context, image_path=image_to_pass, max_tokens=512)
         
         # Post-processing cleaning to ensure no hallucinated links/sources under empty search results
         if not top_sources and explanation:

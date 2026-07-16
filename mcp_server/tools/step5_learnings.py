@@ -1,3 +1,4 @@
+import re
 from services.llm.gemini_client import get_provider
 from services.search import google_search
 
@@ -27,6 +28,34 @@ LANGUAGE_INSTRUCTIONS = {
 }
 
 
+def check_title_and_url_noise(title: str, url: str, query: str) -> bool:
+    title_lower = title.lower()
+    url_lower = url.lower()
+    query_lower = query.lower()
+    
+    # Noise terms to filter out if they are not in the search query
+    noise_patterns = {
+        "university": ["university", "univ", "state u"],
+        "college": ["college"],
+        "school": ["school"],
+        "institute": ["institute", "polytechnic"],
+        "academy": ["academy"],
+        "department": ["department", "dept"],
+        "list of": ["list of"],
+        "category:": ["category:"],
+        "portal:": ["portal:"]
+    }
+    
+    for category, terms in noise_patterns.items():
+        has_noise = any(t in title_lower or t in url_lower for t in terms)
+        query_has_term = any(t in query_lower for t in terms)
+        
+        if has_noise and not query_has_term:
+            return False
+            
+    return True
+
+
 def is_related(result: dict, query: str, verdict: str) -> bool:
     title = result.get("title", "").lower()
     snippet = result.get("snippet", "").lower()
@@ -36,8 +65,18 @@ def is_related(result: dict, query: str, verdict: str) -> bool:
     if any(spam in url for spam in ["adclick", "doubleclick", "promoted", "sponsor", "clickbank"]):
         return False
         
+    # Check title and URL noise (e.g. universities or categories not asked for)
+    if not check_title_and_url_noise(result.get("title", ""), result.get("url", ""), query):
+        return False
+        
     # Get keywords from the query (words longer than 3 characters, excluding very common terms)
-    stopwords = {"guide", "digital", "media", "literacy", "fact", "check", "news", "scam", "fake", "resource", "resources"}
+    stopwords = {
+        "guide", "digital", "media", "literacy", "fact", "check", "news", "scam", "fake", "resource", "resources",
+        "terms", "definitions", "definition", "evolution", "concept", "concepts", "overview", "basics", "principles",
+        "introduction", "meaning", "define", "about", "general", "history", "study", "studies", "research", "paper",
+        "article", "wikipedia", "official", "website", "online", "information", "info", "page", "site", "search",
+        "explain", "explanation"
+    }
     query_words = [w.strip("?,.:;\"'()").lower() for w in query.split()]
     keywords = [w for w in query_words if len(w) > 3 and w not in stopwords]
     
@@ -48,16 +87,65 @@ def is_related(result: dict, query: str, verdict: str) -> bool:
     if not keywords:
         return True # Fallback if query contains only very short words
         
-    # We want at least one keyword or part of a keyword to match the title or snippet or URL
-    # Or, if it's a known educational site, it's fine
-    if any(d in url for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
+    # Check that at least a minimum number of keywords match
+    text_content = (title + " " + snippet + " " + url).lower()
+    match_count = sum(1 for kw in keywords if kw in text_content)
+    
+    required_matches = min(len(keywords), 2 if len(keywords) >= 3 else 1)
+    return match_count >= required_matches
+
+
+def is_related_to_context(result: dict, context_text: str) -> bool:
+    if not context_text:
         return True
+    
+    title = result.get("title", "").lower()
+    snippet = result.get("snippet", "").lower()
+    url = result.get("url", "").lower()
+    
+    # Check for obvious ad/spam/malicious links in url
+    if any(spam in url for spam in ["adclick", "doubleclick", "promoted", "sponsor", "clickbank"]):
+        return False
+
+    # Extract keywords from context_text (words >= 4 chars, excluding very common terms)
+    common_words = {
+        "this", "that", "with", "from", "your", "have", "here", "news", "post", "claim", 
+        "video", "image", "media", "about", "would", "could", "should", "there", "their",
+        "please", "report", "social", "account", "profile", "verify", "verifying", "official",
+        "credible", "source", "safety", "content", "summary", "verdict", "system", "guide",
+        "education", "educational", "literacy", "general", "pattern", "recognize", "scam",
+        "misinformation", "think", "thing", "things", "will", "going", "been", "growing", "grew",
+        "term", "terms", "like", "much", "next", "sure", "what", "those", "ever", "down", "right", "seen",
+        "some", "them", "then", "than", "other", "another", "only", "also", "even", "just", "more", "most",
+        "many", "such", "well", "very", "being", "were", "they", "their", "them", "about", "will",
+        "would", "could", "should", "shall", "into", "onto", "upon", "about", "above", "below", "under",
+        "over", "again", "once", "twice", "first", "second", "third", "last", "next", "prev", "previous",
+        "after", "before", "while", "until", "since", "during", "through", "without", "within", "between",
+        "among", "against", "towards", "around", "about", "throughout", "along", "across", "behind",
+        "beyond", "except", "instead", "besides", "despite", "although", "though", "unless", "until",
+        "because", "since", "mean", "means", "meaning", "study", "studies", "research", "paper", "article",
+        "website", "online", "information", "info", "page", "site", "search", "explain", "explanation",
+        "university", "college", "school", "department", "program", "course", "degree", "practices",
+        "traditional", "amazing", "composition", "evolving", "disrupted", "people", "reduce", "ridiculous",
+        "bigger", "trying", "figure", "call", "called", "changing", "finally", "slow", "keep", "knew",
+        "know", "knows", "maybe", "methods", "months", "nobody", "together", "truth", "usual", "witnessing",
+        "future", "dead", "chart", "ever", "every", "become", "became", "us"
+    }
+    
+    # Extract alphabetic words of length >= 4
+    words = re.findall(r'\b[a-zA-Z]{4,}\b', context_text)
+    keywords = list(set(w.lower() for w in words if w.lower() not in common_words))
+    
+    if not keywords:
+        return True # if no keywords, fallback to True
         
-    for kw in keywords:
-        if kw in title or kw in snippet or kw in url:
-            return True
-            
-    return False
+    # We want at least a reasonable portion of the context keywords to match
+    text_content = (title + " " + snippet + " " + url).lower()
+    match_count = sum(1 for kw in keywords if kw in text_content)
+    
+    # Require at least min(len(keywords), 2 if len(keywords) >= 3 else 1) matches
+    required_matches = min(len(keywords), 2 if len(keywords) >= 3 else 1)
+    return match_count >= required_matches
 
 
 def deduplicate_sources(sources: list[dict]) -> list[dict]:
@@ -82,7 +170,7 @@ def deduplicate_sources(sources: list[dict]) -> list[dict]:
     return unique_sources
 
 
-def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dict,
+async def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dict,
                        provider: str = "ollama", language: str = "english") -> dict:
     llm = get_provider(provider)
     
@@ -103,7 +191,7 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
     # Generate search query for educational materials
     search_query = ""
     try:
-        search_query = llm.complete(LEARNING_QUERY_GEN_PROMPT, f"Verdict: {verdict}\nInsight: {insight}", max_tokens=30)
+        search_query = await llm.complete(LEARNING_QUERY_GEN_PROMPT, f"Verdict: {verdict}\nInsight: {insight}", max_tokens=30)
         if search_query:
             search_query = search_query.strip().replace('"', '').replace("'", "")
     except Exception:
@@ -121,28 +209,37 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
     except Exception:
         pass
 
-    if not search_results:
-        try:
-            search_results = google_search.search(search_query, max_results=3)
-        except Exception:
-            pass
-
     from shared.text_utils import domain_trust
     scored_sources = []
-    for r in search_results:
-        trust = domain_trust(r["url"])
-        if is_related(r, search_query, verdict):
-            # Only include high-trust domains or specifically trusted domains to avoid unrelated spam
-            if trust >= 0.4 or any(d in r["url"] for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
-                scored_sources.append({
-                    **r,
-                    "combined": trust
-                })
+    
+    def process_and_score_results(results_list: list[dict]):
+        for r in results_list:
+            trust = domain_trust(r["url"])
+            if is_related(r, search_query, verdict) and is_related_to_context(r, insight):
+                # Only include high-trust domains or specifically trusted domains to avoid unrelated spam
+                if trust >= 0.4 or any(d in r["url"] for d in ["wikipedia.org", "factcheck.org", "gov.ph", "edu.ph"]):
+                    scored_sources.append({
+                        **r,
+                        "combined": trust
+                    })
+
+    if search_results:
+        process_and_score_results(search_results)
+
+    # Fallback to unfiltered open web search if we don't have enough (at least 2) trusted sources
+    if len(scored_sources) < 2:
+        unfiltered_results = []
+        try:
+            unfiltered_results = google_search.search(search_query, max_results=3)
+        except Exception:
+            pass
+        if unfiltered_results:
+            process_and_score_results(unfiltered_results)
 
     # If no results found via Google Search, fallback to Step 3's sources (if any and if relevant)
     if not scored_sources and step3_result and step3_result.get("sources"):
         for s in step3_result["sources"]:
-            if is_related(s, search_query, verdict):
+            if is_related(s, search_query, verdict) and is_related_to_context(s, insight):
                 scored_sources.append({
                     **s,
                     "combined": 0.5
@@ -150,19 +247,6 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
 
     scored_sources = sorted(scored_sources, key=lambda s: s["combined"], reverse=True)
     top_sources = deduplicate_sources(scored_sources)[:2]
-
-    # Default fallback to generic digital literacy pages if still empty
-    if not top_sources:
-        top_sources = [
-            {
-                "title": "FactCheck.org — How to Spot Fake News",
-                "url": "https://www.factcheck.org/2016/11/how-to-spot-fake-news/"
-            },
-            {
-                "title": "DICT Philippines — Digital Literacy Resources",
-                "url": "https://dict.gov.ph/"
-            }
-        ]
 
     # 3. Build final context for the LLM — include Step 3 explanation for contextual grounding
     final_context = (
@@ -177,7 +261,7 @@ def generate_learnings(step1_result: dict, step2_result: dict, step3_result: dic
         system_prompt = f"{SYSTEM_PROMPT_TEMPLATE} {LANGUAGE_INSTRUCTIONS[language]}"
 
     try:
-        material = llm.complete(system_prompt, final_context, max_tokens=512)
+        material = await llm.complete(system_prompt, final_context, max_tokens=256)
         
         # Clean up any potential markdown links from LLM
         if material:

@@ -26,7 +26,7 @@ LANGUAGE_INSTRUCTIONS = {
 }
 
 
-def generate_insight(content_summary: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english") -> dict:
+async def generate_insight(content_summary: str, file_path: str = None, content_type: str = "text", provider: str = "ollama", language: str = "english", use_ocr: bool = True) -> dict:
     llm = get_provider(provider)
     system_prompt = SYSTEM_PROMPT
     if language in LANGUAGE_INSTRUCTIONS:
@@ -37,37 +37,46 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
     ocr_text = ""
     
     if file_path and os.path.exists(file_path):
-        # Always extract OCR text first, so it is available to subsequent steps and search query generation
-        from shared.ocr_utils import extract_text as ocr_extract
-        from PIL import Image
-        try:
-            if content_type == "image":
-                with Image.open(file_path) as img:
-                    ocr_text = ocr_extract(img)
-            elif content_type == "video":
-                try:
-                    cap = cv2.VideoCapture(file_path)
-                    ok, frame = cap.read()
-                    if ok:
-                        temp_dir = os.path.dirname(file_path)
-                        temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
-                        cv2.imwrite(temp_frame_path, frame)
-                        with Image.open(temp_frame_path) as img:
-                            ocr_text = ocr_extract(img)
-                    cap.release()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        # Only extract OCR text if use_ocr is enabled
+        if use_ocr:
+            from shared.ocr_utils import extract_text as ocr_extract
+            from PIL import Image
+            try:
+                if content_type == "image":
+                    with Image.open(file_path) as img:
+                        ocr_text = ocr_extract(img)
+                elif content_type == "video":
+                    try:
+                        cap = cv2.VideoCapture(file_path)
+                        ok, frame = cap.read()
+                        if ok:
+                            temp_dir = os.path.dirname(file_path)
+                            temp_frame_path = os.path.join(temp_dir, "_temp_video_insight_frame.jpg")
+                            cv2.imwrite(temp_frame_path, frame)
+                            with Image.open(temp_frame_path) as img:
+                                ocr_text = ocr_extract(img)
+                        cap.release()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
         if provider == "ollama":
             if content_type == "image":
+                if ocr_text.strip():
+                    image_to_pass = None
+                else:
+                    image_to_pass = file_path
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
                     f"Text in the image: {ocr_text or '(no text detected)'}\n"
                     "Please analyze the provided text content and visible text, and provide a short, clear, non-technical overview of what can be seen or read in the image."
                 )
             elif content_type == "video":
+                if ocr_text.strip():
+                    image_to_pass = None
+                else:
+                    image_to_pass = temp_frame_path
                 user_prompt = (
                     f"Text content: {content_summary or '(no text provided)'}\n"
                     f"Text in the video frame: {ocr_text or '(no text detected)'}\n"
@@ -105,7 +114,7 @@ def generate_insight(content_summary: str, file_path: str = None, content_type: 
         user_prompt = f"Text content: {content_summary or '(no text provided)'}"
         
     try:
-        insight = llm.complete(system_prompt, user_prompt, image_path=image_to_pass, max_tokens=512)
+        insight = await llm.complete(system_prompt, user_prompt, image_path=image_to_pass, max_tokens=256)
     except Exception as e:
         return {
             "insight": None,

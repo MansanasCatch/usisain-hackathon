@@ -4,6 +4,23 @@
 const BACKEND = "http://localhost:8000";
 const DEFAULT_LANGUAGE = "english"; // fallback if no language saved in chrome.storage yet
 
+const activeTabAbortControllers = new Map();
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "cancel-analysis") {
+    const tabId = sender.tab?.id;
+    if (tabId && activeTabAbortControllers.has(tabId)) {
+      console.log(`[UsisAIn] Aborting active analysis due to close request from tab ${tabId}`);
+      try {
+        activeTabAbortControllers.get(tabId).abort();
+      } catch (e) {
+        console.error(e);
+      }
+      activeTabAbortControllers.delete(tabId);
+    }
+  }
+});
+
 chrome.runtime.onInstalled.addListener(() => {
   // Use a parent menu item so sub-items nest under one entry
   chrome.contextMenus.create({
@@ -71,31 +88,66 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return;
   
   try {
-    const storage = await chrome.storage.local.get("preferredLanguage");
+    const storage = await chrome.storage.local.get(["preferredLanguage", "useOcr"]);
     const selectedLanguage = storage.preferredLanguage || DEFAULT_LANGUAGE;
+    const useOcr = storage.useOcr !== undefined ? storage.useOcr : true;
     const form = new FormData();
     form.append("language", selectedLanguage);
+    form.append("use_ocr", useOcr.toString());
+
+    let previewText = null;
+    let previewImageUrl = null;
+
     if (info.menuItemId === "snip-extract") {
       const extractedData = await safeSendMessage(tab.id, { action: "start-snipping" });
-      if (!extractedData) return;
-      form.append("source_url", extractedData.pageUrl || tab.url || "");
-      form.append("text", extractedData.selectedText || "");
+      if (!extractedData || !extractedData.cropRect) return;
       
-      if (extractedData.images && extractedData.images.length > 0) {
-        for (let i = 0; i < extractedData.images.length; i++) {
-          const img = extractedData.images[i];
-          
-          const fetchResponse = await fetch(img.base64);
+      form.append("source_url", extractedData.pageUrl || tab.url || "");
+      
+      let dataUrl;
+      try {
+        dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+      } catch (err) {
+        console.error("[UsisAIn] captureVisibleTab failed:", err.message);
+      }
+      
+      if (extractedData.originalScrollX !== undefined && extractedData.originalScrollY !== undefined) {
+        await safeSendMessage(tab.id, {
+          action: "restore-scroll",
+          scrollX: extractedData.originalScrollX,
+          scrollY: extractedData.originalScrollY
+        });
+      }
+      
+      if (dataUrl) {
+        // Send screenshot back to content script to crop it with canvas
+        const cropRes = await safeSendMessage(tab.id, {
+          action: "crop-screenshot",
+          dataUrl: dataUrl,
+          cropRect: extractedData.cropRect
+        });
+        
+        if (cropRes && cropRes.croppedDataUrl) {
+          const fetchResponse = await fetch(cropRes.croppedDataUrl);
           const blob = await fetchResponse.blob();
-          
-          const urlFilename = img.url.split('/').pop().split('?')[0];
-          const filename = urlFilename || `image_${i}.png`;
-
-          form.append('file', blob, filename);
+          form.append("file", blob, "snip.png");
+          previewImageUrl = cropRes.croppedDataUrl;
         }
       }
+      
+      // Append text as caption if we have an image file, otherwise as text
+      if (extractedData.selectedText) {
+        if (form.has("file")) {
+          form.append("caption", extractedData.selectedText);
+          previewText = extractedData.selectedText;
+        } else {
+          form.append("text", extractedData.selectedText);
+          previewText = extractedData.selectedText;
+        }
+      }
+      
       try {
-        await streamAnalysis(tab.id, form);
+        await streamAnalysis(tab.id, form, previewText, previewImageUrl);
       } finally {
         // Clear upload banner
         try { await safeSendMessage(tab.id, { action: 'upload-end' }); } catch (e) { }
@@ -114,13 +166,15 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         const text = info.selectionText || context.selectedText || context.postCaption;
         if (!text) return;
         form.append("text", text);
+        previewText = text;
       }
 
       if (info.menuItemId === "analyzeimage") {
         const url = info.srcUrl || context.clickedImageSrc;
         if (!url) return;
-        const blob = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
+        const { blob, dataUrl } = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
         form.append("file", blob, "image.png");
+        previewImageUrl = dataUrl;
       }
 
       if (info.menuItemId === "analyzevideo") {
@@ -130,17 +184,20 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           await safeSendMessage(tab.id, { action: "pipeline-error", error: "This video uses a blob: stream and can't be fetched directly. See README known limitations." });
           return;
         }
-        const blob = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
+        const { blob, dataUrl } = await fetchAndResizeBlob(tab.id, url, 1024, 0.75);
         form.append("file", blob, "video.mp4");
+        previewImageUrl = dataUrl;
       }
 
       if (info.menuItemId === "analyzepost") {
         const caption = context.postCaption || context.selectedText || "";
         form.append("caption", caption);
+        previewText = caption;
         const imgUrl = info.srcUrl || context.postImages?.[0] || context.clickedImageSrc;
         if (imgUrl) {
-          const blob = await fetchAndResizeBlob(tab.id, imgUrl, 1024, 0.75);
+          const { blob, dataUrl } = await fetchAndResizeBlob(tab.id, imgUrl, 1024, 0.75);
           form.append("file", blob, "image.png");
+          previewImageUrl = dataUrl;
         }
       }
 
@@ -152,7 +209,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
 
       try {
-        await streamAnalysis(tab.id, form);
+        await streamAnalysis(tab.id, form, previewText, previewImageUrl);
       } finally {
         // Clear upload banner
         try { await safeSendMessage(tab.id, { action: 'upload-end' }); } catch (e) { }
@@ -181,7 +238,8 @@ async function fetchAsBlob(tabId, url) {
 async function fetchAndResizeBlob(tabId, url, maxDim = 1024, quality = 0.75) {
   const res = await safeSendMessage(tabId, { action: "fetch-and-resize", url, maxDim, quality });
   if (!res || res.error) throw new Error(res?.error || "Failed to fetch/resize resource from page");
-  return await (await fetch(res.dataUrl)).blob();
+  const blob = await (await fetch(res.dataUrl)).blob();
+  return { blob, dataUrl: res.dataUrl };
 }
 
 
@@ -199,7 +257,21 @@ async function getBackendSettings() {
   }
 }
 
-async function streamAnalysis(tabId, form) {
+async function streamAnalysis(tabId, form, previewText, previewImageUrl) {
+  // If there's an existing active AbortController for this tab, abort it first
+  if (activeTabAbortControllers.has(tabId)) {
+    console.log(`[UsisAIn] Aborting existing analysis stream for tab ${tabId}`);
+    try {
+      activeTabAbortControllers.get(tabId).abort();
+    } catch (e) {
+      console.error(e);
+    }
+    activeTabAbortControllers.delete(tabId);
+  }
+
+  const controller = new AbortController();
+  activeTabAbortControllers.set(tabId, controller);
+
   const settings = await getBackendSettings();
   const selectedLanguage = form.get("language") || "english";
   if (settings) {
@@ -211,49 +283,63 @@ async function streamAnalysis(tabId, form) {
     });
   }
 
-  await safeSendMessage(tabId, { action: "pipeline-start" });
+  await safeSendMessage(tabId, { 
+    action: "pipeline-start",
+    previewText,
+    previewImageUrl
+  });
 
-  let response;
   try {
-    response = await fetch(`${BACKEND}/api/analyze/stream`, { method: "POST", body: form });
-  } catch (err) {
-    await safeSendMessage(tabId, { action: "pipeline-error", error: `Cannot reach backend at ${BACKEND}. Is it running? (${err.message})` });
-    return;
-  }
+    const response = await fetch(`${BACKEND}/api/analyze/stream`, { 
+      method: "POST", 
+      body: form,
+      signal: controller.signal
+    });
 
-  if (!response.ok || !response.body) {
-    const errorText = await response.text().catch(() => "");
-    await safeSendMessage(tabId, { action: "pipeline-error", error: `Backend returned ${response.status}. ${errorText || "Is it running on localhost:8000?"}` });
-    return;
-  }
+    if (!response.ok || !response.body) {
+      const errorText = await response.text().catch(() => "");
+      await safeSendMessage(tabId, { action: "pipeline-error", error: `Backend returned ${response.status}. ${errorText || "Is it running on localhost:8000?"}` });
+      return;
+    }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
 
-    let boundary;
-    while ((boundary = buffer.indexOf("\n\n")) !== -1) {
-      const frame = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-      if (!frame.startsWith("data: ")) continue;
+      let boundary;
+      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        if (!frame.startsWith("data: ")) continue;
 
-      try {
-        const payload = JSON.parse(frame.slice(6));
-        if (payload.done) continue; // final marker, nothing to render
-        if (payload.error && !payload.step) {
-          // Top-level system error (e.g. quota exceeded)
-          await safeSendMessage(tabId, { action: "pipeline-error", error: payload.error });
-          continue;
+        try {
+          const payload = JSON.parse(frame.slice(6));
+          if (payload.done) continue; // final marker, nothing to render
+          if (payload.error && !payload.step) {
+            await safeSendMessage(tabId, { action: "pipeline-error", error: payload.error });
+            continue;
+          }
+          await safeSendMessage(tabId, { action: "pipeline-event", event: payload });
+        } catch (parseErr) {
+          console.warn("[UsisAIn] Could not parse SSE frame:", frame, parseErr);
         }
-        await safeSendMessage(tabId, { action: "pipeline-event", event: payload });
-      } catch (parseErr) {
-        console.warn("[UsisAIn] Could not parse SSE frame:", frame, parseErr);
       }
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      console.log(`[UsisAIn] Stream for tab ${tabId} successfully aborted.`);
+      return;
+    }
+    console.error("[UsisAIn] Stream error:", err);
+    await safeSendMessage(tabId, { action: "pipeline-error", error: `Cannot reach backend at ${BACKEND}. Is it running? (${err.message})` });
+  } finally {
+    if (activeTabAbortControllers.get(tabId) === controller) {
+      activeTabAbortControllers.delete(tabId);
     }
   }
 }

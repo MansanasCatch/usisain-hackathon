@@ -391,9 +391,11 @@ form.addEventListener("submit", async (e) => {
   window.ttsPlayer.stop();
 
   const provider = providerSelect.value || "ollama";
+  const useOcr = document.getElementById("ocr-toggle") ? document.getElementById("ocr-toggle").checked : true;
   const formData = new FormData();
   formData.append("language", language);
   formData.append("provider", provider);
+  formData.append("use_ocr", useOcr.toString());
   formData.append("source_url", location.href);
 
   if (mode === "text") {

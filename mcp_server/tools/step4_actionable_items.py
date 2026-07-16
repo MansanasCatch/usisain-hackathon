@@ -8,9 +8,10 @@ SYSTEM_PROMPT = (
     "You are a security and digital safety advisor. Based on the findings of Step 1 (AI Insights), "
     "Step 2 (Content Analyser visual breakdown), and Step 3 (Legit or Fake Authentictity fact-check), list 3-5 short, concrete "
     "action items for the user. "
+    "CRITICAL: Do NOT mention specific social media handles, usernames, names of individuals, pages, or accounts (do not use '@username' or name specific individuals). Keep suggestions generic and applicable to the platform in general (e.g., use 'the posting account' instead of '@username', and 'the page that posted this' instead of naming specific organizations). "
     "CRITICAL: Tailor the recommendations based on the Verdict:\n"
     "- If the Verdict is 'likely_true' (LEGIT), the content is verified as legitimate. Do NOT recommend blocking, unfollowing, or reporting the account. Instead, recommend safe ways to engage, verifying official links, and general security hygiene (like not sharing personal/sensitive info).\n"
-    "- If the Verdict is 'flagged' (FAKE), recommend defensive safety measures such as blocking the account, unfollowing, reporting the content, and warning others.\n"
+    "- If the Verdict is 'flagged' (FAKE), recommend defensive safety measures such as blocking the posting account, unfollowing, reporting the content, and warning others.\n"
     "- If the Verdict is 'inconclusive' (QUESTIONABLE), recommend caution, verifying information through other sources, and waiting for official confirmation before sharing.\n"
     "Keep each item brief and practical. Output ONLY the numbered list, no intro text, no extra explanation. "
     "Use natural, clear Filipino/English only. NEVER output Chinese characters or any other non-Latin script."
@@ -25,7 +26,7 @@ LANGUAGE_INSTRUCTIONS = {
 }
 
 
-def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
+async def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
                      provider: str = "ollama", language: str = "english") -> dict:
     llm = get_provider(provider)
     system_prompt = SYSTEM_PROMPT
@@ -33,7 +34,7 @@ def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
         system_prompt = f"{SYSTEM_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
 
     # Distill only what the LLM needs — keeps context short for speed
-    verdict = step3_result.get("verdict", "unknown")
+    verdict = step3_result.get("verdict") or "unknown"
     score = step3_result.get("score", "?")
     insight = (step1_result.get("insight") or "")[:180]
     step3_exp = (step3_result.get("explanation") or "")[:180]
@@ -55,7 +56,7 @@ def generate_actions(step1_result: dict, step2_result: dict, step3_result: dict,
     )
 
     try:
-        actions_text = llm.complete(system_prompt, context, max_tokens=512)
+        actions_text = await llm.complete(system_prompt, context, max_tokens=256)
     except Exception as e:
         return {"actions": [], "explanation": f"Action generation unavailable: {e}"}
 

@@ -19,14 +19,16 @@ For non-quota errors (network failures, invalid prompts, etc.) the client
 falls back to Ollama immediately without cycling through keys.
 """
 
+
+
 import os
 import sys
 import itertools
 import threading
 import logging
 from datetime import datetime
-import os
 import time
+import asyncio
 from .base import LLMProvider
 
 logger = logging.getLogger(__name__)
@@ -71,9 +73,9 @@ _KEY_LOCK = threading.Lock()  # thread-safe under uvicorn workers
 _REQUEST_LOCK = threading.Lock()
 
 # Simple in-process token bucket to avoid exceeding project RPM from this
-# application instance. Configure via GEMINI_RPM_LIMIT in .env (default 5).
-GEMINI_RPM_LIMIT = int(os.environ.get("GEMINI_RPM_LIMIT", "5"))
-_TOKENS = GEMINI_RPM_LIMIT
+# application instance. Configure via GEMINI_RPM_LIMIT in .env (default 15 per key).
+GEMINI_RPM_LIMIT_PER_KEY = int(os.environ.get("GEMINI_RPM_LIMIT", "15"))
+_TOKENS = GEMINI_RPM_LIMIT_PER_KEY * max(1, len(_KEY_POOL))
 _LAST_REFILL = time.time()
 _TOKEN_LOCK = threading.Lock()
 
@@ -85,12 +87,13 @@ def _try_consume_token() -> bool:
     """
     global _TOKENS, _LAST_REFILL
     now = time.time()
+    limit = GEMINI_RPM_LIMIT_PER_KEY * max(1, len(_KEY_POOL))
     with _TOKEN_LOCK:
         # refill once per minute proportional to elapsed time
         elapsed = now - _LAST_REFILL
         if elapsed >= 60:
             # refill fully each minute
-            _TOKENS = GEMINI_RPM_LIMIT
+            _TOKENS = limit
             _LAST_REFILL = now
         if _TOKENS > 0:
             _TOKENS -= 1
@@ -131,7 +134,7 @@ class GeminiProvider(LLMProvider):
                 "GEMINI_API_KEY is not set — get one at https://aistudio.google.com/apikey"
             )
 
-    def complete(self, system: str, user: str, image_path: str = None, max_tokens: int | None = None) -> str:
+    async def complete(self, system: str, user: str, image_path: str = None, max_tokens: int | None = None) -> str:
         import google.generativeai as genai
         from .ollama_client import OllamaProvider
         # Try to consume a token. If rate limit is hit, sleep and retry up to 5 times (total 10 seconds wait)
@@ -148,19 +151,19 @@ class GeminiProvider(LLMProvider):
                     "Gemini local RPM limit reached. Sleeping %.1fs and retrying (attempt %d/%d)...",
                     retry_delay, limit_retries, max_limit_retries
                 )
-                time.sleep(retry_delay)
+                await asyncio.sleep(retry_delay)
             else:
                 logger.warning("Gemini local RPM limit reached after retries — falling back to Ollama.")
-                return OllamaProvider().complete(system, user, image_path, max_tokens)
+                return await OllamaProvider().complete(system, user, image_path=None, max_tokens=max_tokens)
 
         # If an explicit key was provided at construction time, just use it always.
         if self._explicit_key:
             try:
-                return self._attempt(genai, system, user, self._explicit_key, image_path, max_tokens)
+                return await self._attempt(genai, system, user, self._explicit_key, image_path, max_tokens)
             except Exception as exc:
                 self._log_error_to_db(exc, f"...{self._explicit_key[-6:]}" if self._explicit_key else "none", system, error_type="api")
                 logger.warning("Gemini request failed with explicit key — falling back to Ollama. Error: %s", exc)
-                return OllamaProvider().complete(system, user, image_path, max_tokens)
+                return await OllamaProvider().complete(system, user, image_path=None, max_tokens=max_tokens)
 
         # One key per request, rotate keys round-robin across requests.
         # Run the attempt OUTSIDE of the _REQUEST_LOCK to allow concurrency.
@@ -173,12 +176,12 @@ class GeminiProvider(LLMProvider):
             
             if not api_key:
                 logger.warning("No Gemini API keys configured in pool — falling back to Ollama.")
-                return OllamaProvider().complete(system, user, image_path, max_tokens)
+                return await OllamaProvider().complete(system, user, image_path=None, max_tokens=max_tokens)
 
             key_hint = f"...{api_key[-6:]}"
             attempts += 1
             try:
-                return self._attempt(genai, system, user, api_key, image_path, max_tokens)
+                return await self._attempt(genai, system, user, api_key, image_path, max_tokens)
             except Exception as exc:
                 logger.error(
                     "Gemini request failed (key=%s, attempt %d/%d): %s.",
@@ -186,21 +189,24 @@ class GeminiProvider(LLMProvider):
                 )
                 self._log_error_to_db(exc, key_hint, system, error_type="api")
 
-                # If it's a quota error and we have more keys in the pool, try the next key
-                if _is_quota_error(exc) and attempts < max_attempts:
-                    logger.warning("Quota/rate limit hit. Retrying with the next key in the pool.")
+                # Only retry other keys if it's a quota/rate-limit error or key auth issue.
+                # Connection/DNS/Network errors will fail for all keys, so abort immediately to prevent long timeouts.
+                is_quota = _is_quota_error(exc)
+                is_auth = any(term in str(exc).lower() for term in ["api key", "invalid key", "403", "unauthorized", "permission", "blocked"])
+                
+                if (is_quota or is_auth) and attempts < max_attempts:
+                    logger.warning("Attempt failed with quota/auth error. Retrying with the next key in the pool...")
                     continue
                 else:
-                    # Non-quota error, or we've run out of keys in the pool. Fall back to Ollama immediately.
-                    logger.warning("Falling back to Ollama after Gemini failure. Error: %s", exc)
-                    return OllamaProvider().complete(system, user, image_path, max_tokens)
+                    logger.warning("Gemini attempt failed with non-retryable error (network/timeout/etc.) — falling back to Ollama. Last error: %s", exc)
+                    return await OllamaProvider().complete(system, user, image_path=None, max_tokens=max_tokens)
 
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _attempt(self, genai, system: str, user: str, api_key: str, image_path: str = None, max_tokens: int | None = None) -> str:
+    async def _attempt(self, genai, system: str, user: str, api_key: str, image_path: str = None, max_tokens: int | None = None) -> str:
         """Make a single Gemini API call with the given key. Raises on failure."""
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(self.model, system_instruction=system)
@@ -280,7 +286,7 @@ class GeminiProvider(LLMProvider):
         # We omit max_output_tokens for Gemini because gemini-3.5-flash has a bug where
         # specifying max_output_tokens causes it to truncate the response prematurely (e.g. 1-3 words).
         # The prompt instructions already guide the model to be concise.
-        response = model.generate_content(
+        response = await model.generate_content_async(
             contents,
             generation_config=genai.GenerationConfig(**config) if config else None,
             request_options={"timeout": 120.0}

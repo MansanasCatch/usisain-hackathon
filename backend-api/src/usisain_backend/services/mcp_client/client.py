@@ -40,7 +40,7 @@ _EXEC_CTX = threading.local()
 
 
 async def call_tool(tool_name: str, arguments: dict) -> dict:
-    """Call an MCP tool function directly in a thread-pool executor."""
+    """Call an MCP tool function directly."""
     fn = _TOOL_MAP.get(tool_name)
     if fn is None:
         return {"error": f"Unknown tool: {tool_name}"}
@@ -53,16 +53,26 @@ async def call_tool(tool_name: str, arguments: dict) -> dict:
     except Exception:
         req_id = None
 
-    def _run():
-        try:
-            # Propagate request id into this worker thread for logging
-            _EXEC_CTX.request_id = req_id
-        except Exception:
-            pass
-        return fn(**arguments)
+    # Propagate request id
+    try:
+        _EXEC_CTX.request_id = req_id
+    except Exception:
+        pass
 
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, _run)
+    if asyncio.iscoroutinefunction(fn):
+        result = await fn(**arguments)
+    else:
+        def _run():
+            try:
+                # Propagate request id into this worker thread for logging
+                _EXEC_CTX.request_id = req_id
+            except Exception:
+                pass
+            return fn(**arguments)
+
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, _run)
+
     if isinstance(result, dict):
         return result
     return {"raw": str(result)}

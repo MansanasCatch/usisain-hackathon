@@ -33,16 +33,26 @@ btnDashboard.addEventListener("click", () => {
   chrome.tabs.create({ url: `${BACKEND}/app/dashboard/` });
 });
 
-// ─── Load saved language ───
-chrome.storage.local.get("preferredLanguage", (data) => {
+const ocrToggle = document.getElementById("ocr-toggle");
+
+// ─── Load saved language and OCR preference ───
+chrome.storage.local.get(["preferredLanguage", "useOcr"], (data) => {
   if (data.preferredLanguage) {
     languageSelect.value = data.preferredLanguage;
+  }
+  if (data.useOcr !== undefined) {
+    ocrToggle.checked = data.useOcr;
   }
 });
 
 // ─── Save language on change ───
 languageSelect.addEventListener("change", () => {
   chrome.storage.local.set({ preferredLanguage: languageSelect.value });
+});
+
+// ─── Save OCR preference on change ───
+ocrToggle.addEventListener("change", () => {
+  chrome.storage.local.set({ useOcr: ocrToggle.checked });
 });
 
 // ─── Populate language dropdown based on provider ───

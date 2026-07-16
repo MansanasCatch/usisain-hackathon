@@ -16,8 +16,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "start-snipping") {
     initializeSnippingTool(sendResponse);
     return true;
-  } else {
-    if (message.action === "get-context") {
+  }
+  
+  if (message.action === "crop-screenshot") {
+    cropScreenshot(message.dataUrl, message.cropRect).then(croppedUrl => {
+      sendResponse({ croppedDataUrl: croppedUrl });
+    });
+    return true;
+  }
+
+  if (message.action === "restore-scroll") {
+    window.scrollTo(message.scrollX, message.scrollY);
+    sendResponse({ ok: true });
+    return;
+  }
+
+  if (message.action === "get-context") {
       const el = lastRightClickedEl;
       const post = getPostContext(el);
       sendResponse({
@@ -73,11 +87,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.action === "pipeline-start") {
       ttsPlayer.stop();
-      for (let i = 1; i <= 5; i++) {
-        delete extensionSpokenStarts[i];
-        delete extensionSpokenCompletes[i];
-      }
-      showPanel();
+      showPanel(message.previewText, message.previewImageUrl);
       return;
     }
     if (message.action === "pipeline-settings") {
@@ -92,7 +102,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     if (message.action === "pipeline-event") { updatePanelStep(message.event); return; }
     if (message.action === "pipeline-error") { showPanelError(message.error); return; }
-  }
 });
 
 // ---------- results panel — enterprise UI ----------
@@ -129,6 +138,11 @@ function injectPanelStyles() {
       font-size: 13px; line-height: 1.5;
       backdrop-filter: blur(16px);
       animation: usisainSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  top 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  left 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-radius 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.35s ease;
     }
 
     @keyframes usisainSlideIn {
@@ -305,6 +319,103 @@ function injectPanelStyles() {
       white-space: pre-wrap; word-break: break-word; line-height: 1.5;
       animation: usisainFadeIn 0.25s ease;
     }
+
+    .usisain-header {
+      cursor: move;
+    }
+
+    .usisain-close-btn, .usisain-minimize-btn {
+      cursor: pointer !important;
+    }
+
+    .usisain-minimize-btn {
+      position: relative; z-index: 1; width: 26px; height: 26px; border: none;
+      background: rgba(56,68,102,0.3); color: #8892a8; border-radius: 6px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; transition: all 0.2s ease; flex-shrink: 0;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .usisain-minimize-btn:hover { background: rgba(96,165,250,0.15); color: #60a5fa; }
+
+    #usisain-panel.usisain-minimized {
+      height: 64px !important;
+      bottom: auto !important;
+      border-radius: 16px !important;
+      border: 1px solid rgba(56, 68, 102, 0.35) !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    #usisain-panel.usisain-minimized .usisain-header {
+      border-bottom: none !important;
+      border-radius: 15px !important;
+      padding: 16px 18px !important;
+    }
+    #usisain-panel.usisain-minimized .usisain-preview-box,
+    #usisain-panel.usisain-minimized .usisain-steps-container,
+    #usisain-panel.usisain-minimized #usisain-error-banner,
+    #usisain-panel.usisain-minimized #usisain-temp-banner {
+      opacity: 0 !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
+
+    .usisain-preview-box,
+    .usisain-steps-container,
+    #usisain-error-banner,
+    #usisain-temp-banner {
+      transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
+    }
+
+    .usisain-preview-box {
+      margin: 12px 14px 4px;
+      padding: 10px;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(56, 68, 102, 0.3);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 180px;
+      overflow: hidden;
+    }
+
+    .usisain-preview-img {
+      width: 100%;
+      max-height: 120px;
+      object-fit: contain;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #090d16;
+    }
+
+    .usisain-preview-text {
+      font-size: 12px;
+      color: #cbd5e1;
+      overflow-y: auto;
+      max-height: 140px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-style: italic;
+      padding-right: 4px;
+    }
+
+    .usisain-preview-text::-webkit-scrollbar { width: 4px; }
+    .usisain-preview-text::-webkit-scrollbar-track { background: transparent; }
+    .usisain-preview-text::-webkit-scrollbar-thumb { background: rgba(56,68,102,0.4); border-radius: 4px; }
+
+    .usisain-preview-caption {
+      font-size: 11px;
+      color: #94a3b8;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-style: italic;
+      text-align: left;
+      max-height: 60px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .usisain-preview-caption::-webkit-scrollbar { width: 3px; }
+    .usisain-preview-caption::-webkit-scrollbar-track { background: transparent; }
+    .usisain-preview-caption::-webkit-scrollbar-thumb { background: rgba(56,68,102,0.4); border-radius: 2px; }
   `;
   document.head.appendChild(style);
 }
@@ -396,7 +507,7 @@ function markRemainingStepsFailed(startStep) {
   }
 }
 
-function showPanel() {
+function showPanel(previewText, previewImageUrl) {
   injectPanelStyles();
   document.getElementById("usisain-panel")?.remove();
   // Clear any active timers from a previous run
@@ -407,7 +518,7 @@ function showPanel() {
   const panel = document.createElement("div");
   panel.id = "usisain-panel";
 
-  // ── Header with Voice Settings ──
+  // ── Header ──
   const header = document.createElement("div");
   header.className = "usisain-header";
   header.innerHTML = `
@@ -417,6 +528,7 @@ function showPanel() {
         <div class="usisain-header-title">UsisAIn</div>
         <div class="usisain-header-sub">5-Step Analysis Pipeline</div>
       </div>
+      <button class="usisain-minimize-btn" title="Minimize panel" style="margin-right: 8px;">🗕</button>
       <button class="usisain-close-btn" title="Close panel">✕</button>
     </div>
     <div style="display:flex; gap:6px; align-items:center; background:rgba(15,23,42,0.4); padding:6px 14px; border-bottom:1px solid rgba(56,68,102,0.2); font-family:'Inter',system-ui,sans-serif; font-size:11px; color:#8892a8; flex-wrap:wrap;">
@@ -433,6 +545,23 @@ function showPanel() {
     panel.style.transform = "translateX(100%)";
     panel.style.transition = "all 0.25s ease";
     setTimeout(() => panel.remove(), 250);
+    chrome.runtime.sendMessage({ action: "cancel-analysis" });
+  };
+  header.querySelector(".usisain-minimize-btn").onclick = () => {
+    const isMinimized = panel.classList.toggle("usisain-minimized");
+    header.querySelector(".usisain-minimize-btn").textContent = isMinimized ? "🗖" : "🗕";
+    header.querySelector(".usisain-minimize-btn").title = isMinimized ? "Maximize panel" : "Minimize panel";
+    
+    if (isMinimized) {
+      panel.dataset.prevHeight = panel.style.height || "100vh";
+      panel.style.height = "";
+    } else {
+      panel.style.height = panel.dataset.prevHeight || "100vh";
+      const rect = panel.getBoundingClientRect();
+      if (rect.top + rect.height > window.innerHeight) {
+        panel.style.top = Math.max(0, window.innerHeight - rect.height) + "px";
+      }
+    }
   };
   panel.appendChild(header);
 
@@ -501,6 +630,83 @@ function showPanel() {
 
   panel.updateVoiceUI = updateDropdowns;
 
+  // Dragging logic on header
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let initialLeft = 0;
+  let initialTop = 0;
+
+  header.addEventListener("mousedown", (e) => {
+    if (e.target.closest("button")) return;
+
+    isDragging = true;
+    const rect = panel.getBoundingClientRect();
+    
+    panel.style.left = rect.left + "px";
+    panel.style.top = rect.top + "px";
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+    panel.style.height = rect.height + "px";
+    panel.style.transition = "none";
+
+    startX = e.clientX;
+    startY = e.clientY;
+    initialLeft = rect.left;
+    initialTop = rect.top;
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    
+    e.preventDefault();
+  });
+
+  function onMouseMove(e) {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    
+    let newLeft = initialLeft + dx;
+    let newTop = initialTop + dy;
+
+    const panelWidth = panel.offsetWidth;
+    const panelHeight = panel.offsetHeight;
+    newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - panelWidth));
+    newTop = Math.max(0, Math.min(newTop, window.innerHeight - panelHeight));
+
+    panel.style.left = newLeft + "px";
+    panel.style.top = newTop + "px";
+  }
+
+  function onMouseUp() {
+    if (isDragging) {
+      isDragging = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      panel.style.transition = "";
+    }
+  }
+
+  // ── Preview container ──
+  if (previewImageUrl) {
+    const previewContainer = document.createElement("div");
+    previewContainer.className = "usisain-preview-box";
+    const img = document.createElement("img");
+    img.src = previewImageUrl;
+    img.className = "usisain-preview-img";
+    previewContainer.appendChild(img);
+    
+    panel.appendChild(previewContainer);
+  } else if (previewText) {
+    const previewContainer = document.createElement("div");
+    previewContainer.className = "usisain-preview-box";
+    const textDiv = document.createElement("div");
+    textDiv.className = "usisain-preview-text";
+    textDiv.textContent = previewText;
+    previewContainer.appendChild(textDiv);
+    panel.appendChild(previewContainer);
+  }
+
   // ── Steps container ──
   const stepsContainer = document.createElement("div");
   stepsContainer.className = "usisain-steps-container";
@@ -560,13 +766,10 @@ function updatePanelStep(event) {
     let secondsLeft = pipelineTimeoutSeconds;
     body.textContent = `Analyzing… ${secondsLeft}s remaining`;
 
-    // Narrate step start (ensure we only narrate it once)
-    if (!extensionSpokenStarts[event.step]) {
-      extensionSpokenStarts[event.step] = true;
-      const startMsgs = STEP_START_MESSAGES[ttsPlayer.currentLanguage] || STEP_START_MESSAGES.english;
-      const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
-      ttsPlayer.speak(startMsg);
-    }
+    // Narrate step start
+    const startMsgs = STEP_START_MESSAGES[ttsPlayer.currentLanguage] || STEP_START_MESSAGES.english;
+    const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
+    ttsPlayer.speak(startMsg);
 
     activeTimers[event.step] = setInterval(() => {
       secondsLeft--;
@@ -588,36 +791,23 @@ function updatePanelStep(event) {
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
     markRemainingStepsFailed(event.step + 1);
 
-    // Narrate step failure (ensure we only narrate it once)
-    if (!extensionSpokenCompletes[event.step]) {
-      extensionSpokenCompletes[event.step] = true;
-      ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
-    }
+    // Narrate step failure
+    ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
   } else if (event.status === "completed") {
     badge.textContent = "✓";
     row.dataset.status = "completed";
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
 
-    // Narrate step output (ensure we only narrate it once)
-    if (!extensionSpokenCompletes[event.step]) {
-      extensionSpokenCompletes[event.step] = true;
-      let speechText = summarizeStep(event.step, event.result);
-      if (event.step === 2 && event.result.applicable !== false) {
-        speechText = `Visual analysis breakdown: ${event.result.real_pct}% real, ${event.result.edited_pct}% edited, and ${event.result.ai_generated_pct}% AI-generated. ${event.result.explanation}`;
-      } else if (event.step === 3) {
-        speechText = `Verdict: ${event.result.verdict}. Credibility score: ${event.result.score} out of 100. ${event.result.explanation}`;
-      } else if (event.step === 4) {
-        speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
-      }
-
-      row.dataset.speechText = speechText;
-      const panelEl = document.getElementById("usisain-panel");
-      if (panelEl && panelEl.updateVoiceUI) {
-        panelEl.updateVoiceUI();
-      }
-
-      ttsPlayer.speak(speechText);
+    // Narrate step output
+    let speechText = summarizeStep(event.step, event.result);
+    if (event.step === 2 && event.result.applicable !== false) {
+      speechText = `Visual analysis breakdown: ${event.result.real_pct}% real, ${event.result.edited_pct}% edited, and ${event.result.ai_generated_pct}% AI-generated. ${event.result.explanation}`;
+    } else if (event.step === 3) {
+      speechText = `Verdict: ${event.result.verdict}. Credibility score: ${event.result.score} out of 100. ${event.result.explanation}`;
+    } else if (event.step === 4) {
+      speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
     }
+    ttsPlayer.speak(speechText);
   }
 }
 
@@ -799,120 +989,87 @@ function initializeSnippingTool(sendResponse) {
     }
   });
 
-  overlay.addEventListener("mouseup", (e) => {
-    if (!isDrawing) return;
-    isDrawing = false;
-    autoScrollSpeed = 0;
-    
-    const endPageX = e.clientX + window.scrollX;
-    const endPageY = e.clientY + window.scrollY;
+    overlay.addEventListener("mouseup", (e) => {
+      if (!isDrawing) return;
+      isDrawing = false;
+      autoScrollSpeed = 0;
+      
+      const endPageX = e.clientX + window.scrollX;
+      const endPageY = e.clientY + window.scrollY;
 
-    // Cleanup UI
-    overlay.remove();
-    snipBox.remove();
+      // Cleanup UI
+      overlay.remove();
+      snipBox.remove();
 
-    // Map the absolute page crop-box coordinates BACK to relative viewport coordinates 
-    // for compatibility with getBoundingClientRect() during data extraction
-    const cropRect = {
-      left: Math.min(startPageX, endPageX) - window.scrollX,
-      right: Math.max(startPageX, endPageX) - window.scrollX,
-      top: Math.min(startPageY, endPageY) - window.scrollY,
-      bottom: Math.max(startPageY, endPageY) - window.scrollY,
-      width: Math.abs(endPageX - startPageX),
-      height: Math.abs(endPageY - startPageY)
+      // Original scroll position
+      const originalScrollX = window.scrollX;
+      const originalScrollY = window.scrollY;
+
+      const minPageX = Math.min(startPageX, endPageX);
+      const minPageY = Math.min(startPageY, endPageY);
+      const width = Math.abs(endPageX - startPageX);
+      const height = Math.abs(endPageY - startPageY);
+
+      if (width < 10 || height < 10) return;
+
+      // Scroll the viewport to the top-left of the selection area to ensure capture has it fully visible
+      window.scrollTo(minPageX, minPageY);
+
+      // Brief delay to allow browser repaint/rendering at the new scroll position
+      setTimeout(() => {
+        // Calculate crop coordinates relative to the actual scroll position achieved by the browser
+        // (accounts for horizontal/vertical scroll limits on the page)
+        const actualScrollX = window.scrollX;
+        const actualScrollY = window.scrollY;
+
+        const captureCropRect = {
+          left: minPageX - actualScrollX,
+          right: Math.max(startPageX, endPageX) - actualScrollX,
+          top: minPageY - actualScrollY,
+          bottom: Math.max(startPageY, endPageY) - actualScrollY,
+          width: width,
+          height: height
+        };
+
+        sendResponse({
+          pageUrl: location.href,
+          selectedText: null, // No manual text scraping
+          cropRect: captureCropRect,
+          originalScrollX: originalScrollX,
+          originalScrollY: originalScrollY
+        });
+      }, 50);
+      
+    });
+  }
+
+function cropScreenshot(dataUrl, cropRect) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ratio = window.devicePixelRatio || 1;
+      
+      canvas.width = cropRect.width * ratio;
+      canvas.height = cropRect.height * ratio;
+      
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(
+        img,
+        cropRect.left * ratio,
+        cropRect.top * ratio,
+        cropRect.width * ratio,
+        cropRect.height * ratio,
+        0,
+        0,
+        cropRect.width * ratio,
+        cropRect.height * ratio
+      );
+      resolve(canvas.toDataURL("image/png"));
     };
-
-    if (cropRect.width < 10 || cropRect.height < 10) return;
-
-    extractDataFromRect(cropRect).then(data => {
-      sendResponse({
-        pageUrl: location.href,
-        selectedText: data.text || null,
-        images: data.images || [],
-      });
-    });
-    
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
   });
-}
-
-function extractDataFromRect(rect) {
-  let extractedText = "";
-  const textBlocks = document.querySelectorAll('div[dir="auto"], span[dir="auto"], [data-ad-preview="message"]');
-  let textSegments = [];
-
-  textBlocks.forEach(block => {
-    const blockRect = block.getBoundingClientRect();
-    if (isIntersecting(rect, blockRect)) {
-      const text = block.innerText ? block.innerText.trim() : "";
-      if (text && text.length > 5) {
-        textSegments.push(text);
-      }
-    }
-  });
-
-  if (textSegments.length === 0) {
-    const fallbackElements = document.querySelectorAll('p, div[role="article"] h3, span');
-    fallbackElements.forEach(el => {
-      const elRect = el.getBoundingClientRect();
-      if (isIntersecting(rect, elRect) && el.innerText) {
-        const txt = el.innerText.trim();
-        if (txt.length > 15 && txt.length < 1500) {
-          textSegments.push(txt);
-        }
-      }
-    });
-  }
-
-  extractedText = Array.from(new Set(textSegments)).join("\n\n");
-
-  const extractedUrls = [];
-  const conversionTasks = []; 
-  const images = document.querySelectorAll("img");
-
-  for (const img of images) {
-    const imgRect = img.getBoundingClientRect();
-    
-    // Assuming 'rect' and 'isIntersecting' are in scope
-    if (isIntersecting(rect, imgRect)) {
-      if (imgRect.width > 60 && imgRect.height > 60 && img.src) {
-        if (!extractedUrls.includes(img.src) && !img.src.includes("rsrc.php")) {
-          extractedUrls.push(img.src);
-          conversionTasks.push(fetchAsBase64(img.src));
-        }
-      }
-    }
-  }
-
-  // RETURN the Promise chain. This resolves into the object you want.
-  return Promise.all(conversionTasks).then(results => {
-    const finalImages = results.filter(item => item !== null);
-    
-    // This is the object your function ultimately returns
-    return {
-      text: extractedText,
-      images: finalImages
-    };
-  });
-}
-
-async function fetchAsBase64(url) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Network response was not ok");
-    
-    const blob = await response.blob();
-    
-    // Convert Blob to Base64
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve({ url: url, base64: reader.result });
-      reader.onerror = () => reject(new Error("Failed to read blob"));
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error("Failed to convert:", url, error);
-    return null; // Return null on failure to prevent crashing Promise.all
-  }
 }
 
 function isIntersecting(r1, r2) {
@@ -967,9 +1124,6 @@ const STEP_START_MESSAGES = {
   }
 };
 
-const extensionSpokenStarts = {};
-const extensionSpokenCompletes = {};
-
 class TTSPlayer {
   constructor() {
     this.enabled = false;
@@ -977,7 +1131,6 @@ class TTSPlayer {
     this.utteranceQueue = [];
     this.isSpeaking = false;
     this.voices = [];
-    this.selectedVoiceName = "";
 
     if (typeof window !== "undefined" && window.speechSynthesis) {
       this.voices = window.speechSynthesis.getVoices();
@@ -1022,24 +1175,17 @@ class TTSPlayer {
 
     if (!cleanText) return;
 
-    // Detect if the text contains Tagalog keywords to dynamically adjust voice pronunciation
-    let textLanguage = this.currentLanguage;
-    const tagalogPattern = /\b(ang|mga|ng|sa|na|ni|ay|si|po|opo|ako|ikaw|siya|ito|iyon|doon|dito|namin|nila|kaya|kasi|pero|maging|dahil|ano|sino|bakit|paano)\b/i;
-    if (tagalogPattern.test(cleanText)) {
-      textLanguage = "tagalog";
-    }
-
     const sentences = cleanText.split(/[.!?；。]+/);
     for (const sentence of sentences) {
       const trimmed = sentence.trim();
       if (trimmed.length > 0) {
-        this.enqueue(trimmed, textLanguage);
+        this.enqueue(trimmed);
       }
     }
   }
 
-  enqueue(text, lang) {
-    this.utteranceQueue.push({ text, lang: lang || this.currentLanguage });
+  enqueue(text) {
+    this.utteranceQueue.push(text);
     this.processQueue();
   }
 
@@ -1047,18 +1193,12 @@ class TTSPlayer {
     if (this.isSpeaking || this.utteranceQueue.length === 0 || !window.speechSynthesis) return;
 
     this.isSpeaking = true;
-    const item = this.utteranceQueue.shift();
-    const utterance = new SpeechSynthesisUtterance(item.text);
-    const locale = this.getLocaleCode(item.lang);
+    const text = this.utteranceQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const locale = this.getLocaleCode(this.currentLanguage);
     utterance.lang = locale;
 
-    let matchingVoice = null;
-    if (this.selectedVoiceName) {
-      matchingVoice = this.voices.find(v => v.name === this.selectedVoiceName);
-    }
-    if (!matchingVoice) {
-      matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
-    }
+    const matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
     if (matchingVoice) {
       utterance.voice = matchingVoice;
     }
