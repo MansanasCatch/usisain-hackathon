@@ -338,7 +338,7 @@ function injectPanelStyles() {
     .usisain-minimize-btn:hover { background: rgba(96,165,250,0.15); color: #60a5fa; }
 
     #usisain-panel.usisain-minimized {
-      height: 60px !important;
+      height: 64px !important;
       bottom: auto !important;
       border-radius: 16px !important;
       border: 1px solid rgba(56, 68, 102, 0.35) !important;
@@ -347,6 +347,7 @@ function injectPanelStyles() {
     #usisain-panel.usisain-minimized .usisain-header {
       border-bottom: none !important;
       border-radius: 15px !important;
+      padding: 16px 18px !important;
     }
     #usisain-panel.usisain-minimized .usisain-preview-box,
     #usisain-panel.usisain-minimized .usisain-steps-container,
