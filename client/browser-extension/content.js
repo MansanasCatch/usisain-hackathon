@@ -327,8 +327,20 @@ function injectPanelStyles() {
     .usisain-minimize-btn:hover { background: rgba(96,165,250,0.15); color: #60a5fa; }
 
     #usisain-panel.usisain-minimized {
-      height: 60px !important;
-      overflow: hidden;
+      height: auto !important;
+      border-radius: 16px !important;
+      border: 1px solid rgba(56, 68, 102, 0.35) !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    #usisain-panel.usisain-minimized .usisain-header {
+      border-bottom: none !important;
+      border-radius: 15px !important;
+    }
+    #usisain-panel.usisain-minimized .usisain-preview-box,
+    #usisain-panel.usisain-minimized .usisain-steps-container,
+    #usisain-panel.usisain-minimized #usisain-error-banner,
+    #usisain-panel.usisain-minimized #usisain-temp-banner {
+      display: none !important;
     }
 
     .usisain-preview-box {
@@ -371,12 +383,17 @@ function injectPanelStyles() {
     .usisain-preview-caption {
       font-size: 11px;
       color: #94a3b8;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      overflow: hidden;
+      white-space: pre-wrap;
+      word-break: break-word;
       font-style: italic;
-      text-align: center;
+      text-align: left;
+      max-height: 60px;
+      overflow-y: auto;
+      padding-right: 4px;
     }
+    .usisain-preview-caption::-webkit-scrollbar { width: 3px; }
+    .usisain-preview-caption::-webkit-scrollbar-track { background: transparent; }
+    .usisain-preview-caption::-webkit-scrollbar-thumb { background: rgba(56,68,102,0.4); border-radius: 2px; }
   `;
   document.head.appendChild(style);
 }
@@ -507,7 +524,7 @@ function showPanel(previewText, previewImageUrl) {
     
     if (isMinimized) {
       panel.dataset.prevHeight = panel.style.height || "100vh";
-      panel.style.height = "60px";
+      panel.style.height = "";
     } else {
       panel.style.height = panel.dataset.prevHeight || "100vh";
       const rect = panel.getBoundingClientRect();
