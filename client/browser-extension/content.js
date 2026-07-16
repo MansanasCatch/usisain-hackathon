@@ -81,7 +81,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.action === "pipeline-start") {
       ttsPlayer.stop();
-      showPanel();
+      showPanel(message.previewText, message.previewImageUrl);
       return;
     }
     if (message.action === "pipeline-settings") {
@@ -308,6 +308,75 @@ function injectPanelStyles() {
       white-space: pre-wrap; word-break: break-word; line-height: 1.5;
       animation: usisainFadeIn 0.25s ease;
     }
+
+    .usisain-header {
+      cursor: move;
+    }
+
+    .usisain-close-btn, .usisain-minimize-btn {
+      cursor: pointer !important;
+    }
+
+    .usisain-minimize-btn {
+      position: relative; z-index: 1; width: 26px; height: 26px; border: none;
+      background: rgba(56,68,102,0.3); color: #8892a8; border-radius: 6px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; transition: all 0.2s ease; flex-shrink: 0;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    .usisain-minimize-btn:hover { background: rgba(96,165,250,0.15); color: #60a5fa; }
+
+    #usisain-panel.usisain-minimized {
+      height: 60px !important;
+      overflow: hidden;
+    }
+
+    .usisain-preview-box {
+      margin: 12px 14px 4px;
+      padding: 10px;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(56, 68, 102, 0.3);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 180px;
+      overflow: hidden;
+    }
+
+    .usisain-preview-img {
+      width: 100%;
+      max-height: 120px;
+      object-fit: contain;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: #090d16;
+    }
+
+    .usisain-preview-text {
+      font-size: 12px;
+      color: #cbd5e1;
+      overflow-y: auto;
+      max-height: 140px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-style: italic;
+      padding-right: 4px;
+    }
+
+    .usisain-preview-text::-webkit-scrollbar { width: 4px; }
+    .usisain-preview-text::-webkit-scrollbar-track { background: transparent; }
+    .usisain-preview-text::-webkit-scrollbar-thumb { background: rgba(56,68,102,0.4); border-radius: 4px; }
+
+    .usisain-preview-caption {
+      font-size: 11px;
+      color: #94a3b8;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      font-style: italic;
+      text-align: center;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -399,7 +468,7 @@ function markRemainingStepsFailed(startStep) {
   }
 }
 
-function showPanel() {
+function showPanel(previewText, previewImageUrl) {
   injectPanelStyles();
   document.getElementById("usisain-panel")?.remove();
   // Clear any active timers from a previous run
@@ -420,6 +489,7 @@ function showPanel() {
         <div class="usisain-header-title">UsisAIn</div>
         <div class="usisain-header-sub">5-Step Analysis Pipeline</div>
       </div>
+      <button class="usisain-minimize-btn" title="Minimize panel" style="margin-right: 8px;">🗕</button>
       <button class="usisain-close-btn" title="Close panel">✕</button>
     </div>`;
   header.querySelector(".usisain-close-btn").onclick = () => {
@@ -428,8 +498,107 @@ function showPanel() {
     panel.style.transform = "translateX(100%)";
     panel.style.transition = "all 0.25s ease";
     setTimeout(() => panel.remove(), 250);
+    chrome.runtime.sendMessage({ action: "cancel-analysis" });
+  };
+  header.querySelector(".usisain-minimize-btn").onclick = () => {
+    const isMinimized = panel.classList.toggle("usisain-minimized");
+    header.querySelector(".usisain-minimize-btn").textContent = isMinimized ? "🗖" : "🗕";
+    header.querySelector(".usisain-minimize-btn").title = isMinimized ? "Maximize panel" : "Minimize panel";
+    
+    if (isMinimized) {
+      panel.dataset.prevHeight = panel.style.height || "100vh";
+      panel.style.height = "60px";
+    } else {
+      panel.style.height = panel.dataset.prevHeight || "100vh";
+      const rect = panel.getBoundingClientRect();
+      if (rect.top + rect.height > window.innerHeight) {
+        panel.style.top = Math.max(0, window.innerHeight - rect.height) + "px";
+      }
+    }
   };
   panel.appendChild(header);
+
+  // Dragging logic on header
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let initialLeft = 0;
+  let initialTop = 0;
+
+  header.addEventListener("mousedown", (e) => {
+    if (e.target.closest("button")) return;
+
+    isDragging = true;
+    const rect = panel.getBoundingClientRect();
+    
+    panel.style.left = rect.left + "px";
+    panel.style.top = rect.top + "px";
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+    panel.style.height = rect.height + "px";
+    panel.style.transition = "none";
+
+    startX = e.clientX;
+    startY = e.clientY;
+    initialLeft = rect.left;
+    initialTop = rect.top;
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    
+    e.preventDefault();
+  });
+
+  function onMouseMove(e) {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    
+    let newLeft = initialLeft + dx;
+    let newTop = initialTop + dy;
+
+    const panelWidth = panel.offsetWidth;
+    const panelHeight = panel.offsetHeight;
+    newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - panelWidth));
+    newTop = Math.max(0, Math.min(newTop, window.innerHeight - panelHeight));
+
+    panel.style.left = newLeft + "px";
+    panel.style.top = newTop + "px";
+  }
+
+  function onMouseUp() {
+    if (isDragging) {
+      isDragging = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    }
+  }
+
+  // ── Preview container ──
+  if (previewImageUrl) {
+    const previewContainer = document.createElement("div");
+    previewContainer.className = "usisain-preview-box";
+    const img = document.createElement("img");
+    img.src = previewImageUrl;
+    img.className = "usisain-preview-img";
+    previewContainer.appendChild(img);
+    
+    if (previewText) {
+      const captionDiv = document.createElement("div");
+      captionDiv.className = "usisain-preview-caption";
+      captionDiv.textContent = previewText;
+      previewContainer.appendChild(captionDiv);
+    }
+    panel.appendChild(previewContainer);
+  } else if (previewText) {
+    const previewContainer = document.createElement("div");
+    previewContainer.className = "usisain-preview-box";
+    const textDiv = document.createElement("div");
+    textDiv.className = "usisain-preview-text";
+    textDiv.textContent = previewText;
+    previewContainer.appendChild(textDiv);
+    panel.appendChild(previewContainer);
+  }
 
   // ── Steps container ──
   const stepsContainer = document.createElement("div");
