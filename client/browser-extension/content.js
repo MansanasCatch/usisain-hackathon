@@ -124,6 +124,10 @@ function injectPanelStyles() {
   style.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+    #usisain-panel, #usisain-panel * {
+      box-sizing: border-box !important;
+    }
+
     #usisain-panel {
       position: fixed; top: 0; right: 0; bottom: 0; width: 380px; height: 100vh;
       overflow-y: hidden; z-index: 999999;
@@ -160,6 +164,7 @@ function injectPanelStyles() {
       background: linear-gradient(135deg, #0f1629 0%, #162040 50%, #0d1a2e 100%);
       border-bottom: 1px solid rgba(56,68,102,0.35);
       border-radius: 16px 0 0 0; overflow: hidden;
+      flex-shrink: 0 !important;
     }
 
     .usisain-header::before {
@@ -356,13 +361,24 @@ function injectPanelStyles() {
       opacity: 0 !important;
       pointer-events: none !important;
       visibility: hidden !important;
+      height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      overflow: hidden !important;
+      flex: 0 0 0 !important;
     }
 
     .usisain-preview-box,
     .usisain-steps-container,
     #usisain-error-banner,
     #usisain-temp-banner {
-      transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
+      transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                  visibility 0.25s ease,
+                  height 0.25s ease,
+                  margin 0.25s ease,
+                  padding 0.25s ease,
+                  border-color 0.25s ease;
     }
 
     .usisain-preview-box {
