@@ -25,7 +25,13 @@ const ApiClient = {
   },
 
   async uploadReferenceDocument(formData) {
-    return fetch(`${API}/api/reference-documents`, { method: "POST", body: formData }).then(r => r.json());
+    return fetch(`${API}/api/reference-documents`, { method: "POST", body: formData }).then(async r => {
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed to upload reference document.");
+      }
+      return r.json();
+    });
   },
 
   async deleteReferenceDocument(id) {
@@ -47,5 +53,18 @@ const ApiClient = {
 
   async clearScans() {
     return fetch(`${API}/api/scans`, { method: "DELETE" }).then(r => r.json());
+  },
+
+  // ---------- ollama models ----------
+  async getOllamaModels() {
+    return fetch(`${API}/api/ollama/models`).then(r => r.json());
+  },
+
+  async switchOllamaModel(modelName) {
+    return fetch(`${API}/api/ollama/switch-model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelName }),
+    }).then(r => r.json());
   },
 };
