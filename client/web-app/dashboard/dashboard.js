@@ -98,6 +98,10 @@ async function loadSettings() {
       updateVoiceControlsVisibility();
     }
     updateLanguageOptions();
+  } catch (err) {
+    console.warn("Unable to load settings:", err);
+  }
+}
 
 function updateVoiceControlsVisibility() {
   const enabled = ttsToggle.checked;
@@ -126,10 +130,6 @@ function populateVoiceDropdown() {
   }
   if (window.ttsPlayer.selectedVoiceName) {
     ttsVoice.value = window.ttsPlayer.selectedVoiceName;
-  }
-}
-  } catch (err) {
-    console.warn("Unable to load settings:", err);
   }
 }
 
@@ -853,7 +853,6 @@ function resetAnalyzeModal() {
   textInput.value = "";
   clearFileSelection();
   updateFormFields();
-
   // Clear speech states
   window.ttsPlayer.stop();
   for (let i = 1; i <= 5; i++) {
