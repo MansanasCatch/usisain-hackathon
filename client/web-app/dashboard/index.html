@@ -1,77 +1,164 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>UsisAIn — Dashboard</title>
-<link rel="stylesheet" href="../shared/styles.css">
-<script src="../shared/chart.umd.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UsisAIn — Premium Analytics Dashboard</title>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <script src="../shared/chart.umd.min.js"></script>
 </head>
 <body>
   <header>
     <h1>UsisAIn</h1>
-    <nav>
-      <a href="/app/">Analyze</a>
+    <nav style="display: flex; align-items: center; gap: 12px;">
+      <button id="header-analyze-btn" class="btn btn-primary-gradient" style="font-weight: 600;">Analyze</button>
       <a href="/app/dashboard/" class="active">Dashboard</a>
     </nav>
   </header>
 
-  <main style="max-width: 1000px;">
-    <div style="display:flex; gap:8px; margin-bottom:16px;">
-      <button data-tab="overview" class="tab-btn">Overview</button>
-      <button data-tab="scans" class="tab-btn">Scan history</button>
-      <button data-tab="refdocs" class="tab-btn">Reference documents</button>
-      <button data-tab="errors" class="tab-btn">Error Log</button>
-      <button data-tab="stepinfo" class="tab-btn">Step Info</button>
+  <main>
+    <div class="dashboard-title-bar">
+      <h2>Dashboard</h2>
     </div>
 
+    <div class="tabs-container">
+      <button data-tab="overview" class="tab-btn active">Overview</button>
+      <button data-tab="refdocs" class="tab-btn">Reference Documents</button>
+      <button data-tab="errors" class="tab-btn">Error Log</button>
+      <button data-tab="stepinfo" class="tab-btn">Pipeline Info</button>
+    </div>
+
+    <!-- MAIN DASHBOARD VIEW (Overview + Scan History) -->
     <section id="tab-overview">
-      <div class="cards" id="summary-cards"></div>
-      <div class="chart-box"><canvas id="trend-chart"></canvas></div>
-      <div class="chart-box small"><canvas id="verdict-chart"></canvas></div>
-    </section>
-
-    <section id="tab-scans" style="display:none;">
-      <div style="display:flex; gap:8px; margin-bottom:12px;">
-        <select id="filter-channel">
-          <option value="">All channels</option>
-          <option value="extension">Browser extension</option>
-          <option value="messenger">Messenger</option>
-          <option value="webapp">Web app</option>
-        </select>
-        <button id="refresh-scans">Refresh</button>
-        <button id="clear-scans" style="background:var(--bad);">Clear all history</button>
-      </div>
-      <table id="scans-table">
-        <thead><tr><th>Time</th><th>Channel</th><th>Type</th><th>Summary</th><th>Score</th><th>Verdict</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <section id="tab-refdocs" style="display:none;">
-      <form id="refdoc-form" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
-        <input type="text" name="name" placeholder="Document name" required>
-        <input type="text" name="category" placeholder="Category (e.g. receipt, government_id)" required>
-        <input type="text" name="notes" placeholder="Notes (optional)">
-        <input type="file" name="file" accept="image/*" required>
-        <button type="submit">Upload reference</button>
-      </form>
-      <div id="refdoc-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px;"></div>
-    </section>
-
-    <section id="tab-errors" style="display:none;">
-      <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center;">
-        <div style="flex:1;">
-          <span id="error-count" style="color:var(--muted); font-size:13px;"></span>
+      <!-- Stat Cards -->
+      <div class="cards" id="summary-cards">
+        <div class="card stat-total">
+          <span class="icon-badge">🔍</span>
+          <div class="label">Total Scans</div>
+          <div class="value" id="val-total-scans">0</div>
         </div>
-        <button id="refresh-errors">Refresh</button>
-        <button id="clear-errors" style="background:var(--bad);">Clear all</button>
+        <div class="card stat-good">
+          <span class="icon-badge">🛡️</span>
+          <div class="label">Credible / Safe</div>
+          <div class="value" id="val-safe-scans">0</div>
+        </div>
+        <div class="card stat-warn">
+          <span class="icon-badge">⚠️</span>
+          <div class="label">Inconclusive</div>
+          <div class="value" id="val-warn-scans">0</div>
+        </div>
+        <div class="card stat-bad">
+          <span class="icon-badge">🚫</span>
+          <div class="label">Flagged / Spliced</div>
+          <div class="value" id="val-bad-scans">0</div>
+        </div>
       </div>
-      <table id="errors-table">
-        <thead><tr><th>Time</th><th>Step</th><th>Type</th><th>Error</th></tr></thead>
-        <tbody></tbody>
-      </table>
+
+      <!-- Charts Grid -->
+      <div class="dashboard-grid">
+        <div class="chart-box">
+          <h3>📈 Scans Over Time</h3>
+          <div class="chart-canvas-wrapper">
+            <canvas id="trend-chart"></canvas>
+          </div>
+        </div>
+        <div class="chart-box doughnut-container">
+          <h3>📊 Verdict Distribution</h3>
+          <div class="chart-canvas-wrapper">
+            <canvas id="verdict-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan History Table -->
+      <div class="card table-card">
+        <div class="table-header-row">
+          <div class="table-title">Scan History & Audit Logs</div>
+          <div class="table-actions">
+            <input type="text" id="search-scans" placeholder="Search claims..." style="width:160px;">
+            <select id="filter-channel">
+              <option value="">All channels</option>
+              <option value="extension">Browser extension</option>
+              <option value="messenger">Messenger</option>
+              <option value="webapp">Web app</option>
+            </select>
+            <select id="limit-scans">
+              <option value="10">10 Scans</option>
+              <option value="25" selected>25 Scans</option>
+              <option value="50">50 Scans</option>
+              <option value="100">100 Scans</option>
+            </select>
+            <button id="refresh-scans" class="btn btn-secondary">Refresh</button>
+            <button id="clear-scans" class="btn btn-danger">Clear all history</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="scans-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Channel</th>
+                <th>Type</th>
+                <th>Summary</th>
+                <th>Score</th>
+                <th>Verdict</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Filled dynamically in JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
+    <!-- REFERENCE DOCUMENTS VIEW -->
+    <section id="tab-refdocs" style="display:none;">
+      <div class="card" style="margin-bottom: 24px;">
+        <h3 style="font-family: 'Space Grotesk', sans-serif; margin-bottom: 16px;">Upload Reference Document</h3>
+        <form id="refdoc-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items: center;">
+          <input type="text" name="name" placeholder="Document name" required style="flex:1; min-width: 150px;">
+          <input type="text" name="category" placeholder="Category (e.g. receipt, government_id)" required style="flex:1; min-width: 150px;">
+          <input type="text" name="notes" placeholder="Notes (optional)" style="flex:2; min-width: 200px;">
+          <div style="position:relative; display: flex; align-items: center;">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('refdoc-file-input').click()">📁 Select File</button>
+            <input type="file" id="refdoc-file-input" name="file" accept="image/*" required style="display:none;" onchange="document.getElementById('refdoc-file-label').textContent = this.files[0]?.name || 'No file selected'">
+            <span id="refdoc-file-label" style="font-size:11px; color:var(--muted); margin-left:8px; display:inline-block; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle;">No file selected</span>
+          </div>
+          <button type="submit" class="btn btn-primary-gradient">Upload reference</button>
+        </form>
+      </div>
+      <div id="refdoc-grid"></div>
+    </section>
+
+    <!-- ERROR LOG VIEW -->
+    <section id="tab-errors" style="display:none;">
+      <div class="card table-card">
+        <div class="table-header-row">
+          <div class="table-title">Pipeline System Error Log</div>
+          <div class="table-actions">
+            <span id="error-count" style="color:var(--muted); font-size:13px; margin-right:8px;">0 error(s) logged</span>
+            <button id="refresh-errors" class="btn btn-secondary">Refresh</button>
+            <button id="clear-errors" class="btn btn-danger">Clear all</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="errors-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Step</th>
+                <th>Type</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PIPELINE STEP INFO VIEW (Preserved structure) -->
     <section id="tab-stepinfo" style="display:none;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
         <h2 style="margin:0; font-size:18px;">Pipeline Architecture & Active Models</h2>
@@ -88,14 +175,158 @@
     </section>
   </main>
 
+  <!-- SCAN DETAIL MODAL -->
   <div class="modal" id="detail-modal">
     <div class="modal-content">
       <button class="modal-close" id="modal-close">&times;</button>
+      <h3 style="font-family: 'Space Grotesk', sans-serif; margin-bottom: 16px;">Scan JSON Result</h3>
       <pre id="modal-body"></pre>
     </div>
   </div>
 
+  <!-- RUN CONTENT ANALYSIS MODAL -->
+  <div class="modal" id="analyze-modal">
+    <div class="modal-content" style="max-width: 650px;">
+      <button class="modal-close" id="analyze-modal-close">&times;</button>
+      
+      <!-- STEP 1: INPUT FORM -->
+      <div id="analyze-input-stage">
+        <h3 class="modal-header-title">⚡ Claim Verification & Visual Forensic Analysis</h3>
+        
+        <form id="analyze-form">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:16px;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase;">Input Mode</label>
+              <select id="content-mode" style="width: 100%;">
+                <option value="text">Text / claim</option>
+                <option value="image">Image</option>
+                <option value="video">Video</option>
+                <option value="post">Post (caption + image)</option>
+              </select>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase;">Language</label>
+              <select id="language" style="width: 100%;">
+                <option value="english" selected>English</option>
+                <option value="taglish">Taglish</option>
+                <option value="tagalog">Tagalog</option>
+                <option value="cebuano">Cebuano</option>
+                <option value="bisaya">Bisaya</option>
+                <option value="ilocano">Ilocano</option>
+              </select>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase;">LLM Provider</label>
+              <select id="llm-provider" style="width: 100%;">
+                <option value="gemini" selected>Gemini (cloud)</option>
+                <option value="ollama">Ollama (local)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:12px;">
+            <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); user-select:none; cursor:pointer;">
+              <input type="checkbox" id="tts-toggle" style="width:auto; cursor:pointer;">
+              Narrate with voice (TTS)
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); user-select:none; cursor:pointer;">
+              <input type="checkbox" id="ocr-toggle" style="width:auto; cursor:pointer;" checked>
+              Use Tesseract-OCR
+            </label>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <textarea id="text-input" placeholder="Paste the claim, message, or caption to check..." rows="4" style="width:100%; resize:vertical;"></textarea>
+          </div>
+
+          <!-- Drag and Drop Zone -->
+          <div class="drag-drop-zone" id="drop-zone" style="display:none;">
+            <span class="icon">📥</span>
+            <span class="title">Drag and drop file here</span>
+            <span class="desc">or click to upload (Image or Video)</span>
+            <input type="file" id="file-input" accept="image/*,video/*" style="display:none;">
+          </div>
+          
+          <div class="file-preview-container" id="file-preview-container">
+            <img src="" id="file-preview-img" alt="File Preview">
+            <span class="remove-preview" id="remove-preview-btn">✕</span>
+          </div>
+
+          <button type="submit" id="submit-btn" class="btn btn-primary-gradient" style="width:100%; justify-content:center; padding:12px; font-size:14px; font-weight:600;">Start Analysis</button>
+        </form>
+      </div>
+
+      <!-- STEP 2: LOADING & PIPELINE EXECUTION -->
+      <div id="analyze-progress-stage" style="display:none;">
+        <h3 class="modal-header-title">⚡ Multi-Agent Pipeline Verification</h3>
+        
+        <!-- Pipeline Node Graph -->
+        <div class="pipeline-visualizer">
+          <div class="pipeline-progress-line" id="pipeline-progress-line"></div>
+          
+          <div class="pipeline-node" id="node-1">
+            <div class="pipeline-circle">1</div>
+            <div class="pipeline-label">Insights</div>
+          </div>
+          <div class="pipeline-node" id="node-2">
+            <div class="pipeline-circle">2</div>
+            <div class="pipeline-label">Forensics</div>
+          </div>
+          <div class="pipeline-node" id="node-3">
+            <div class="pipeline-circle">3</div>
+            <div class="pipeline-label">Fact check</div>
+          </div>
+          <div class="pipeline-node" id="node-4">
+            <div class="pipeline-circle">4</div>
+            <div class="pipeline-label">Actions</div>
+          </div>
+          <div class="pipeline-node" id="node-5">
+            <div class="pipeline-circle">5</div>
+            <div class="pipeline-label">Learnings</div>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600; letter-spacing:0.5px;">Current Pipeline Status</div>
+            <div id="results-header" style="font-size:15px; font-weight:600; color:var(--text); margin-top:2px;">Initializing analysis pipeline...</div>
+          </div>
+          <!-- Spinner -->
+          <div id="pipeline-spinner" style="width: 24px; height: 24px; border: 3px solid rgba(99,102,241,0.1); border-top-color: var(--accent-light); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        </div>
+
+        <div id="error-banner" style="display:none; background:rgba(230,88,79,0.1); border:1px solid var(--bad); border-radius:10px; padding:12px; margin-bottom:16px; color:var(--bad); font-size:12.5px; font-family:monospace; white-space:pre-wrap;"></div>
+
+        <!-- Scrollable step detail blocks -->
+        <div class="results-modal-container">
+          <div id="step-1" class="step-row"></div>
+          <div id="step-2" class="step-row"></div>
+          <div id="step-3" class="step-row"></div>
+          <div id="step-4" class="step-row"></div>
+          <div id="step-5" class="step-row"></div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; border-top:1px solid var(--border); padding-top:14px;">
+          <button id="cancel-voice-btn" class="btn btn-secondary" style="display:none;">🔇 Mute Narration</button>
+          <button id="analysis-done-btn" class="btn btn-primary-gradient" style="display:none; font-weight:600;">Close & View Dashboard</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+
   <script src="../shared/api_client.js"></script>
+  <script src="../shared/sse_client.js"></script>
+  <script src="../shared/tts_player.js"></script>
   <script src="dashboard.js"></script>
 </body>
 </html>
