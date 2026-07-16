@@ -35,15 +35,34 @@ def _save(entries: list[dict]) -> None:
 
 
 def add(text: str, metadata: dict) -> str:
+    import re
+    
+    def _sanitize_input(val: str) -> str:
+        if not isinstance(val, str):
+            return val
+        # Strip all HTML/script tags completely
+        cleaned = re.sub(r'<[^>]*>', '', val)
+        return cleaned.strip()
+
     entries = _load()
     entry_id = uuid.uuid4().hex
+    
+    clean_text = _sanitize_input(text)
+    clean_metadata = {}
+    if isinstance(metadata, dict):
+        for k, v in metadata.items():
+            if isinstance(v, str):
+                clean_metadata[k] = _sanitize_input(v)
+            else:
+                clean_metadata[k] = v
+
     # Fetch semantic embedding for the new document entry
-    vector = get_embedding(text)
+    vector = get_embedding(clean_text)
     entries.append({
         "id": entry_id,
-        "text": text,
+        "text": clean_text,
         "embedding": vector,
-        "metadata": metadata
+        "metadata": clean_metadata
     })
     _save(entries)
     return entry_id

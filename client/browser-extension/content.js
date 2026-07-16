@@ -1171,11 +1171,26 @@ class TTSPlayer {
   speak(text) {
     if (!this.enabled || !text) return;
 
-    const cleanText = text
-      .replace(/<[^>]*>/g, "")
+    // 1. Remove dangerous script, style, and iframe blocks along with their inner contents (XSS/Audio poisoning mitigation)
+    let sanitized = text
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "");
+
+    // 2. Strip remaining HTML tags
+    sanitized = sanitized.replace(/<[^>]*>/g, "");
+
+    // 3. Remove raw javascript commands and coding operators/brackets
+    sanitized = sanitized
+      .replace(/(?:console\.log|alert\s*\(|eval\s*\(|prompt\s*\(|confirm\s*\(|window\.|document\.)/gi, "")
+      .replace(/[\{\}\[\]\(\)\<\>\=\+\-\*\/\\`_]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // 4. Clean markdown formatting
+    const cleanText = sanitized
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
       .replace(/\*\*([^*]+)\*\*/g, "$1")
-      .replace(/[\*\#\_]/g, "")
       .trim();
 
     if (!cleanText) return;

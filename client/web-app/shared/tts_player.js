@@ -45,12 +45,26 @@ class TTSPlayer {
   speak(text) {
     if (!this.enabled || !text) return;
 
-    // Clean text: strip HTML, markdown formatting, and links for clean speech
-    const cleanText = text
-      .replace(/<[^>]*>/g, "") // remove HTML tags
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1") // markdown links -> just text
-      .replace(/\*\*([^*]+)\*\*/g, "$1") // bold
-      .replace(/[\*\#\_]/g, "") // markdown characters
+    // 1. Remove dangerous script, style, and iframe blocks along with their inner code contents (XSS/Audio poisoning mitigation)
+    let sanitized = text
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "");
+
+    // 2. Strip remaining HTML tags
+    sanitized = sanitized.replace(/<[^>]*>/g, "");
+
+    // 3. Remove raw javascript commands and coding operators/brackets
+    sanitized = sanitized
+      .replace(/(?:console\.log|alert\s*\(|eval\s*\(|prompt\s*\(|confirm\s*\(|window\.|document\.)/gi, "")
+      .replace(/[\{\}\[\]\(\)\<\>\=\+\-\*\/\\`_]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // 4. Clean markdown formatting
+    const cleanText = sanitized
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
       .trim();
 
     if (!cleanText) return;
