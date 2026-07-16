@@ -4,6 +4,7 @@ live UI updates, so it doesn't need step-by-step SSE — it just wants the
 final aggregated result and formats its own reply sequence from it.
 Temp files are cleaned up after the pipeline finishes."""
 
+import os
 from fastapi import APIRouter, UploadFile, File, Form
 
 from ..extraction.extraction import extract_text, extract_image, extract_video, extract_post, cleanup_file
@@ -20,14 +21,15 @@ async def analyze(
     file: UploadFile | None = File(None),
     caption: str | None = Form(None),
     language: str = Form(settings.default_language),
-    provider: str = Form(settings.default_llm_provider),
+    provider: str | None = Form(None),
     channel: str = Form("webapp"),
     source_url: str | None = Form(None),
     use_ocr: bool = Form(True),
 ):
-    provider = (provider or settings.default_llm_provider).strip().lower()
+    default_provider = os.environ.get("DEFAULT_LLM_PROVIDER", "ollama").strip().lower()
+    provider = (provider or default_provider).strip().lower()
     if provider not in ("ollama", "gemini"):
-        provider = settings.default_llm_provider
+        provider = default_provider
     # Ollama only supports English — enforce server-side
     if provider == "ollama" and language.strip().lower() != "english":
         language = "english"

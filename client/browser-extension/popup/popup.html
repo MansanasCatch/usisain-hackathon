@@ -17,12 +17,70 @@
         <div class="header-title">UsisAIn</div>
         <div class="header-subtitle">Trust & Fraud Detector</div>
       </div>
-      <div class="provider-badge" id="provider-badge">
-        <span class="dot"></span>
-        <span id="provider-name">Loading…</span>
-      </div>
     </div>
   </header>
+
+  <!-- ── LLM and Model Selectors (Uniform with Dashboard) ── -->
+  <div class="selectors-bar">
+    <!-- Custom LLM Provider Selector -->
+    <div class="model-selector-wrapper" id="llm-selector-container">
+      <button class="model-selector-trigger" id="llm-trigger" aria-haspopup="listbox" aria-expanded="false">
+        <span class="llm-provider-badge"></span>
+        <span class="model-name-text" id="active-llm-name">Ollama (Local)</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="model-selector-dropdown" id="llm-dropdown">
+        <div class="model-selector-list" id="llm-list">
+          <div class="model-item active-model" data-value="ollama">
+            <div class="model-item-info">
+              <div class="model-item-header">
+                <span class="model-item-name">Ollama (Local)</span>
+                <span class="model-item-status-badge status-active">Active</span>
+              </div>
+              <div class="model-item-details">
+                <span class="model-item-size">Local Host</span>
+              </div>
+            </div>
+            <span class="model-item-check">✓</span>
+          </div>
+          <div class="model-item" data-value="gemini">
+            <div class="model-item-info">
+              <div class="model-item-header">
+                <span class="model-item-name">Gemini (Cloud)</span>
+                <span class="model-item-status-badge status-available">Cloud API</span>
+              </div>
+              <div class="model-item-details">
+                <span class="model-item-size">Google Online</span>
+              </div>
+            </div>
+            <span class="model-item-check" style="display: none;">✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Model Selector -->
+    <div class="model-selector-wrapper" id="ollama-selector-container">
+      <button class="model-selector-trigger" id="model-trigger" aria-haspopup="listbox" aria-expanded="false">
+        <span class="model-status-indicator"></span>
+        <span class="model-name-text" id="active-model-name">Loading...</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="model-selector-dropdown" id="model-dropdown">
+        <!-- Switching overlay loader -->
+        <div class="model-switch-overlay" id="model-switch-overlay">
+          <div class="spinner"></div>
+          <div class="loading-text">Switching active model...</div>
+        </div>
+        <div class="model-selector-search-box">
+          <input type="text" id="model-search" placeholder="Search models..." autocomplete="off">
+        </div>
+        <div class="model-selector-list" id="model-list">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ── Language Selector & OCR Toggle ── -->
   <div class="controls-section">

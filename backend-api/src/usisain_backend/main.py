@@ -253,3 +253,64 @@ def switch_ollama_model(req: SwitchModelRequest):
 
     return {"status": "ok", "active_model": new_model}
 
+
+class SwitchProviderRequest(BaseModel):
+    provider: str
+
+
+@app.post("/api/settings/switch-provider")
+def switch_provider(req: SwitchProviderRequest):
+    """Switch the default LLM provider and persist to .env."""
+    provider = req.provider.strip().lower()
+    if provider not in ("ollama", "gemini"):
+        return {"status": "error", "message": "Invalid provider"}
+    os.environ["DEFAULT_LLM_PROVIDER"] = provider
+
+    # Persist to .env file
+    env_path = settings.project_root / ".env"
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+        found = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith("DEFAULT_LLM_PROVIDER="):
+                lines[i] = f"DEFAULT_LLM_PROVIDER={provider}"
+                found = True
+                break
+        if not found:
+            lines.append(f"DEFAULT_LLM_PROVIDER={provider}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        logger.warning("Failed to persist DEFAULT_LLM_PROVIDER to .env: %s", e)
+
+    return {"status": "ok", "active_provider": provider}
+
+
+class SwitchGeminiRequest(BaseModel):
+    model: str
+
+
+@app.post("/api/settings/switch-gemini-model")
+def switch_gemini_model(req: SwitchGeminiRequest):
+    """Switch the active Gemini model and persist to .env."""
+    model = req.model.strip()
+    os.environ["GEMINI_MODEL"] = model
+
+    # Persist to .env file
+    env_path = settings.project_root / ".env"
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+        found = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith("GEMINI_MODEL="):
+                lines[i] = f"GEMINI_MODEL={model}"
+                found = True
+                break
+        if not found:
+            lines.append(f"GEMINI_MODEL={model}")
+        env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        logger.warning("Failed to persist GEMINI_MODEL to .env: %s", e)
+
+    return {"status": "ok", "gemini_model": model}
+
+

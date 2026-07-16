@@ -67,4 +67,20 @@ const ApiClient = {
       body: JSON.stringify({ model: modelName }),
     }).then(r => r.json());
   },
+
+  async switchProvider(providerName) {
+    return fetch(`${API}/api/settings/switch-provider`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: providerName }),
+    }).then(r => r.json());
+  },
+
+  async switchGeminiModel(modelName) {
+    return fetch(`${API}/api/settings/switch-gemini-model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelName }),
+    }).then(r => r.json());
+  },
 };

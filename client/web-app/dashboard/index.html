@@ -4,14 +4,54 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UsisAIn — Premium Analytics Dashboard</title>
+  <link rel="manifest" href="/app/manifest.json">
+  <meta name="theme-color" content="#090a0f">
+  <link rel="apple-touch-icon" href="/app/icons/icon-192.png">
   <link rel="stylesheet" href="../shared/styles.css">
   <script src="../shared/chart.umd.min.js"></script>
 </head>
 <body>
   <header>
     <h1>UsisAIn</h1>
-    <nav style="display: flex; align-items: center; gap: 12px;">
-      <!-- Active Ollama Model Selector -->
+    <nav id="header-nav">
+      <!-- Custom LLM Provider Selector -->
+      <div class="model-selector-wrapper" id="llm-selector-container">
+        <button class="model-selector-trigger" id="llm-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <span class="llm-provider-badge"></span>
+          <span class="model-name-text" id="active-llm-name">Ollama (Local)</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="model-selector-dropdown" id="llm-dropdown">
+          <div class="model-selector-list" id="llm-list">
+            <div class="model-item active-model" data-value="ollama">
+              <div class="model-item-info">
+                <div class="model-item-header">
+                  <span class="model-item-name">Ollama (Local)</span>
+                  <span class="model-item-status-badge status-active">Active</span>
+                </div>
+                <div class="model-item-details">
+                  <span class="model-item-size">Local Host</span>
+                </div>
+              </div>
+              <span class="model-item-check">✓</span>
+            </div>
+            <div class="model-item" data-value="gemini">
+              <div class="model-item-info">
+                <div class="model-item-header">
+                  <span class="model-item-name">Gemini (Cloud)</span>
+                  <span class="model-item-status-badge status-available">Cloud API</span>
+                </div>
+                <div class="model-item-details">
+                  <span class="model-item-size">Google Online</span>
+                </div>
+              </div>
+              <span class="model-item-check" style="display: none;">✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Model Selector -->
       <div class="model-selector-wrapper" id="ollama-selector-container">
         <button class="model-selector-trigger" id="model-trigger" aria-haspopup="listbox" aria-expanded="false">
           <span class="model-status-indicator"></span>
@@ -32,15 +72,15 @@
           </div>
         </div>
       </div>
-
-      <button id="header-analyze-btn" class="btn btn-primary-gradient" style="font-weight: 600;">Analyze</button>
-      <a href="/app/dashboard/" class="active">Dashboard</a>
     </nav>
   </header>
 
   <main>
     <div class="dashboard-title-bar">
       <h2>Dashboard</h2>
+      <button id="header-analyze-btn" class="btn btn-primary-gradient" style="font-weight: 600;">
+        <span style="margin-right: 6px;">⚡</span> Analyze Content
+      </button>
     </div>
 
     <div class="tabs-container">
@@ -138,17 +178,17 @@
     <section id="tab-refdocs" style="display:none;">
       <div class="card" style="margin-bottom: 24px;">
         <h3 style="font-family: 'Space Grotesk', sans-serif; margin-bottom: 16px;">Upload Reference Document</h3>
-        <form id="refdoc-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items: center;">
-          <input type="text" name="name" placeholder="Document name" required style="flex:1; min-width: 150px;">
-          <input type="text" name="category" placeholder="Category (e.g. receipt, government_id)" required style="flex:1; min-width: 150px;">
-          <input type="text" name="notes" placeholder="Notes (optional)" style="flex:2; min-width: 200px;">
-          <div style="position:relative; display: flex; flex-direction: column; justify-content: center; gap: 4px;">
-            <div style="display: flex; align-items: center;">
+        <form id="refdoc-form" class="responsive-upload-form">
+          <input type="text" name="name" placeholder="Document name" required class="form-input">
+          <input type="text" name="category" placeholder="Category (e.g. receipt, government_id)" required class="form-input">
+          <input type="text" name="notes" placeholder="Notes (optional)" class="form-input form-input-wide">
+          <div class="form-file-selector-wrapper">
+            <div class="form-file-selector">
               <button type="button" class="btn btn-secondary" onclick="document.getElementById('refdoc-file-input').click()">📁 Select File</button>
               <input type="file" id="refdoc-file-input" name="file" accept="image/*" required style="display:none;" onchange="onRefDocFileSelected(this)">
-              <span id="refdoc-file-label" style="font-size:11px; color:var(--muted); margin-left:8px; display:inline-block; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle;">No file selected</span>
+              <span id="refdoc-file-label" class="file-label">No file selected</span>
             </div>
-            <span id="refdoc-max-size-hint" style="font-size:10px; color:var(--muted);">Maximum file size: 10 MB</span>
+            <span id="refdoc-max-size-hint" class="file-hint">Maximum file size: 10 MB</span>
           </div>
           <button type="submit" class="btn btn-primary-gradient">Upload reference</button>
         </form>

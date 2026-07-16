@@ -71,6 +71,9 @@ let supportedLanguages = {
   ollama: ["english"],
   gemini: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
 };
+let activeProvider = "ollama";
+let activeOllamaModel = "";
+let activeGeminiModel = "";
 
 async function loadSettings() {
   try {
@@ -89,7 +92,17 @@ async function loadSettings() {
       supportedLanguages = settings.supported_languages;
     }
     if (settings?.default_llm_provider) {
-      document.getElementById("llm-provider").value = settings.default_llm_provider;
+      activeProvider = settings.default_llm_provider;
+      document.getElementById("llm-provider").value = activeProvider;
+      if (window.updateLlmSelectorUI) {
+        window.updateLlmSelectorUI();
+      }
+    }
+    if (settings?.gemini_model) {
+      activeGeminiModel = settings.gemini_model;
+    }
+    if (settings?.ollama_model) {
+      activeOllamaModel = settings.ollama_model;
     }
     if (settings?.tts_enabled !== undefined) {
       document.getElementById("tts-toggle").checked = settings.tts_enabled;
@@ -882,21 +895,27 @@ function clearTimerForStep(step) {
 function setStepRowStatus(step, status, iconText, bodyHtml, color) {
   const row = document.getElementById(`step-${step}`);
   if (!row) return;
-  const icon = row.querySelector(".step-icon");
+  const indicator = row.querySelector(".step-status-indicator");
   const body = row.querySelector(".step-body");
   
   row.dataset.status = status;
-  icon.textContent = iconText;
   
-  if (color) {
-    icon.style.color = color;
-    row.style.color = color;
-    body.style.color = color;
-  } else {
-    icon.style.color = "";
-    row.style.color = "";
-    body.style.color = "";
+  if (indicator) {
+    if (status === "error") {
+      indicator.className = "step-status-indicator status-error";
+      indicator.textContent = "✕";
+    } else if (status === "completed") {
+      indicator.className = "step-status-indicator status-completed";
+      indicator.textContent = "✓";
+    } else if (status === "in_progress") {
+      indicator.className = "step-status-indicator status-in-progress";
+      indicator.textContent = STEP_ICONS[step] || "⏳";
+    } else {
+      indicator.className = "step-status-indicator status-waiting";
+      indicator.textContent = step;
+    }
   }
+  
   body.innerHTML = bodyHtml;
 }
 
@@ -924,7 +943,7 @@ function markFollowingStepsFailed(startStep) {
     const row = document.getElementById(`step-${step}`);
     if (!row || (row.dataset.status !== "pending" && row.dataset.status !== "in_progress")) continue;
     clearTimerForStep(step);
-    setStepRowStatus(step, "error", "⚠️", formatContent("Skipped because a previous step failed."), "var(--bad)");
+    setStepRowStatus(step, "error", "✕", formatContent("Skipped because a previous step failed."));
     updatePipelineNode(step, "error");
   }
 }
@@ -947,13 +966,17 @@ function initStepRows() {
     
     const row = document.getElementById(`step-${step}`);
     row.dataset.status = "pending";
-    row.style.cssText = `padding:12px; margin-bottom:10px;`;
-    row.innerHTML = `<div style="display:flex; gap:12px; align-items:flex-start;">
-      <span class="step-icon" style="flex-shrink:0; font-size:16px;">⏳</span>
+    row.style.cssText = ``;
+    row.innerHTML = `
+      <div class="step-status-indicator status-waiting">${step}</div>
       <div style="flex:1;">
-        <div style="font-weight:600; font-size:13.5px; color:var(--text);">${STEP_LABELS[step]}</div>
-        <div class="step-body" style="color:var(--muted); margin-top:4px; font-size:12.5px; white-space:pre-wrap;">Waiting…</div>
-      </div></div>`;
+        <div class="step-label">
+          <span class="step-num">STEP ${step}</span>
+          ${STEP_LABELS[step]}
+        </div>
+        <div class="step-body" style="white-space:pre-wrap;">Waiting…</div>
+        <div class="step-progress-track"><div class="step-progress-bar"></div></div>
+      </div>`;
   }
 }
 
@@ -977,21 +1000,21 @@ function formatContent(text) {
 function updateStepRow(event) {
   const row = document.getElementById(`step-${event.step}`);
   if (!row) return;
-  const icon = row.querySelector(".step-icon");
+  const indicator = row.querySelector(".step-status-indicator");
   const body = row.querySelector(".step-body");
 
   clearTimerForStep(event.step);
 
   if (event.status === "in_progress") {
-    icon.textContent = "🔄";
-    icon.style.color = "var(--accent-light)";
-    row.style.color = "";
-    body.style.color = "var(--muted)";
+    if (indicator) {
+      indicator.className = "step-status-indicator status-in-progress";
+      indicator.textContent = STEP_ICONS[event.step] || "⏳";
+    }
     row.dataset.status = "in_progress";
     updatePipelineNode(event.step, "active");
     
     let secondsLeft = pipelineTimeoutSeconds;
-    body.textContent = `Working… (${secondsLeft}s remaining)`;
+    body.textContent = `Analyzing… ${secondsLeft}s remaining`;
     
     // Narrate step start
     const lang = languageSelect.value;
@@ -1009,14 +1032,14 @@ function updateStepRow(event) {
           markFollowingStepsFailed(event.step + 1);
         }
       } else {
-        body.textContent = `Working… (${secondsLeft}s remaining)`;
+        body.textContent = `Analyzing… ${secondsLeft}s remaining`;
       }
     }, 1000);
   } else if (event.status === "error") {
-    icon.textContent = "⚠️";
-    icon.style.color = "var(--bad)";
-    row.style.color = "var(--bad)";
-    body.style.color = "var(--bad)";
+    if (indicator) {
+      indicator.className = "step-status-indicator status-error";
+      indicator.textContent = "✕";
+    }
     row.dataset.status = "error";
     updatePipelineNode(event.step, "error");
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
@@ -1025,10 +1048,10 @@ function updateStepRow(event) {
     // Narrate step failure
     window.ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
   } else if (event.status === "completed") {
-    icon.textContent = "✅";
-    icon.style.color = "var(--good)";
-    row.style.color = "";
-    body.style.color = "";
+    if (indicator) {
+      indicator.className = "step-status-indicator status-completed";
+      indicator.textContent = "✓";
+    }
     row.dataset.status = "completed";
     updatePipelineNode(event.step, "completed");
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
@@ -1225,7 +1248,23 @@ loadOverview();
 loadScans();
 loadRefDocs();
 loadErrors();
-initOllamaModelSelector();
+initModelSelector();
+initPWAServiceWorker();
+
+// PWA Service Worker Registration
+function initPWAServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/app/sw.js')
+        .then(reg => {
+          console.log('[PWA] Service Worker registered with scope:', reg.scope);
+        })
+        .catch(err => {
+          console.error('[PWA] Service Worker registration failed:', err);
+        });
+    });
+  }
+}
 
 // Dynamic Window Resize Listener to adapt chart parameters instantly and smoothly
 window.addEventListener('resize', () => {
@@ -1247,12 +1286,19 @@ window.addEventListener('resize', () => {
   }
 });
 
-// ---------- Ollama Model Selector Logic ----------
+// ---------- Generalized Model Selector Logic ----------
 let allOllamaModels = [];
-let activeOllamaModel = "";
+const allGeminiModels = [
+  { name: "gemini-2.5-flash", size_bytes: null, modified_at: null },
+  { name: "gemini-2.5-pro", size_bytes: null, modified_at: null },
+  { name: "gemini-2.0-flash", size_bytes: null, modified_at: null },
+  { name: "gemini-2.0-pro-exp-02-05", size_bytes: null, modified_at: null },
+  { name: "gemini-1.5-flash", size_bytes: null, modified_at: null },
+  { name: "gemini-1.5-pro", size_bytes: null, modified_at: null }
+];
 let activeVisionModel = "";
 
-async function initOllamaModelSelector() {
+async function initModelSelector() {
   const container = document.getElementById("ollama-selector-container");
   const trigger = document.getElementById("model-trigger");
   const dropdown = document.getElementById("model-dropdown");
@@ -1262,9 +1308,15 @@ async function initOllamaModelSelector() {
   const overlay = document.getElementById("model-switch-overlay");
   const statusIndicator = container?.querySelector(".model-status-indicator");
 
+  const llmContainer = document.getElementById("llm-selector-container");
+  const llmTrigger = document.getElementById("llm-trigger");
+  const llmDropdown = document.getElementById("llm-dropdown");
+  const llmList = document.getElementById("llm-list");
+  const activeLlmName = document.getElementById("active-llm-name");
+
   if (!trigger || !dropdown || !searchInput || !listContainer) return;
 
-  // Toggle dropdown on click
+  // Toggle dropdown on click for model selector
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = trigger.classList.toggle("open");
@@ -1274,10 +1326,16 @@ async function initOllamaModelSelector() {
       searchInput.focus();
       searchInput.value = "";
       renderModelList("");
+      // Close LLM selector dropdown if open
+      if (llmTrigger) {
+        llmTrigger.classList.remove("open");
+        llmDropdown.classList.remove("visible");
+        llmTrigger.setAttribute("aria-expanded", "false");
+      }
     }
   });
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click for model selector
   document.addEventListener("click", (e) => {
     if (!container.contains(e.target)) {
       trigger.classList.remove("open");
@@ -1296,49 +1354,199 @@ async function initOllamaModelSelector() {
     e.stopPropagation();
   });
 
-  // Load models from API
-  try {
-    // Show trigger loading state
-    activeNameSpan.innerHTML = '<span class="loading-dot" style="display:inline-block; vertical-align:middle; margin-right:4px;"></span> Fetching...';
-    trigger.disabled = true;
+  // Toggle dropdown on click for LLM selector
+  if (llmTrigger && llmDropdown && llmList) {
+    llmTrigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = llmTrigger.classList.toggle("open");
+      llmDropdown.classList.toggle("visible");
+      llmTrigger.setAttribute("aria-expanded", isOpen);
+      
+      // Close model selector dropdown if open
+      trigger.classList.remove("open");
+      dropdown.classList.remove("visible");
+      trigger.setAttribute("aria-expanded", "false");
+    });
 
-    const data = await ApiClient.getOllamaModels();
-    
-    trigger.disabled = false;
-    allOllamaModels = data.models || [];
-    activeOllamaModel = data.active_model || "";
-    activeVisionModel = data.active_vision_model || "";
+    document.addEventListener("click", (e) => {
+      if (llmContainer && !llmContainer.contains(e.target)) {
+        llmTrigger.classList.remove("open");
+        llmDropdown.classList.remove("visible");
+        llmTrigger.setAttribute("aria-expanded", "false");
+      }
+    });
 
-    if (data.error) {
-      console.warn("Ollama model API returned error status:", data.error);
-      if (statusIndicator) {
-        statusIndicator.style.backgroundColor = "var(--bad)";
-        statusIndicator.style.boxShadow = "0 0 8px var(--bad)";
+    // Handle clicks on items in LLM list
+    const llmItems = llmList.querySelectorAll(".model-item");
+    llmItems.forEach(item => {
+      item.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const newProvider = item.getAttribute("data-value");
+        
+        llmTrigger.classList.remove("open");
+        llmDropdown.classList.remove("visible");
+        llmTrigger.setAttribute("aria-expanded", "false");
+
+        if (newProvider === activeProvider) return;
+
+        // Show overlay loader inside dropdown
+        if (overlay) {
+          overlay.querySelector(".loading-text").textContent = `Switching to ${newProvider.toUpperCase()}...`;
+          overlay.classList.add("show");
+        }
+
+        try {
+          const res = await ApiClient.switchProvider(newProvider);
+          if (res && res.status === "ok") {
+            activeProvider = newProvider;
+            showToast(`Switched active provider to <strong>${newProvider.toUpperCase()}</strong>`);
+            
+            // Sync select in Analyze modal if present
+            const modalLlm = document.getElementById("llm-provider");
+            if (modalLlm) {
+              modalLlm.value = newProvider;
+              modalLlm.dispatchEvent(new Event("change"));
+            }
+            
+            updateLlmSelectorUI();
+            
+            await loadSettings();
+            await fetchAndRenderModels();
+          } else {
+            showToast("Failed to switch active provider", true);
+          }
+        } catch (err) {
+          console.error("Error switching provider:", err);
+          showToast("Network error switching active provider", true);
+        } finally {
+          if (overlay) overlay.classList.remove("show");
+        }
+      });
+    });
+  }
+
+  function updateLlmSelectorUI() {
+    if (activeLlmName) {
+      activeLlmName.textContent = activeProvider === "ollama" ? "Ollama (Local)" : "Gemini (Cloud)";
+    }
+    const llmItems = llmList?.querySelectorAll(".model-item");
+    if (llmItems) {
+      llmItems.forEach(item => {
+        const val = item.getAttribute("data-value");
+        const check = item.querySelector(".model-item-check");
+        const badge = item.querySelector(".model-item-status-badge");
+        if (val === activeProvider) {
+          item.classList.add("active-model");
+          if (check) check.style.display = "block";
+          if (badge) {
+            badge.className = "model-item-status-badge status-active";
+            badge.textContent = "Active";
+          }
+        } else {
+          item.classList.remove("active-model");
+          if (check) check.style.display = "none";
+          if (badge) {
+            badge.className = "model-item-status-badge status-available";
+            badge.textContent = val === "ollama" ? "Local Host" : "Cloud API";
+          }
+        }
+      });
+    }
+    const badge = document.querySelector(".llm-provider-badge");
+    if (badge) {
+      if (activeProvider === "ollama") {
+        badge.style.backgroundColor = "var(--accent-light)";
+        badge.style.boxShadow = "0 0 8px var(--accent-light)";
+      } else {
+        badge.style.backgroundColor = "#10b981"; // green for Gemini
+        badge.style.boxShadow = "0 0 8px #10b981";
+      }
+    }
+  }
+
+  // Publish helper to window scope for sync access
+  window.updateLlmSelectorUI = updateLlmSelectorUI;
+
+  // Initialize UI state
+  updateLlmSelectorUI();
+
+  // Handle LLM Provider switch inside the Analyze modal to sync back to the header
+  const modalLlm = document.getElementById("llm-provider");
+  if (modalLlm) {
+    modalLlm.addEventListener("change", (e) => {
+      const newProvider = e.target.value;
+      if (newProvider !== activeProvider) {
+        // Find corresponding model item and click it
+        const targetItem = llmList?.querySelector(`.model-item[data-value="${newProvider}"]`);
+        if (targetItem) targetItem.click();
+      }
+    });
+  }
+
+  // Load models initially
+  await fetchAndRenderModels();
+
+  async function fetchAndRenderModels() {
+    if (activeProvider === "ollama") {
+      try {
+        if (activeNameSpan) activeNameSpan.innerHTML = '<span class="loading-dot" style="display:inline-block; vertical-align:middle; margin-right:4px;"></span> Fetching...';
+        if (trigger) trigger.disabled = true;
+
+        const data = await ApiClient.getOllamaModels();
+        
+        if (trigger) trigger.disabled = false;
+        allOllamaModels = data.models || [];
+        activeOllamaModel = data.active_model || "";
+        activeVisionModel = data.active_vision_model || "";
+
+        if (data.error) {
+          console.warn("Ollama model API returned error status:", data.error);
+          if (statusIndicator) {
+            statusIndicator.style.backgroundColor = "var(--bad)";
+            statusIndicator.style.boxShadow = "0 0 8px var(--bad)";
+          }
+        } else {
+          if (statusIndicator) {
+            statusIndicator.style.backgroundColor = "var(--good)";
+            statusIndicator.style.boxShadow = "0 0 8px var(--good)";
+          }
+        }
+      } catch (err) {
+        if (trigger) trigger.disabled = false;
+        if (activeNameSpan) activeNameSpan.textContent = "Offline";
+        if (statusIndicator) {
+          statusIndicator.style.backgroundColor = "var(--bad)";
+          statusIndicator.style.boxShadow = "0 0 8px var(--bad)";
+        }
+        console.error("Failed to load Ollama models:", err);
       }
     } else {
+      // Gemini provider
+      if (trigger) trigger.disabled = false;
       if (statusIndicator) {
         statusIndicator.style.backgroundColor = "var(--good)";
         statusIndicator.style.boxShadow = "0 0 8px var(--good)";
       }
     }
-
     updateActiveModelUI();
-  } catch (err) {
-    trigger.disabled = false;
-    activeNameSpan.textContent = "Offline";
-    if (statusIndicator) {
-      statusIndicator.style.backgroundColor = "var(--bad)";
-      statusIndicator.style.boxShadow = "0 0 8px var(--bad)";
-    }
-    console.error("Failed to load Ollama models:", err);
-    renderEmptyState("Unable to reach Ollama host. Make sure it is running.");
   }
 
   function updateActiveModelUI() {
-    if (activeOllamaModel) {
-      activeNameSpan.textContent = cleanModelName(activeOllamaModel);
+    if (!activeNameSpan) return;
+    
+    if (activeProvider === "ollama") {
+      if (activeOllamaModel) {
+        activeNameSpan.textContent = cleanModelName(activeOllamaModel);
+      } else {
+        activeNameSpan.textContent = "Select Model";
+      }
     } else {
-      activeNameSpan.textContent = "Select Model";
+      // Gemini
+      if (activeGeminiModel) {
+        activeNameSpan.textContent = cleanModelName(activeGeminiModel);
+      } else {
+        activeNameSpan.textContent = "Select Model";
+      }
     }
     renderModelList("");
   }
@@ -1346,6 +1554,17 @@ async function initOllamaModelSelector() {
   function cleanModelName(rawName) {
     if (!rawName) return "Unknown";
     let name = rawName;
+    
+    if (name.startsWith("gemini-")) {
+      if (name.includes("2.5-flash")) return "Gemini 2.5 Flash";
+      if (name.includes("2.5-pro")) return "Gemini 2.5 Pro";
+      if (name.includes("2.0-flash")) return "Gemini 2.0 Flash";
+      if (name.includes("2.0-pro")) return "Gemini 2.0 Pro";
+      if (name.includes("1.5-flash")) return "Gemini 1.5 Flash";
+      if (name.includes("1.5-pro")) return "Gemini 1.5 Pro";
+      return name;
+    }
+
     if (name.includes(":")) {
       const parts = name.split(":");
       name = parts[0];
@@ -1399,11 +1618,17 @@ async function initOllamaModelSelector() {
   function renderModelList(query) {
     listContainer.innerHTML = "";
     const filter = query.toLowerCase().trim();
-    const filtered = allOllamaModels.filter(m => m.name.toLowerCase().includes(filter));
+    
+    const modelsToRender = activeProvider === "ollama" ? allOllamaModels : allGeminiModels;
+    const filtered = modelsToRender.filter(m => m.name.toLowerCase().includes(filter));
 
     if (filtered.length === 0) {
-      if (allOllamaModels.length === 0) {
-        renderEmptyState("No local Ollama models found. Pull models with `ollama pull`.");
+      if (modelsToRender.length === 0) {
+        if (activeProvider === "ollama") {
+          renderEmptyState("No local Ollama models found. Pull models with `ollama pull`.");
+        } else {
+          renderEmptyState("No Gemini models configured.");
+        }
       } else {
         renderEmptyState("No matching models found.");
       }
@@ -1411,7 +1636,8 @@ async function initOllamaModelSelector() {
     }
 
     filtered.forEach(model => {
-      const isTxtActive = model.name === activeOllamaModel || model.name.split(":")[0] === activeOllamaModel.split(":")[0];
+      const activeModelName = activeProvider === "ollama" ? activeOllamaModel : activeGeminiModel;
+      const isTxtActive = model.name === activeModelName || model.name.split(":")[0] === activeModelName.split(":")[0];
       const isActive = isTxtActive;
 
       const item = document.createElement("div");
@@ -1429,7 +1655,7 @@ async function initOllamaModelSelector() {
             </span>
           </div>
           <div class="model-item-details">
-            <span class="model-item-size">${formatSize(model.size_bytes)}</span>
+            ${model.size_bytes ? `<span class="model-item-size">${formatSize(model.size_bytes)}</span>` : '<span class="model-item-size">API Cloud</span>'}
             ${relativeTime ? `<span class="model-item-divider">•</span> <span class="model-item-modified">Modified ${relativeTime}</span>` : ''}
           </div>
         </div>
@@ -1452,7 +1678,12 @@ async function initOllamaModelSelector() {
         }
 
         try {
-          const res = await ApiClient.switchOllamaModel(model.name);
+          let res;
+          if (activeProvider === "ollama") {
+            res = await ApiClient.switchOllamaModel(model.name);
+          } else {
+            res = await ApiClient.switchGeminiModel(model.name);
+          }
           
           if (overlay) overlay.classList.remove("show");
           trigger.classList.remove("open");
@@ -1460,8 +1691,13 @@ async function initOllamaModelSelector() {
           trigger.setAttribute("aria-expanded", "false");
 
           if (res && res.status === "ok") {
-            activeOllamaModel = model.name;
-            showToast(`Switched active model to <strong>${cleanModelName(model.name)}</strong>`);
+            if (activeProvider === "ollama") {
+              activeOllamaModel = model.name;
+              showToast(`Switched active Ollama model to <strong>${cleanModelName(model.name)}</strong>`);
+            } else {
+              activeGeminiModel = model.name;
+              showToast(`Switched active Gemini model to <strong>${cleanModelName(model.name)}</strong>`);
+            }
             loadSettings(); // refresh setting bindings
           } else {
             showToast("Failed to switch active model", true);

@@ -3,6 +3,7 @@ instant it completes, instead of buffering the whole response.
 Temp files are cleaned up after the pipeline finishes."""
 
 import json
+import os
 import traceback
 from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
@@ -48,14 +49,15 @@ async def analyze_stream(
     text: str | None = Form(None),
     file: UploadFile | None = File(None),
     caption: str | None = Form(None),
-    language: str = Form(settings.default_language),
-    provider: str = Form(settings.default_llm_provider),
+    language: str = Form("english"),
+    provider: str | None = Form(None),
     source_url: str | None = Form(None),
     use_ocr: bool = Form(True),
 ):
-    provider = (provider or settings.default_llm_provider).strip().lower()
+    default_provider = os.environ.get("DEFAULT_LLM_PROVIDER", "ollama").strip().lower()
+    provider = (provider or default_provider).strip().lower()
     if provider not in ("ollama", "gemini"):
-        provider = settings.default_llm_provider
+        provider = default_provider
     # Ollama only supports English — enforce server-side
     if provider == "ollama" and language.strip().lower() != "english":
         language = "english"

@@ -26,33 +26,47 @@ const historyList = document.getElementById("history");
 
 // ─── Navigation buttons ───
 btnAnalyze.addEventListener("click", () => {
-  chrome.tabs.create({ url: `${BACKEND}/app/` });
+  if (typeof chrome !== "undefined" && chrome.tabs) {
+    chrome.tabs.create({ url: `${BACKEND}/app/` });
+  } else {
+    window.open(`${BACKEND}/app/`, "_blank");
+  }
 });
 
 btnDashboard.addEventListener("click", () => {
-  chrome.tabs.create({ url: `${BACKEND}/app/dashboard/` });
+  if (typeof chrome !== "undefined" && chrome.tabs) {
+    chrome.tabs.create({ url: `${BACKEND}/app/dashboard/` });
+  } else {
+    window.open(`${BACKEND}/app/dashboard/`, "_blank");
+  }
 });
 
 const ocrToggle = document.getElementById("ocr-toggle");
 
 // ─── Load saved language and OCR preference ───
-chrome.storage.local.get(["preferredLanguage", "useOcr"], (data) => {
-  if (data.preferredLanguage) {
-    languageSelect.value = data.preferredLanguage;
-  }
-  if (data.useOcr !== undefined) {
-    ocrToggle.checked = data.useOcr;
-  }
-});
+if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+  chrome.storage.local.get(["preferredLanguage", "useOcr"], (data) => {
+    if (data.preferredLanguage) {
+      languageSelect.value = data.preferredLanguage;
+    }
+    if (data.useOcr !== undefined) {
+      ocrToggle.checked = data.useOcr;
+    }
+  });
+}
 
 // ─── Save language on change ───
 languageSelect.addEventListener("change", () => {
-  chrome.storage.local.set({ preferredLanguage: languageSelect.value });
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set({ preferredLanguage: languageSelect.value });
+  }
 });
 
 // ─── Save OCR preference on change ───
 ocrToggle.addEventListener("change", () => {
-  chrome.storage.local.set({ useOcr: ocrToggle.checked });
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set({ useOcr: ocrToggle.checked });
+  }
 });
 
 // ─── Populate language dropdown based on provider ───
@@ -79,15 +93,39 @@ function populateLanguages(provider) {
 }
 
 // ─── Fetch settings from backend and configure UI ───
+let activeProvider = "ollama";
+let activeOllamaModel = "";
+let activeGeminiModel = "";
+let allOllamaModels = [];
+const allGeminiModels = [
+  { name: "gemini-2.5-flash", size_bytes: null, modified_at: null },
+  { name: "gemini-2.5-pro", size_bytes: null, modified_at: null },
+  { name: "gemini-2.0-flash", size_bytes: null, modified_at: null },
+  { name: "gemini-2.0-pro-exp-02-05", size_bytes: null, modified_at: null },
+  { name: "gemini-1.5-flash", size_bytes: null, modified_at: null },
+  { name: "gemini-1.5-pro", size_bytes: null, modified_at: null }
+];
+
 async function loadSettings() {
   try {
     const res = await fetch(`${BACKEND}/api/settings`);
     const settings = await res.json();
-    const provider = (settings.default_llm_provider || "ollama").toLowerCase();
+    
+    if (settings?.default_llm_provider) {
+      activeProvider = settings.default_llm_provider;
+    }
+    if (settings?.gemini_model) {
+      activeGeminiModel = settings.gemini_model;
+    }
+    if (settings?.ollama_model) {
+      activeOllamaModel = settings.ollama_model;
+    }
 
-    // Update provider badge
-    providerName.textContent = provider === "gemini" ? "Gemini" : "Ollama";
-    providerBadge.title = `Active LLM: ${provider}`;
+    if (window.updateLlmSelectorUI) {
+      window.updateLlmSelectorUI();
+    }
+
+    const provider = activeProvider.toLowerCase();
 
     // Use server-provided language list if available, otherwise use local map
     if (settings.supported_languages && settings.supported_languages[provider]) {
@@ -99,9 +137,8 @@ async function loadSettings() {
     }
 
     populateLanguages(provider);
-  } catch {
-    // Backend unreachable — default to full list
-    providerName.textContent = "Offline";
+  } catch (err) {
+    console.error("Failed to load settings:", err);
     populateLanguages("gemini");
   }
 }
@@ -170,3 +207,392 @@ async function loadHistory() {
 // ─── Initialize ───
 loadSettings();
 loadHistory();
+initModelSelector();
+
+// ---------- Custom Dropdowns Selector for Extension Popup ----------
+async function initModelSelector() {
+  const container = document.getElementById("ollama-selector-container");
+  const trigger = document.getElementById("model-trigger");
+  const dropdown = document.getElementById("model-dropdown");
+  const searchInput = document.getElementById("model-search");
+  const listContainer = document.getElementById("model-list");
+  const activeNameSpan = document.getElementById("active-model-name");
+  const overlay = document.getElementById("model-switch-overlay");
+  const statusIndicator = container?.querySelector(".model-status-indicator");
+
+  const llmContainer = document.getElementById("llm-selector-container");
+  const llmTrigger = document.getElementById("llm-trigger");
+  const llmDropdown = document.getElementById("llm-dropdown");
+  const llmList = document.getElementById("llm-list");
+  const activeLlmName = document.getElementById("active-llm-name");
+
+  if (!trigger || !dropdown || !searchInput || !listContainer) return;
+
+  // Toggle dropdown on click for model selector
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = trigger.classList.toggle("open");
+    dropdown.classList.toggle("visible");
+    trigger.setAttribute("aria-expanded", isOpen);
+    if (isOpen) {
+      searchInput.focus();
+      searchInput.value = "";
+      renderModelList("");
+      if (llmTrigger) {
+        llmTrigger.classList.remove("open");
+        llmDropdown.classList.remove("visible");
+        llmTrigger.setAttribute("aria-expanded", "false");
+      }
+    }
+  });
+
+  // Close dropdown on outside click
+  document.addEventListener("click", (e) => {
+    if (!container.contains(e.target)) {
+      trigger.classList.remove("open");
+      dropdown.classList.remove("visible");
+      trigger.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  // Handle search filtering
+  searchInput.addEventListener("input", (e) => {
+    renderModelList(e.target.value);
+  });
+
+  // Prevent dropdown closing when clicking inside search input
+  searchInput.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  // Toggle dropdown on click for LLM selector
+  if (llmTrigger && llmDropdown && llmList) {
+    llmTrigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = llmTrigger.classList.toggle("open");
+      llmDropdown.classList.toggle("visible");
+      llmTrigger.setAttribute("aria-expanded", isOpen);
+      
+      trigger.classList.remove("open");
+      dropdown.classList.remove("visible");
+      trigger.setAttribute("aria-expanded", "false");
+    });
+
+    document.addEventListener("click", (e) => {
+      if (llmContainer && !llmContainer.contains(e.target)) {
+        llmTrigger.classList.remove("open");
+        llmDropdown.classList.remove("visible");
+        llmTrigger.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    // Handle clicks on items in LLM list
+    const llmItems = llmList.querySelectorAll(".model-item");
+    llmItems.forEach(item => {
+      item.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const newProvider = item.getAttribute("data-value");
+        
+        llmTrigger.classList.remove("open");
+        llmDropdown.classList.remove("visible");
+        llmTrigger.setAttribute("aria-expanded", "false");
+
+        if (newProvider === activeProvider) return;
+
+        if (overlay) {
+          overlay.querySelector(".loading-text").textContent = `Switching to ${newProvider.toUpperCase()}...`;
+          overlay.classList.add("show");
+        }
+
+        try {
+          const res = await fetch(`${BACKEND}/api/settings/switch-provider`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ provider: newProvider })
+          }).then(r => r.json());
+
+          if (res && res.status === "ok") {
+            activeProvider = newProvider;
+            updateLlmSelectorUI();
+            await loadSettings();
+            await fetchAndRenderModels();
+          }
+        } catch (err) {
+          console.error("Error switching provider:", err);
+        } finally {
+          if (overlay) overlay.classList.remove("show");
+        }
+      });
+    });
+  }
+
+  function updateLlmSelectorUI() {
+    if (activeLlmName) {
+      activeLlmName.textContent = activeProvider === "ollama" ? "Ollama (Local)" : "Gemini (Cloud)";
+    }
+    const llmItems = llmList?.querySelectorAll(".model-item");
+    if (llmItems) {
+      llmItems.forEach(item => {
+        const val = item.getAttribute("data-value");
+        const check = item.querySelector(".model-item-check");
+        const badge = item.querySelector(".model-item-status-badge");
+        if (val === activeProvider) {
+          item.classList.add("active-model");
+          if (check) check.style.display = "block";
+          if (badge) {
+            badge.className = "model-item-status-badge status-active";
+            badge.textContent = "Active";
+          }
+        } else {
+          item.classList.remove("active-model");
+          if (check) check.style.display = "none";
+          if (badge) {
+            badge.className = "model-item-status-badge status-available";
+            badge.textContent = val === "ollama" ? "Local Host" : "Cloud API";
+          }
+        }
+      });
+    }
+    const badge = document.querySelector(".llm-provider-badge");
+    if (badge) {
+      if (activeProvider === "ollama") {
+        badge.style.backgroundColor = "var(--accent-indigo)";
+        badge.style.boxShadow = "0 0 8px var(--accent-indigo)";
+      } else {
+        badge.style.backgroundColor = "var(--verdict-safe)";
+        badge.style.boxShadow = "0 0 8px var(--verdict-safe)";
+      }
+    }
+  }
+
+  window.updateLlmSelectorUI = updateLlmSelectorUI;
+  updateLlmSelectorUI();
+
+  await fetchAndRenderModels();
+
+  async function fetchAndRenderModels() {
+    if (activeProvider === "ollama") {
+      try {
+        if (activeNameSpan) activeNameSpan.innerHTML = '<span class="loading-dot" style="display:inline-block; vertical-align:middle; margin-right:4px;"></span> Fetching...';
+        if (trigger) trigger.disabled = true;
+
+        const data = await fetch(`${BACKEND}/api/ollama/models`).then(r => r.json());
+        
+        if (trigger) trigger.disabled = false;
+        allOllamaModels = data.models || [];
+        activeOllamaModel = data.active_model || "";
+        activeVisionModel = data.active_vision_model || "";
+
+        if (data.error) {
+          if (statusIndicator) {
+            statusIndicator.style.backgroundColor = "var(--verdict-dangerous)";
+            statusIndicator.style.boxShadow = "0 0 8px var(--verdict-dangerous)";
+          }
+        } else {
+          if (statusIndicator) {
+            statusIndicator.style.backgroundColor = "var(--verdict-safe)";
+            statusIndicator.style.boxShadow = "0 0 8px var(--verdict-safe)";
+          }
+        }
+      } catch (err) {
+        if (trigger) trigger.disabled = false;
+        if (activeNameSpan) activeNameSpan.textContent = "Offline";
+        if (statusIndicator) {
+          statusIndicator.style.backgroundColor = "var(--verdict-dangerous)";
+          statusIndicator.style.boxShadow = "0 0 8px var(--verdict-dangerous)";
+        }
+      }
+    } else {
+      if (trigger) trigger.disabled = false;
+      if (statusIndicator) {
+        statusIndicator.style.backgroundColor = "var(--verdict-safe)";
+        statusIndicator.style.boxShadow = "0 0 8px var(--verdict-safe)";
+      }
+    }
+    updateActiveModelUI();
+  }
+
+  function updateActiveModelUI() {
+    if (!activeNameSpan) return;
+    
+    if (activeProvider === "ollama") {
+      if (activeOllamaModel) {
+        activeNameSpan.textContent = cleanModelName(activeOllamaModel);
+      } else {
+        activeNameSpan.textContent = "Select Model";
+      }
+    } else {
+      if (activeGeminiModel) {
+        activeNameSpan.textContent = cleanModelName(activeGeminiModel);
+      } else {
+        activeNameSpan.textContent = "Select Model";
+      }
+    }
+    renderModelList("");
+  }
+
+  function cleanModelName(rawName) {
+    if (!rawName) return "Unknown";
+    let name = rawName;
+    
+    if (name.startsWith("gemini-")) {
+      if (name.includes("2.5-flash")) return "Gemini 2.5 Flash";
+      if (name.includes("2.5-pro")) return "Gemini 2.5 Pro";
+      if (name.includes("2.0-flash")) return "Gemini 2.0 Flash";
+      if (name.includes("2.0-pro")) return "Gemini 2.0 Pro";
+      if (name.includes("1.5-flash")) return "Gemini 1.5 Flash";
+      if (name.includes("1.5-pro")) return "Gemini 1.5 Pro";
+      return name;
+    }
+
+    if (name.includes(":")) {
+      name = name.split(":")[0];
+    }
+    name = name.replace(/[-_]/g, " ");
+    
+    const lower = name.toLowerCase();
+    if (lower.includes("llama3.2")) return "Llama 3.2";
+    if (lower.includes("llama3.1")) return "Llama 3.1";
+    if (lower.includes("llama3")) return "Llama 3";
+    if (lower.includes("deepseek")) return "DeepSeek R1";
+    if (lower.includes("qwen")) return "Qwen 2.5";
+    if (lower.includes("gemma")) return "Gemma 3";
+    if (lower.includes("moondream")) return "Moondream 2";
+    
+    return name.split(" ").map(word => {
+      if (word.length === 0) return "";
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(" ");
+  }
+
+  function formatSize(bytes) {
+    if (!bytes || bytes === 0) return "0.0 GB";
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${gb.toFixed(1)} GB`;
+  }
+
+  function formatRelativeTime(isoString) {
+    if (!isoString) return "";
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return "";
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.round(diffMs / 60000);
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function renderModelList(query) {
+    listContainer.innerHTML = "";
+    const filter = query.toLowerCase().trim();
+    
+    const modelsToRender = activeProvider === "ollama" ? allOllamaModels : allGeminiModels;
+    const filtered = modelsToRender.filter(m => m.name.toLowerCase().includes(filter));
+
+    if (filtered.length === 0) {
+      if (modelsToRender.length === 0) {
+        if (activeProvider === "ollama") {
+          renderEmptyState("No local Ollama models found.");
+        } else {
+          renderEmptyState("No Gemini models configured.");
+        }
+      } else {
+        renderEmptyState("No matching models found.");
+      }
+      return;
+    }
+
+    filtered.forEach(model => {
+      const activeModelName = activeProvider === "ollama" ? activeOllamaModel : activeGeminiModel;
+      const isTxtActive = model.name === activeModelName || model.name.split(":")[0] === activeModelName.split(":")[0];
+      const isActive = isTxtActive;
+
+      const item = document.createElement("div");
+      item.className = `model-item ${isActive ? 'active-model' : ''}`;
+      
+      const relativeTime = formatRelativeTime(model.modified_at);
+
+      item.innerHTML = `
+        <div class="model-item-info">
+          <div class="model-item-header">
+            <span class="model-item-name" title="${model.name}">${cleanModelName(model.name)}</span>
+            <span class="model-item-status-badge ${isActive ? 'status-active' : 'status-available'}">
+              ${isActive ? 'Active' : 'Available'}
+            </span>
+          </div>
+          <div class="model-item-details">
+            ${model.size_bytes ? `<span class="model-item-size">${formatSize(model.size_bytes)}</span>` : '<span class="model-item-size">API Cloud</span>'}
+            ${relativeTime ? `<span class="model-item-divider">•</span> <span class="model-item-modified">${relativeTime}</span>` : ''}
+          </div>
+        </div>
+        ${isActive ? '<span class="model-item-check">✓</span>' : ''}
+      `;
+
+      item.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (isActive) {
+          trigger.classList.remove("open");
+          dropdown.classList.remove("visible");
+          trigger.setAttribute("aria-expanded", "false");
+          return;
+        }
+
+        if (overlay) {
+          overlay.querySelector(".loading-text").textContent = `Switching to ${cleanModelName(model.name)}...`;
+          overlay.classList.add("show");
+        }
+
+        try {
+          let res;
+          if (activeProvider === "ollama") {
+            res = await fetch(`${BACKEND}/api/ollama/switch-model`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model: model.name })
+            }).then(r => r.json());
+          } else {
+            res = await fetch(`${BACKEND}/api/settings/switch-gemini-model`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model: model.name })
+            }).then(r => r.json());
+          }
+          
+          trigger.classList.remove("open");
+          dropdown.classList.remove("visible");
+          trigger.setAttribute("aria-expanded", "false");
+
+          if (res && res.status === "ok") {
+            if (activeProvider === "ollama") {
+              activeOllamaModel = model.name;
+            } else {
+              activeGeminiModel = model.name;
+            }
+            await loadSettings();
+          }
+        } catch (err) {
+          console.error("Error switching model:", err);
+        } finally {
+          if (overlay) overlay.classList.remove("show");
+          updateActiveModelUI();
+        }
+      });
+
+      listContainer.appendChild(item);
+    });
+  }
+
+  function renderEmptyState(message) {
+    listContainer.innerHTML = `
+      <div class="model-selector-empty">
+        <div class="empty-icon">🧠</div>
+        <div>${message}</div>
+      </div>
+    `;
+  }
+}
