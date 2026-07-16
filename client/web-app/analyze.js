@@ -1,6 +1,6 @@
 const STEP_LABELS = {
-  1: "(Step 1) AI Insights", 2: "(Step 2) Content Analyser", 3: "(Step 3) Authenticity",
-  4: "(Step 4) Actionable Items", 5: "(Step 5) Learnings",
+  1: "AI Insights", 2: "Content Analyser", 3: "Authenticity",
+  4: "Actionable Items", 5: "Learnings",
 };
 
 const STEP_START_MESSAGES = {

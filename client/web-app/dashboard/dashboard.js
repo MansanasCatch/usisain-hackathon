@@ -693,9 +693,11 @@ async function loadStepInfo() {
 
 // ---------- NEW ANALYZE MODAL SYSTEM ----------
 const STEP_LABELS = {
-  1: "(Step 1) AI Insights", 2: "(Step 2) Content Analyser", 3: "(Step 3) Authenticity",
-  4: "(Step 4) Actionable Items", 5: "(Step 5) Learnings",
+  1: "AI Insights", 2: "Content Analyser", 3: "Authenticity",
+  4: "Actionable Items", 5: "Learnings",
 };
+
+const STEP_ICONS = { 1: "💡", 2: "🔬", 3: "✅", 4: "🎯", 5: "📚" };
 
 const STEP_START_MESSAGES = {
   english: {
@@ -823,6 +825,81 @@ removePreviewBtn.addEventListener("click", () => {
   clearFileSelection();
 });
 
+let cameraStream = null;
+let capturedImageBlob = null;
+
+async function startCamera() {
+  const video = document.getElementById("camera-video");
+  const captureBtn = document.getElementById("camera-capture-btn");
+  const retryBtn = document.getElementById("camera-retry-btn");
+  
+  if (!video) return;
+
+  capturedImageBlob = null;
+  if (captureBtn) captureBtn.style.display = "block";
+  if (retryBtn) retryBtn.style.display = "none";
+  video.style.display = "block";
+  previewContainer.style.display = "none";
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" }
+    });
+    video.srcObject = cameraStream;
+  } catch (err) {
+    console.error("Camera access failed:", err);
+    const container = document.getElementById("camera-container");
+    if (container) {
+      const errorDiv = document.createElement("div");
+      errorDiv.id = "camera-error-msg";
+      errorDiv.style.cssText = "color:var(--bad); font-size:12px; margin-top:8px; text-align:center;";
+      errorDiv.textContent = "Could not access camera/webcam. Please check permissions or upload a file instead.";
+      const oldErr = document.getElementById("camera-error-msg");
+      if (oldErr) oldErr.remove();
+      container.appendChild(errorDiv);
+    }
+  }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  const video = document.getElementById("camera-video");
+  if (video) video.srcObject = null;
+  const oldErr = document.getElementById("camera-error-msg");
+  if (oldErr) oldErr.remove();
+}
+
+function capturePhoto() {
+  const video = document.getElementById("camera-video");
+  const canvas = document.getElementById("camera-canvas");
+  const captureBtn = document.getElementById("camera-capture-btn");
+  const retryBtn = document.getElementById("camera-retry-btn");
+
+  if (!video || !canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+  canvas.toBlob(blob => {
+    capturedImageBlob = blob;
+    
+    video.style.display = "none";
+    if (captureBtn) captureBtn.style.display = "none";
+    if (retryBtn) retryBtn.style.display = "block";
+    
+    previewImg.src = URL.createObjectURL(blob);
+    previewContainer.style.display = "flex";
+    
+    stopCamera();
+  }, "image/jpeg", 0.85);
+}
+
 function handleFileSelected(file) {
   if (!file) return;
   
@@ -834,11 +911,6 @@ function handleFileSelected(file) {
       dropZone.style.display = "none";
     };
     reader.readAsDataURL(file);
-  } else if (file.type.startsWith("video/")) {
-    // Standard video icon for previews
-    previewImg.src = "https://placehold.co/200x120/11131e/9ca3af?text=Video+Selected";
-    previewContainer.style.display = "flex";
-    dropZone.style.display = "none";
   }
 }
 
@@ -846,10 +918,15 @@ function clearFileSelection() {
   fileInput.value = "";
   previewImg.src = "";
   previewContainer.style.display = "none";
-  // Restore drop zone if file/post mode is active
+  capturedImageBlob = null;
+  
   const mode = modeSelect.value;
-  if (mode === "image" || mode === "video" || mode === "post") {
+  if (mode === "image") {
     dropZone.style.display = "flex";
+  } else if (mode === "camera") {
+    const container = document.getElementById("camera-container");
+    if (container) container.style.display = "flex";
+    startCamera();
   }
 }
 
@@ -866,7 +943,7 @@ function resetAnalyzeModal() {
   textInput.value = "";
   clearFileSelection();
   updateFormFields();
-  // Clear speech states
+  
   window.ttsPlayer.stop();
   for (let i = 1; i <= 5; i++) {
     const row = document.getElementById(`step-${i}`);
@@ -901,25 +978,33 @@ providerSelect.addEventListener("change", updateLanguageOptions);
 
 function updateFormFields() {
   const mode = modeSelect.value;
-  textInput.style.display = (mode === "text" || mode === "post") ? "block" : "none";
-  dropZone.style.display = (mode === "image" || mode === "video" || mode === "post") ? "flex" : "none";
+  const cameraContainer = document.getElementById("camera-container");
   
-  if (mode === "video") {
-    fileInput.accept = "video/*";
-    dropZone.querySelector(".desc").textContent = "or click to upload (Video)";
+  textInput.style.display = (mode === "text") ? "block" : "none";
+  dropZone.style.display = (mode === "image") ? "flex" : "none";
+  
+  if (cameraContainer) {
+    cameraContainer.style.display = (mode === "camera") ? "flex" : "none";
+  }
+
+  if (mode === "camera") {
+    startCamera();
   } else {
-    fileInput.accept = "image/*";
-    dropZone.querySelector(".desc").textContent = "or click to upload (Image)";
+    stopCamera();
   }
   
-  textInput.placeholder = mode === "post"
-    ? "Paste the post's caption..."
-    : "Paste the claim or message to check...";
+  textInput.placeholder = "Paste the claim or message to check...";
 
   clearFileSelection();
 }
 
 modeSelect.addEventListener("change", updateFormFields);
+
+// Camera event listeners binding
+const captureBtnElement = document.getElementById("camera-capture-btn");
+const retryBtnElement = document.getElementById("camera-retry-btn");
+if (captureBtnElement) captureBtnElement.addEventListener("click", capturePhoto);
+if (retryBtnElement) retryBtnElement.addEventListener("click", () => clearFileSelection());
 
 ttsToggle.addEventListener("change", (e) => {
   window.ttsPlayer.setEnabled(e.target.checked);
@@ -1218,7 +1303,7 @@ analyzeForm.addEventListener("submit", async (e) => {
 
   if (mode === "text") {
     formData.append("text", textInput.value);
-  } else if (mode === "image" || mode === "video") {
+  } else if (mode === "image") {
     if (!fileInput.files[0]) { submitBtn.disabled = false; resetAnalyzeModal(); return; }
     const file = fileInput.files[0];
     if (file.type && file.type.startsWith("image/")) {
@@ -1231,20 +1316,14 @@ analyzeForm.addEventListener("submit", async (e) => {
     } else {
       formData.append("file", file);
     }
-  } else if (mode === "post") {
-    formData.append("caption", textInput.value);
-    if (fileInput.files[0]) {
-      const file = fileInput.files[0];
-      if (file.type && file.type.startsWith("image/")) {
-        try {
-          const resized = await resizeImageFile(file, 1024, 0.75);
-          formData.append("file", resized, file.name);
-        } catch (err) {
-          formData.append("file", file);
-        }
-      } else {
-        formData.append("file", file);
-      }
+  } else if (mode === "camera") {
+    if (!capturedImageBlob) { submitBtn.disabled = false; resetAnalyzeModal(); return; }
+    const capturedFile = new File([capturedImageBlob], "camera_capture.jpg", { type: "image/jpeg" });
+    try {
+      const resized = await resizeImageFile(capturedFile, 1024, 0.75);
+      formData.append("file", resized, "camera_capture.jpg");
+    } catch (err) {
+      formData.append("file", capturedFile);
     }
   }
 

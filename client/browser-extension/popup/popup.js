@@ -42,15 +42,19 @@ btnDashboard.addEventListener("click", () => {
 });
 
 const ocrToggle = document.getElementById("ocr-toggle");
+const ttsToggle = document.getElementById("tts-toggle");
 
-// ─── Load saved language and OCR preference ───
+// ─── Load saved language, OCR, and TTS preferences ───
 if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-  chrome.storage.local.get(["preferredLanguage", "useOcr"], (data) => {
+  chrome.storage.local.get(["preferredLanguage", "useOcr", "useTts"], (data) => {
     if (data.preferredLanguage) {
       languageSelect.value = data.preferredLanguage;
     }
     if (data.useOcr !== undefined) {
       ocrToggle.checked = data.useOcr;
+    }
+    if (data.useTts !== undefined) {
+      ttsToggle.checked = data.useTts;
     }
   });
 }
@@ -66,6 +70,13 @@ languageSelect.addEventListener("change", () => {
 ocrToggle.addEventListener("change", () => {
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     chrome.storage.local.set({ useOcr: ocrToggle.checked });
+  }
+});
+
+// ─── Save TTS preference on change ───
+ttsToggle.addEventListener("change", () => {
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set({ useTts: ttsToggle.checked });
   }
 });
 

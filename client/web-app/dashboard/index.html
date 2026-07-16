@@ -263,10 +263,9 @@
             <div style="display:flex; flex-direction:column; gap:4px;">
               <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase;">Input Mode</label>
               <select id="content-mode" style="width: 100%;">
-                <option value="text">Text / claim</option>
-                <option value="image">Image</option>
-                <option value="video">Video</option>
-                <option value="post">Post (caption + image)</option>
+                <option value="text">Text</option>
+                <option value="image">Browse Image</option>
+                <option value="camera">Capture Image</option>
               </select>
             </div>
             
@@ -312,8 +311,18 @@
           <div class="drag-drop-zone" id="drop-zone" style="display:none;">
             <span class="icon">📥</span>
             <span class="title">Drag and drop file here</span>
-            <span class="desc">or click to upload (Image or Video)</span>
-            <input type="file" id="file-input" accept="image/*,video/*" style="display:none;">
+            <span class="desc">or click to upload (Image)</span>
+            <input type="file" id="file-input" accept="image/*" style="display:none;">
+          </div>
+
+          <!-- Camera Capture Container -->
+          <div id="camera-container" style="display:none; flex-direction:column; align-items:center; gap:12px; padding:16px; background:rgba(0,0,0,0.25); border:1px dashed var(--border); border-radius:12px; margin-bottom:16px;">
+            <video id="camera-video" autoplay playsinline style="width:100%; max-height:240px; object-fit:cover; border-radius:8px; background:#000;"></video>
+            <div style="display:flex; gap:8px; width:100%;">
+              <button type="button" id="camera-capture-btn" class="btn btn-primary" style="flex:1; justify-content:center; padding:8px 12px; font-size:12.5px; font-weight:600;">📸 Capture Photo</button>
+              <button type="button" id="camera-retry-btn" class="btn btn-secondary" style="display:none; flex:1; justify-content:center; padding:8px 12px; font-size:12.5px; font-weight:600;">🔄 Retry</button>
+            </div>
+            <canvas id="camera-canvas" style="display:none;"></canvas>
           </div>
           
           <div class="file-preview-container" id="file-preview-container">
