@@ -142,10 +142,13 @@
           <input type="text" name="name" placeholder="Document name" required style="flex:1; min-width: 150px;">
           <input type="text" name="category" placeholder="Category (e.g. receipt, government_id)" required style="flex:1; min-width: 150px;">
           <input type="text" name="notes" placeholder="Notes (optional)" style="flex:2; min-width: 200px;">
-          <div style="position:relative; display: flex; align-items: center;">
-            <button type="button" class="btn btn-secondary" onclick="document.getElementById('refdoc-file-input').click()">📁 Select File</button>
-            <input type="file" id="refdoc-file-input" name="file" accept="image/*" required style="display:none;" onchange="document.getElementById('refdoc-file-label').textContent = this.files[0]?.name || 'No file selected'">
-            <span id="refdoc-file-label" style="font-size:11px; color:var(--muted); margin-left:8px; display:inline-block; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle;">No file selected</span>
+          <div style="position:relative; display: flex; flex-direction: column; justify-content: center; gap: 4px;">
+            <div style="display: flex; align-items: center;">
+              <button type="button" class="btn btn-secondary" onclick="document.getElementById('refdoc-file-input').click()">📁 Select File</button>
+              <input type="file" id="refdoc-file-input" name="file" accept="image/*" required style="display:none;" onchange="onRefDocFileSelected(this)">
+              <span id="refdoc-file-label" style="font-size:11px; color:var(--muted); margin-left:8px; display:inline-block; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle;">No file selected</span>
+            </div>
+            <span id="refdoc-max-size-hint" style="font-size:10px; color:var(--muted);">Maximum file size: 10 MB</span>
           </div>
           <button type="submit" class="btn btn-primary-gradient">Upload reference</button>
         </form>

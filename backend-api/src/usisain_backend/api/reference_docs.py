@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from ..data import db
 from ..core.config import settings
 
@@ -11,8 +11,27 @@ async def upload_reference_document(
     file: UploadFile = File(...), name: str = Form(...),
     category: str = Form(...), notes: str | None = Form(None),
 ):
+    # Enforce maximum upload size limit server-side
+    max_bytes = int(settings.max_reference_doc_size_mb * 1024 * 1024)
+    contents = b""
+    chunk_size = 1024 * 1024  # 1MB chunks
+    
+    try:
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            contents += chunk
+            if len(contents) > max_bytes:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"The selected image exceeds the maximum allowed file size of {settings.max_reference_doc_size_mb} MB. Please upload a smaller image."
+                )
+    finally:
+        await file.close()
+
     dest = settings.reference_images_dir / f"{uuid.uuid4().hex}_{file.filename}"
-    dest.write_bytes(await file.read())
+    dest.write_bytes(contents)
     doc_id = db.insert_reference_document(name=name, category=category, image_path=str(dest), notes=notes)
     
     # Index reference document into local RAG vector store for instant semantic checking

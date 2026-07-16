@@ -169,6 +169,7 @@ def get_settings():
         "ollama_vision_model": os.environ.get("OLLAMA_VISION_MODEL", "moondream"),
         "pipeline_step_timeout_seconds": float(os.environ.get("PIPELINE_STEP_TIMEOUT_SECONDS", "120.0")),
         "tts_enabled": os.environ.get("TTS_ENABLED", "False").lower() in ("true", "1", "yes"),
+        "max_reference_doc_size_mb": float(os.environ.get("MAX_REFERENCE_DOC_SIZE_MB", "10.0")),
         "supported_languages": {
             "ollama": ["english"],
             "gemini": ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],

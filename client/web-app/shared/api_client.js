@@ -25,7 +25,13 @@ const ApiClient = {
   },
 
   async uploadReferenceDocument(formData) {
-    return fetch(`${API}/api/reference-documents`, { method: "POST", body: formData }).then(r => r.json());
+    return fetch(`${API}/api/reference-documents`, { method: "POST", body: formData }).then(async r => {
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed to upload reference document.");
+      }
+      return r.json();
+    });
   },
 
   async deleteReferenceDocument(id) {

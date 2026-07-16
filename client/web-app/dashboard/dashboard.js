@@ -66,6 +66,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 
 // ---------- Settings & Global Configuration ----------
 let pipelineTimeoutSeconds = 120;
+let maxReferenceDocSizeMb = 10;
 let supportedLanguages = {
   ollama: ["english"],
   gemini: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
@@ -76,6 +77,13 @@ async function loadSettings() {
     const settings = await ApiClient.getSettings();
     if (settings?.pipeline_step_timeout_seconds) {
       pipelineTimeoutSeconds = Number(settings.pipeline_step_timeout_seconds) || pipelineTimeoutSeconds;
+    }
+    if (settings?.max_reference_doc_size_mb) {
+      maxReferenceDocSizeMb = Number(settings.max_reference_doc_size_mb) || maxReferenceDocSizeMb;
+      const hint = document.getElementById("refdoc-max-size-hint");
+      if (hint) {
+        hint.textContent = `Maximum file size: ${maxReferenceDocSizeMb} MB`;
+      }
     }
     if (settings?.supported_languages) {
       supportedLanguages = settings.supported_languages;
@@ -399,13 +407,55 @@ async function loadRefDocs() {
   });
 }
 
+function onRefDocFileSelected(input) {
+  const file = input.files[0];
+  const label = document.getElementById('refdoc-file-label');
+  if (!file) {
+    if (label) label.textContent = 'No file selected';
+    return;
+  }
+  
+  // Validate file size limit client-side
+  const maxBytes = maxReferenceDocSizeMb * 1024 * 1024;
+  if (file.size > maxBytes) {
+    alert(`The selected image exceeds the maximum allowed file size of ${maxReferenceDocSizeMb} MB. Please upload a smaller image.`);
+    input.value = ""; // Clear file
+    if (label) label.textContent = 'No file selected';
+    return;
+  }
+  
+  if (label) label.textContent = file.name;
+}
+
 document.getElementById("refdoc-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const form = e.target;
-  await ApiClient.uploadReferenceDocument(new FormData(form));
-  form.reset();
-  document.getElementById('refdoc-file-label').textContent = 'No file selected';
-  loadRefDocs();
+  const fileInput = document.getElementById("refdoc-file-input");
+  const file = fileInput.files[0];
+  
+  if (!file) {
+    alert("Please select a file to upload.");
+    return;
+  }
+  
+  // Extra safety validation before submission
+  const maxBytes = maxReferenceDocSizeMb * 1024 * 1024;
+  if (file.size > maxBytes) {
+    alert(`The selected image exceeds the maximum allowed file size of ${maxReferenceDocSizeMb} MB. Please upload a smaller image.`);
+    fileInput.value = "";
+    document.getElementById('refdoc-file-label').textContent = 'No file selected';
+    return;
+  }
+
+  try {
+    await ApiClient.uploadReferenceDocument(new FormData(form));
+    form.reset();
+    document.getElementById('refdoc-file-label').textContent = 'No file selected';
+    loadRefDocs();
+  } catch (err) {
+    console.error("Upload reference document failed:", err);
+    alert(err.message || "Failed to upload reference document.");
+  }
 });
 
 // ---------- Error Logs ----------
