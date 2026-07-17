@@ -1006,7 +1006,7 @@ pre {
 }
 
 .pipeline-node.active .pipeline-circle {
-  background: rgba(99, 102, 241, 0.2);
+  background: var(--panel);
   border-color: var(--accent-light);
   color: var(--accent-light);
   box-shadow: 0 0 14px rgba(129, 140, 248, 0.5);

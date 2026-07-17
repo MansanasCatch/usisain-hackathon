@@ -274,11 +274,22 @@ async function streamAnalysis(tabId, form, previewText, previewImageUrl) {
 
   const settings = await getBackendSettings();
   const selectedLanguage = form.get("language") || "english";
+
+  // Get local settings first
+  let useTts = false;
+  let selectedVoice = null;
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+    const localData = await chrome.storage.local.get(["useTts", "selectedVoice"]);
+    useTts = localData.useTts !== undefined ? localData.useTts : false;
+    selectedVoice = localData.selectedVoice || null;
+  }
+
   if (settings) {
     await safeSendMessage(tabId, {
       action: "pipeline-settings",
       pipeline_step_timeout_seconds: Number(settings.pipeline_step_timeout_seconds) || 120,
-      tts_enabled: settings.tts_enabled !== undefined ? settings.tts_enabled : false,
+      tts_enabled: useTts,
+      selected_voice: selectedVoice,
       language: selectedLanguage,
     });
   }

@@ -96,6 +96,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.tts_enabled !== undefined) {
         ttsPlayer.setEnabled(message.tts_enabled);
       }
+      if (message.selected_voice) {
+        ttsPlayer.selectedVoiceName = message.selected_voice;
+      }
       if (message.language) {
         ttsPlayer.setLanguage(message.language);
       }

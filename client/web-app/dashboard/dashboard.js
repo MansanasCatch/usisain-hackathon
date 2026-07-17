@@ -1099,6 +1099,33 @@ function initStepRows() {
   errorBanner.classList.add("hidden");
   errorBanner.textContent = "";
   
+  // Set up preview in progress stage
+  const previewTextContainer = document.getElementById("analysis-preview-text");
+  const previewMediaContainer = document.getElementById("analysis-preview-media");
+  const previewThumb = document.getElementById("analysis-preview-thumbnail");
+  const successCheck = document.getElementById("pipeline-success-check");
+  
+  if (successCheck) successCheck.classList.add("hidden");
+  if (pipelineSpinner) pipelineSpinner.classList.remove("hidden");
+
+  const mode = modeSelect.value;
+  if (mode === "text") {
+    if (previewMediaContainer) previewMediaContainer.classList.add("hidden");
+    if (previewTextContainer) {
+      previewTextContainer.textContent = textInput.value ? `"${textInput.value}"` : "";
+      previewTextContainer.classList.remove("hidden");
+    }
+  } else {
+    if (previewMediaContainer) previewMediaContainer.classList.remove("hidden");
+    if (previewThumb && previewImg) {
+      previewThumb.src = previewImg.src || "";
+    }
+    if (previewTextContainer) {
+      previewTextContainer.textContent = mode === "camera" ? "Camera Capture" : (fileInput.files[0]?.name || "Uploaded Image");
+      previewTextContainer.classList.remove("hidden");
+    }
+  }
+
   if (progressLine) progressLine.style.width = "0%";
 
   for (let step = 1; step <= 5; step++) {
@@ -1333,6 +1360,8 @@ analyzeForm.addEventListener("submit", async (e) => {
       if (event.done) {
         document.getElementById("results-header").textContent = `Done — scan #${event.scan_id}`;
         pipelineSpinner.classList.add("hidden");
+        const successCheck = document.getElementById("pipeline-success-check");
+        if (successCheck) successCheck.classList.remove("hidden");
         doneBtn.classList.remove("hidden");
         
         // Dynamic dashboard reload when done!
@@ -1344,6 +1373,8 @@ analyzeForm.addEventListener("submit", async (e) => {
       if (event.systemError) {
         document.getElementById("results-header").textContent = "Error in System Pipeline";
         pipelineSpinner.classList.add("hidden");
+        const successCheck = document.getElementById("pipeline-success-check");
+        if (successCheck) successCheck.classList.add("hidden");
         
         errorBanner.classList.remove("hidden");
         errorBanner.textContent = "⚠️ System Error: " + event.systemError;
@@ -1361,6 +1392,8 @@ analyzeForm.addEventListener("submit", async (e) => {
   } catch (err) {
     document.getElementById("results-header").textContent = `Critical Error`;
     pipelineSpinner.classList.add("hidden");
+    const successCheck = document.getElementById("pipeline-success-check");
+    if (successCheck) successCheck.classList.add("hidden");
     errorBanner.classList.remove("hidden");
     errorBanner.textContent = "⚠️ " + err.message;
     doneBtn.classList.remove("hidden");
