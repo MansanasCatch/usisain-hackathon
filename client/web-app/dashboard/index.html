@@ -78,8 +78,8 @@
   <main>
     <div class="dashboard-title-bar">
       <h2>Dashboard</h2>
-      <button id="header-analyze-btn" class="btn btn-primary-gradient" style="font-weight: 600;">
-        <span style="margin-right: 6px;">⚡</span> Analyze Content
+      <button id="header-analyze-btn" class="btn btn-primary-gradient">
+        <span class="dashboard-title-bar-btn-icon">⚡</span> Analyze Content
       </button>
     </div>
 
@@ -137,7 +137,7 @@
         <div class="table-header-row">
           <div class="table-title">Scan History & Audit Logs</div>
           <div class="table-actions">
-            <input type="text" id="search-scans" placeholder="Search claims..." style="width:160px;">
+            <input type="text" id="search-scans" placeholder="Search claims...">
             <select id="filter-channel">
               <option value="">All channels</option>
               <option value="extension">Browser extension</option>
@@ -175,9 +175,9 @@
     </section>
 
     <!-- REFERENCE DOCUMENTS VIEW -->
-    <section id="tab-refdocs" style="display:none;">
-      <div class="card" style="margin-bottom: 24px;">
-        <h3 style="font-family: 'Space Grotesk', sans-serif; margin-bottom: 16px;">Upload Reference Document</h3>
+    <section id="tab-refdocs" class="hidden">
+      <div class="card refdoc-upload-card">
+        <h3 class="refdoc-upload-title">Upload Reference Document</h3>
         <form id="refdoc-form" class="responsive-upload-form">
           <input type="text" name="name" placeholder="Document name" required class="form-input">
           <input type="text" name="category" placeholder="Category (e.g. receipt, government_id)" required class="form-input">
@@ -185,7 +185,7 @@
           <div class="form-file-selector-wrapper">
             <div class="form-file-selector">
               <button type="button" class="btn btn-secondary" onclick="document.getElementById('refdoc-file-input').click()">📁 Select File</button>
-              <input type="file" id="refdoc-file-input" name="file" accept="image/*" required style="display:none;" onchange="onRefDocFileSelected(this)">
+              <input type="file" id="refdoc-file-input" name="file" accept="image/*" required class="hidden" onchange="onRefDocFileSelected(this)">
               <span id="refdoc-file-label" class="file-label">No file selected</span>
             </div>
             <span id="refdoc-max-size-hint" class="file-hint">Maximum file size: 10 MB</span>
@@ -197,12 +197,12 @@
     </section>
 
     <!-- ERROR LOG VIEW -->
-    <section id="tab-errors" style="display:none;">
+    <section id="tab-errors" class="hidden">
       <div class="card table-card">
         <div class="table-header-row">
           <div class="table-title">Pipeline System Error Log</div>
           <div class="table-actions">
-            <span id="error-count" style="color:var(--muted); font-size:13px; margin-right:8px;">0 error(s) logged</span>
+            <span id="error-count" class="error-count-label">0 error(s) logged</span>
             <button id="refresh-errors" class="btn btn-secondary">Refresh</button>
             <button id="clear-errors" class="btn btn-danger">Clear all</button>
           </div>
@@ -224,17 +224,17 @@
     </section>
 
     <!-- PIPELINE STEP INFO VIEW (Preserved structure) -->
-    <section id="tab-stepinfo" style="display:none;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
-        <h2 style="margin:0; font-size:18px;">Pipeline Architecture & Active Models</h2>
-        <div id="active-llm-banner" style="background:var(--panel); border:1px solid var(--border); padding:8px 12px; border-radius:8px; font-size:13px;">
+    <section id="tab-stepinfo" class="hidden">
+      <div class="dashboard-stepinfo-header">
+        <h2 class="dashboard-stepinfo-title">Pipeline Architecture & Active Models</h2>
+        <div id="active-llm-banner" class="active-llm-banner">
           Active LLM Provider: <span class="badge" id="banner-provider-badge">...</span>
         </div>
       </div>
-      <div style="font-size:13px; color:var(--muted); margin-bottom:16px; line-height:1.5;">
+      <div class="dashboard-stepinfo-desc">
         Each analysis runs through a 5-step sequential pipeline (Step 1 → 2 → 3 → 4 → 5). Steps execute one after the other — each subsequent step builds on the outputs of the previous ones. Every step has a configurable timeout set in <code>.env</code> via <code>PIPELINE_STEP_TIMEOUT_SECONDS</code>. If a step fails or times out, the error is logged and the pipeline continues.
       </div>
-      <div id="stepinfo-cards" style="display:flex; flex-direction:column; gap:16px;">
+      <div id="stepinfo-cards" class="dashboard-stepinfo-list">
         <!-- Filled dynamically in JS -->
       </div>
     </section>
@@ -244,14 +244,14 @@
   <div class="modal" id="detail-modal">
     <div class="modal-content">
       <button class="modal-close" id="modal-close">&times;</button>
-      <h3 style="font-family: 'Space Grotesk', sans-serif; margin-bottom: 16px;">Scan JSON Result</h3>
+      <h3 class="detail-modal-title">Scan JSON Result</h3>
       <pre id="modal-body"></pre>
     </div>
   </div>
 
   <!-- RUN CONTENT ANALYSIS MODAL -->
   <div class="modal" id="analyze-modal">
-    <div class="modal-content" style="max-width: 650px;">
+    <div class="modal-content analyze-modal-content">
       <button class="modal-close" id="analyze-modal-close">&times;</button>
       
       <!-- STEP 1: INPUT FORM -->
@@ -259,19 +259,19 @@
         <h3 class="modal-header-title">⚡ Claim Verification & Visual Forensic Analysis</h3>
         
         <form id="analyze-form">
-          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:16px;">
-            <div style="display:flex; flex-direction:column; gap:4px;">
-              <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase;">Input Mode</label>
-              <select id="content-mode" style="width: 100%;">
+          <div class="dashboard-modal-grid">
+            <div class="dashboard-modal-field">
+              <label class="dashboard-modal-label">Input Mode</label>
+              <select id="content-mode" class="dashboard-modal-select">
                 <option value="text">Text</option>
                 <option value="image">Browse Image</option>
                 <option value="camera">Capture Image</option>
               </select>
             </div>
             
-            <div style="display:flex; flex-direction:column; gap:4px;">
-              <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase;">Language</label>
-              <select id="language" style="width: 100%;">
+            <div class="dashboard-modal-field">
+              <label class="dashboard-modal-label">Language</label>
+              <select id="language" class="dashboard-modal-select">
                 <option value="english" selected>English</option>
                 <option value="taglish">Taglish</option>
                 <option value="tagalog">Tagalog</option>
@@ -280,55 +280,56 @@
                 <option value="ilocano">Ilocano</option>
               </select>
             </div>
-
-            <div style="display:flex; flex-direction:column; gap:4px;">
-              <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase;">LLM Provider</label>
-              <select id="llm-provider" style="width: 100%;">
+ 
+            <div class="dashboard-modal-field">
+              <label class="dashboard-modal-label">LLM Provider</label>
+              <select id="llm-provider" class="dashboard-modal-select">
                 <option value="gemini" selected>Gemini (cloud)</option>
                 <option value="ollama">Ollama (local)</option>
               </select>
             </div>
           </div>
 
-          <div style="border-top:1px solid var(--border); padding-top:12px; margin-bottom:16px;">
-            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); user-select:none; cursor:pointer;">
-                <input type="checkbox" id="tts-toggle" style="width:auto; cursor:pointer;">
+          <div class="dashboard-tts-controls">
+            <div class="dashboard-checkboxes-row">
+              <label class="dashboard-checkbox-label">
+                <input type="checkbox" id="tts-toggle" class="dashboard-checkbox-input">
                 Narrate with voice (TTS)
               </label>
-              <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text); user-select:none; cursor:pointer;">
-                <input type="checkbox" id="ocr-toggle" style="width:auto; cursor:pointer;" checked>
+              <label class="dashboard-checkbox-label dashboard-checkbox-label-ocr">
+                <input type="checkbox" id="ocr-toggle" class="dashboard-checkbox-input" checked>
                 Use Tesseract-OCR
               </label>
             </div>
             <!-- Voice selector row (shown when TTS is enabled) -->
-            <div id="tts-voice-row" style="display:none; margin-bottom:6px;">
-              <label style="font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; display:block; margin-bottom:4px;">Voice</label>
-              <select id="tts-voice" style="width:100%; font-size:12px; padding:6px 10px; background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px; appearance:none; -webkit-appearance:none; cursor:pointer;"></select>
+            <div id="tts-voice-row" class="dashboard-voice-row">
+              <label class="dashboard-voice-label">Voice</label>
+              <select id="tts-voice" class="dashboard-voice-select"></select>
             </div>
-            <button id="tts-replay" type="button" style="display:none; font-size:11px; padding:4px 10px; background:var(--panel); border:1px solid var(--border); color:var(--accent-light); cursor:pointer; border-radius:6px; font-weight:600;">▶ Re-play Speech</button>
+            <button id="tts-replay" type="button" class="dashboard-voice-replay hidden">▶ Re-play Speech</button>
           </div>
 
-          <div style="margin-bottom:16px;">
-            <textarea id="text-input" placeholder="Paste the claim, message, or caption to check..." rows="4" style="width:100%; resize:vertical;"></textarea>
+          <div class="dashboard-text-wrapper">
+            <textarea id="text-input" placeholder="Paste the claim, message, or caption to check..." rows="4" class="dashboard-textarea"></textarea>
           </div>
 
           <!-- Drag and Drop Zone -->
-          <div class="drag-drop-zone" id="drop-zone" style="display:none;">
+          <div class="drag-drop-zone hidden" id="drop-zone">
             <span class="icon">📥</span>
             <span class="title">Drag and drop file here</span>
             <span class="desc">or click to upload (Image)</span>
-            <input type="file" id="file-input" accept="image/*" style="display:none;">
+            <input type="file" id="file-input" accept="image/*" class="hidden">
           </div>
 
           <!-- Camera Capture Container -->
-          <div id="camera-container" style="display:none; flex-direction:column; align-items:center; gap:12px; padding:16px; background:rgba(0,0,0,0.25); border:1px dashed var(--border); border-radius:12px; margin-bottom:16px;">
-            <video id="camera-video" autoplay playsinline style="width:100%; max-height:240px; object-fit:cover; border-radius:8px; background:#000;"></video>
-            <div style="display:flex; gap:8px; width:100%;">
-              <button type="button" id="camera-capture-btn" class="btn btn-primary" style="flex:1; justify-content:center; padding:8px 12px; font-size:12.5px; font-weight:600;">📸 Capture Photo</button>
-              <button type="button" id="camera-retry-btn" class="btn btn-secondary" style="display:none; flex:1; justify-content:center; padding:8px 12px; font-size:12.5px; font-weight:600;">🔄 Retry</button>
+          <div id="camera-container" class="dashboard-camera-container">
+            <video id="camera-video" autoplay playsinline class="dashboard-camera-video"></video>
+            <div class="dashboard-camera-buttons-row">
+              <button type="button" id="camera-capture-btn" class="btn btn-primary dashboard-camera-btn">📸 Capture Photo</button>
+              <button type="button" id="camera-retry-btn" class="btn btn-secondary dashboard-camera-btn hidden">🔄 Retry</button>
             </div>
-            <canvas id="camera-canvas" style="display:none;"></canvas>
+            <canvas id="camera-canvas" class="hidden"></canvas>
+          </div>a-canvas" style="display:none;"></canvas>
           </div>
           
           <div class="file-preview-container" id="file-preview-container">
@@ -390,9 +391,9 @@
           <div id="step-5" class="step-row"></div>
         </div>
 
-        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; border-top:1px solid var(--border); padding-top:14px;">
-          <button id="cancel-voice-btn" class="btn btn-secondary" style="display:none;">🔇 Mute Narration</button>
-          <button id="analysis-done-btn" class="btn btn-primary-gradient" style="display:none; font-weight:600;">Close & View Dashboard</button>
+        <div class="dashboard-modal-footer">
+          <button id="cancel-voice-btn" class="btn btn-secondary hidden">🔇 Mute Narration</button>
+          <button id="analysis-done-btn" class="btn btn-primary-gradient hidden">Close & View Dashboard</button>
         </div>
       </div>
 

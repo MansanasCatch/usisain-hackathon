@@ -53,7 +53,7 @@
                 <span class="model-item-size">Google Online</span>
               </div>
             </div>
-            <span class="model-item-check" style="display: none;">✓</span>
+            <span class="model-item-check">✓</span>
           </div>
         </div>
       </div>
@@ -92,20 +92,20 @@
         </select>
       </div>
     </div>
-    <div class="control-row" style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+    <div class="control-row popup-control-row-toggle">
       <span class="control-label">Narrate with Voice (TTS)</span>
-      <input type="checkbox" id="tts-toggle" style="cursor: pointer; width: 16px; height: 16px; margin: 0;">
+      <input type="checkbox" id="tts-toggle" class="popup-checkbox">
     </div>
     <!-- Voice selector (shown when TTS is enabled) -->
-    <div id="tts-voice-row" class="control-row" style="display:none; margin-top:8px; flex-direction:column; gap:4px;">
-      <span class="control-label" style="font-size:10px;">Voice</span>
+    <div id="tts-voice-row" class="control-row popup-voice-row">
+      <span class="control-label popup-sub-label">Voice</span>
       <div class="styled-select">
         <select id="tts-voice-select"></select>
       </div>
     </div>
-    <div class="control-row" style="margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
+    <div class="control-row popup-control-row-toggle">
       <span class="control-label">Use Tesseract-OCR</span>
-      <input type="checkbox" id="ocr-toggle" style="cursor: pointer; width: 16px; height: 16px; margin: 0;" checked>
+      <input type="checkbox" id="ocr-toggle" class="popup-checkbox" checked>
     </div>
   </div>
 

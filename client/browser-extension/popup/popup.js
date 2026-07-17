@@ -93,6 +93,19 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     }
     updateTtsVoiceVisibility();
   });
+// ─── Sync settings in real-time when changed elsewhere ───
+if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.useTts !== undefined) {
+      ttsToggle.checked = !!changes.useTts.newValue;
+      updateTtsVoiceVisibility();
+    }
+    if (changes.selectedVoice !== undefined) {
+      if (ttsVoiceSelect && changes.selectedVoice.newValue && ttsVoiceSelect.querySelector(`option[value="${CSS.escape(changes.selectedVoice.newValue)}"]`)) {
+        ttsVoiceSelect.value = changes.selectedVoice.newValue;
+      }
+    }
+  });
 }
 
 // ─── Save language on change ───
@@ -391,18 +404,15 @@ async function initModelSelector() {
     if (llmItems) {
       llmItems.forEach(item => {
         const val = item.getAttribute("data-value");
-        const check = item.querySelector(".model-item-check");
         const badge = item.querySelector(".model-item-status-badge");
         if (val === activeProvider) {
           item.classList.add("active-model");
-          if (check) check.style.display = "block";
           if (badge) {
             badge.className = "model-item-status-badge status-active";
             badge.textContent = "Active";
           }
         } else {
           item.classList.remove("active-model");
-          if (check) check.style.display = "none";
           if (badge) {
             badge.className = "model-item-status-badge status-available";
             badge.textContent = val === "ollama" ? "Local Host" : "Cloud API";

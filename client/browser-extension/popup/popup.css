@@ -717,3 +717,37 @@ body {
   font-size: 18px;
   margin-bottom: 6px;
 }
+
+/* Checkmark visibility rule */
+.model-item-check {
+  display: none;
+}
+.model-item.active-model .model-item-check {
+  display: block !important;
+}
+
+/* Clean code standard utility classes */
+.popup-control-row-toggle {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.popup-checkbox {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.popup-voice-row {
+  display: none;
+  margin-top: 8px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popup-sub-label {
+  font-size: 10px;
+}

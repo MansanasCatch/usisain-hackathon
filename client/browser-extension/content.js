@@ -182,6 +182,42 @@ function injectPanelStyles() {
 
     .usisain-header-inner {
       display: flex; align-items: center; gap: 10px; position: relative; z-index: 1;
+      padding: 12px 14px;
+    }
+
+    .usisain-tts-bar {
+      display: flex; gap: 6px; align-items: center; background: rgba(15,23,42,0.4);
+      padding: 6px 14px; border-bottom: 1px solid rgba(56,68,102,0.2);
+      font-family: 'Inter', system-ui, sans-serif; font-size: 11px; color: #8892a8;
+      flex-wrap: wrap;
+    }
+
+    .usisain-tts-label {
+      display: flex; align-items: center; gap: 4px; margin: 0; cursor: pointer;
+      user-select: none; color: #8892a8;
+    }
+
+    .usisain-tts-input {
+      margin: 0; width: auto; cursor: pointer;
+    }
+
+    .usisain-tts-select {
+      display: none; max-width: 130px; font-size: 10px; padding: 1px 4px;
+      background: #0f172a; border: 1px solid rgba(56,68,102,0.4); color: #c8d0e0;
+      border-radius: 3px; height: auto;
+    }
+    .usisain-tts-select.show-voice {
+      display: inline-block;
+    }
+
+    .usisain-tts-replay-btn {
+      display: none; font-size: 10px; padding: 1px 6px;
+      background: rgba(56,68,102,0.3); border: 1px solid rgba(56,68,102,0.5);
+      color: #c8d0e0; cursor: pointer; border-radius: 3px; height: auto;
+      margin-left: auto;
+    }
+    .usisain-tts-replay-btn.show-replay {
+      display: inline-block;
     }
 
     .usisain-header-icon {
@@ -538,21 +574,21 @@ function showPanel(previewText, previewImageUrl) {
   const header = document.createElement("div");
   header.className = "usisain-header";
   header.innerHTML = `
-    <div class="usisain-header-inner" style="padding: 12px 14px;">
+    <div class="usisain-header-inner">
       <div class="usisain-header-icon">🛡️</div>
       <div class="usisain-header-text">
         <div class="usisain-header-title">UsisAIn</div>
         <div class="usisain-header-sub">5-Step Analysis Pipeline</div>
       </div>
-      <button class="usisain-minimize-btn" title="Minimize panel" style="margin-right: 8px;">🗕</button>
+      <button class="usisain-minimize-btn" title="Minimize panel">🗕</button>
       <button class="usisain-close-btn" title="Close panel">✕</button>
     </div>
-    <div style="display:flex; gap:6px; align-items:center; background:rgba(15,23,42,0.4); padding:6px 14px; border-bottom:1px solid rgba(56,68,102,0.2); font-family:'Inter',system-ui,sans-serif; font-size:11px; color:#8892a8; flex-wrap:wrap;">
-      <label style="display:flex; align-items:center; gap:4px; margin:0; cursor:pointer; user-select:none; color:#8892a8;">
-        <input type="checkbox" id="usisain-tts-toggle" style="margin:0; width:auto; cursor:pointer;"> Voice (TTS)
+    <div class="usisain-tts-bar">
+      <label class="usisain-tts-label">
+        <input type="checkbox" id="usisain-tts-toggle" class="usisain-tts-input"> Voice (TTS)
       </label>
-      <select id="usisain-tts-voice" style="display:none; max-width:130px; font-size:10px; padding:1px 4px; background:#0f172a; border:1px solid rgba(56,68,102,0.4); color:#c8d0e0; border-radius:3px; height:auto;"></select>
-      <button id="usisain-tts-replay" style="display:none; font-size:10px; padding:1px 6px; background:rgba(56,68,102,0.3); border:1px solid rgba(56,68,102,0.5); color:#c8d0e0; cursor:pointer; border-radius:3px; height:auto; margin-left:auto;">Re-play</button>
+      <select id="usisain-tts-voice" class="usisain-tts-select"></select>
+      <button id="usisain-tts-replay" class="usisain-tts-replay-btn">Re-play</button>
     </div>`;
 
   header.querySelector(".usisain-close-btn").onclick = () => {
@@ -590,10 +626,10 @@ function showPanel(previewText, previewImageUrl) {
 
   function updateDropdowns() {
     const enabled = ttsToggle.checked;
-    ttsVoice.style.display = enabled ? "inline-block" : "none";
+    ttsVoice.classList.toggle("show-voice", enabled);
     const hasCompleted = Array.from(panel.querySelectorAll(".usisain-step-row"))
       .some(row => row.dataset.status === "completed" && row.dataset.speechText);
-    ttsReplay.style.display = (enabled && hasCompleted) ? "inline-block" : "none";
+    ttsReplay.classList.toggle("show-replay", enabled && hasCompleted);
   }
 
   function populateVoicesDropdown() {
@@ -612,11 +648,17 @@ function showPanel(previewText, previewImageUrl) {
 
   ttsToggle.addEventListener("change", (e) => {
     ttsPlayer.setEnabled(e.target.checked);
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ useTts: e.target.checked });
+    }
     updateDropdowns();
   });
 
   ttsVoice.addEventListener("change", (e) => {
     ttsPlayer.selectedVoiceName = e.target.value;
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ selectedVoice: e.target.value });
+    }
   });
 
   ttsReplay.addEventListener("click", () => {
@@ -1152,12 +1194,45 @@ class TTSPlayer {
     this.utteranceQueue = [];
     this.isSpeaking = false;
     this.voices = [];
+    this.selectedVoiceName = null;
 
     if (typeof window !== "undefined" && window.speechSynthesis) {
       this.voices = window.speechSynthesis.getVoices();
       window.speechSynthesis.onvoiceschanged = () => {
         this.voices = window.speechSynthesis.getVoices();
       };
+    }
+
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(["useTts", "selectedVoice"], (data) => {
+        if (data.useTts !== undefined) {
+          this.setEnabled(data.useTts);
+        }
+        if (data.selectedVoice) {
+          this.selectedVoiceName = data.selectedVoice;
+        }
+      });
+
+      chrome.storage.onChanged.addListener((changes) => {
+        if (changes.useTts !== undefined) {
+          this.setEnabled(changes.useTts.newValue);
+          const panelToggle = document.getElementById("usisain-tts-toggle");
+          if (panelToggle) {
+            panelToggle.checked = !!changes.useTts.newValue;
+          }
+          const panel = document.getElementById("usisain-panel");
+          if (panel && typeof panel.updateVoiceUI === "function") {
+            panel.updateVoiceUI();
+          }
+        }
+        if (changes.selectedVoice !== undefined) {
+          this.selectedVoiceName = changes.selectedVoice.newValue;
+          const panelVoice = document.getElementById("usisain-tts-voice");
+          if (panelVoice) {
+            panelVoice.value = changes.selectedVoice.newValue || "";
+          }
+        }
+      });
     }
   }
 

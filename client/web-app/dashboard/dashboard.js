@@ -50,12 +50,12 @@ const centerTextPlugin = {
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll("main > section").forEach(s => s.style.display = "none");
+    document.querySelectorAll("main > section").forEach(s => s.classList.add("hidden"));
     btn.classList.add("active");
     
     const targetSection = document.getElementById(`tab-${btn.dataset.tab}`);
     if (targetSection) {
-      targetSection.style.display = "block";
+      targetSection.classList.remove("hidden");
     }
     
     if (btn.dataset.tab === "stepinfo") {
@@ -119,7 +119,7 @@ async function loadSettings() {
 function updateVoiceControlsVisibility() {
   const enabled = ttsToggle.checked;
   const voiceRow = document.getElementById("tts-voice-row");
-  if (voiceRow) voiceRow.style.display = enabled ? "block" : "none";
+  if (voiceRow) voiceRow.classList.toggle("hidden", !enabled);
   
   let hasCompletedSpeech = false;
   for (let i = 1; i <= 5; i++) {
@@ -129,7 +129,7 @@ function updateVoiceControlsVisibility() {
       break;
     }
   }
-  if (ttsReplay) ttsReplay.style.display = (enabled && hasCompletedSpeech) ? "inline-block" : "none";
+  if (ttsReplay) ttsReplay.classList.toggle("hidden", !(enabled && hasCompletedSpeech));
 }
 
 function populateVoiceDropdown() {
@@ -791,7 +791,7 @@ doneBtn.addEventListener("click", closeAnalyzeModal);
 
 cancelVoiceBtn.addEventListener("click", () => {
   window.ttsPlayer.stop();
-  cancelVoiceBtn.style.display = "none";
+  cancelVoiceBtn.classList.add("hidden");
 });
 
 // Dropzone click -> file select
@@ -837,10 +837,10 @@ async function startCamera() {
   if (!video) return;
 
   capturedImageBlob = null;
-  if (captureBtn) captureBtn.style.display = "block";
-  if (retryBtn) retryBtn.style.display = "none";
-  video.style.display = "block";
-  previewContainer.style.display = "none";
+  if (captureBtn) captureBtn.classList.remove("hidden");
+  if (retryBtn) retryBtn.classList.add("hidden");
+  video.classList.remove("hidden");
+  previewContainer.classList.add("hidden");
 
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({
@@ -853,7 +853,7 @@ async function startCamera() {
     if (container) {
       const errorDiv = document.createElement("div");
       errorDiv.id = "camera-error-msg";
-      errorDiv.style.cssText = "color:var(--bad); font-size:12px; margin-top:8px; text-align:center;";
+      errorDiv.className = "dashboard-camera-error";
       errorDiv.textContent = "Could not access camera/webcam. Please check permissions or upload a file instead.";
       const oldErr = document.getElementById("camera-error-msg");
       if (oldErr) oldErr.remove();
@@ -890,12 +890,12 @@ function capturePhoto() {
   canvas.toBlob(blob => {
     capturedImageBlob = blob;
     
-    video.style.display = "none";
-    if (captureBtn) captureBtn.style.display = "none";
-    if (retryBtn) retryBtn.style.display = "block";
+    video.classList.add("hidden");
+    if (captureBtn) captureBtn.classList.add("hidden");
+    if (retryBtn) retryBtn.classList.remove("hidden");
     
     previewImg.src = URL.createObjectURL(blob);
-    previewContainer.style.display = "flex";
+    previewContainer.classList.remove("hidden");
     
     stopCamera();
   }, "image/jpeg", 0.85);
@@ -908,8 +908,8 @@ function handleFileSelected(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
       previewImg.src = e.target.result;
-      previewContainer.style.display = "flex";
-      dropZone.style.display = "none";
+      previewContainer.classList.remove("hidden");
+      dropZone.classList.add("hidden");
     };
     reader.readAsDataURL(file);
   }
@@ -918,27 +918,27 @@ function handleFileSelected(file) {
 function clearFileSelection() {
   fileInput.value = "";
   previewImg.src = "";
-  previewContainer.style.display = "none";
+  previewContainer.classList.add("hidden");
   capturedImageBlob = null;
   
   const mode = modeSelect.value;
   if (mode === "image") {
-    dropZone.style.display = "flex";
+    dropZone.classList.remove("hidden");
   } else if (mode === "camera") {
     const container = document.getElementById("camera-container");
-    if (container) container.style.display = "flex";
+    if (container) container.classList.remove("hidden");
     startCamera();
   }
 }
 
 function resetAnalyzeModal() {
-  inputStage.style.display = "block";
-  progressStage.style.display = "none";
-  doneBtn.style.display = "none";
-  cancelVoiceBtn.style.display = "none";
-  errorBanner.style.display = "none";
+  inputStage.classList.remove("hidden");
+  progressStage.classList.add("hidden");
+  doneBtn.classList.add("hidden");
+  cancelVoiceBtn.classList.add("hidden");
+  errorBanner.classList.add("hidden");
   errorBanner.textContent = "";
-  pipelineSpinner.style.display = "block";
+  pipelineSpinner.classList.remove("hidden");
   submitBtn.disabled = false;
   
   textInput.value = "";
@@ -981,11 +981,11 @@ function updateFormFields() {
   const mode = modeSelect.value;
   const cameraContainer = document.getElementById("camera-container");
   
-  textInput.style.display = (mode === "text") ? "block" : "none";
-  dropZone.style.display = (mode === "image") ? "flex" : "none";
+  textInput.classList.toggle("hidden", mode !== "text");
+  dropZone.classList.toggle("hidden", mode !== "image");
   
   if (cameraContainer) {
-    cameraContainer.style.display = (mode === "camera") ? "flex" : "none";
+    cameraContainer.classList.toggle("hidden", mode !== "camera");
   }
 
   if (mode === "camera") {
@@ -1093,10 +1093,10 @@ function markFollowingStepsFailed(startStep) {
 }
 
 function initStepRows() {
-  inputStage.style.display = "none";
-  progressStage.style.display = "block";
+  inputStage.classList.add("hidden");
+  progressStage.classList.remove("hidden");
   document.getElementById("results-header").textContent = "Analyzing…";
-  errorBanner.style.display = "none";
+  errorBanner.classList.add("hidden");
   errorBanner.textContent = "";
   
   if (progressLine) progressLine.style.width = "0%";
@@ -1216,7 +1216,7 @@ function updateStepRow(event) {
     window.ttsPlayer.speak(speechText);
     
     if (ttsToggle.checked) {
-      cancelVoiceBtn.style.display = "inline-flex";
+      cancelVoiceBtn.classList.remove("hidden");
     }
   }
 }
@@ -1332,8 +1332,8 @@ analyzeForm.addEventListener("submit", async (e) => {
     await streamAnalyze(formData, (event) => {
       if (event.done) {
         document.getElementById("results-header").textContent = `Done — scan #${event.scan_id}`;
-        pipelineSpinner.style.display = "none";
-        doneBtn.style.display = "inline-flex";
+        pipelineSpinner.classList.add("hidden");
+        doneBtn.classList.remove("hidden");
         
         // Dynamic dashboard reload when done!
         loadOverview();
@@ -1343,12 +1343,12 @@ analyzeForm.addEventListener("submit", async (e) => {
       }
       if (event.systemError) {
         document.getElementById("results-header").textContent = "Error in System Pipeline";
-        pipelineSpinner.style.display = "none";
+        pipelineSpinner.classList.add("hidden");
         
-        errorBanner.style.display = "block";
+        errorBanner.classList.remove("hidden");
         errorBanner.textContent = "⚠️ System Error: " + event.systemError;
         
-        doneBtn.style.display = "inline-flex";
+        doneBtn.classList.remove("hidden");
         
         // Refresh dashboard on partial runs
         loadOverview();
@@ -1360,10 +1360,10 @@ analyzeForm.addEventListener("submit", async (e) => {
     });
   } catch (err) {
     document.getElementById("results-header").textContent = `Critical Error`;
-    pipelineSpinner.style.display = "none";
-    errorBanner.style.display = "block";
+    pipelineSpinner.classList.add("hidden");
+    errorBanner.classList.remove("hidden");
     errorBanner.textContent = "⚠️ " + err.message;
-    doneBtn.style.display = "inline-flex";
+    doneBtn.classList.remove("hidden");
     
     loadOverview();
     loadScans();
@@ -1577,14 +1577,12 @@ async function initModelSelector() {
         const badge = item.querySelector(".model-item-status-badge");
         if (val === activeProvider) {
           item.classList.add("active-model");
-          if (check) check.style.display = "block";
           if (badge) {
             badge.className = "model-item-status-badge status-active";
             badge.textContent = "Active";
           }
         } else {
           item.classList.remove("active-model");
-          if (check) check.style.display = "none";
           if (badge) {
             badge.className = "model-item-status-badge status-available";
             badge.textContent = val === "ollama" ? "Local Host" : "Cloud API";
@@ -1594,13 +1592,8 @@ async function initModelSelector() {
     }
     const badge = document.querySelector(".llm-provider-badge");
     if (badge) {
-      if (activeProvider === "ollama") {
-        badge.style.backgroundColor = "var(--accent-light)";
-        badge.style.boxShadow = "0 0 8px var(--accent-light)";
-      } else {
-        badge.style.backgroundColor = "#10b981"; // green for Gemini
-        badge.style.boxShadow = "0 0 8px #10b981";
-      }
+      badge.classList.toggle("llm-ollama", activeProvider === "ollama");
+      badge.classList.toggle("llm-gemini", activeProvider !== "ollama");
     }
   }
 
