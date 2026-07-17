@@ -156,6 +156,18 @@ def debug_env():
     }
 
 
+def get_local_ip():
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 1))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+
 @app.get("/api/settings")
 def get_settings():
     """Always re-read .env so the dashboard reflects the latest config."""
@@ -174,6 +186,7 @@ def get_settings():
             "ollama": ["english"],
             "gemini": ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
         },
+        "server_ip": get_local_ip(),
     }
 
 
@@ -312,5 +325,13 @@ def switch_gemini_model(req: SwitchGeminiRequest):
         logger.warning("Failed to persist GEMINI_MODEL to .env: %s", e)
 
     return {"status": "ok", "gemini_model": model}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    local_ip = get_local_ip()
+    print(f"Starting server on local IP: {local_ip}")
+    uvicorn.run("usisain_backend.main:app", host="0.0.0.0", port=8000, reload=True, app_dir="src")
+
 
 

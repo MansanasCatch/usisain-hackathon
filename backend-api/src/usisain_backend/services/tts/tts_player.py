@@ -2,6 +2,8 @@ import io
 import os
 import re
 import tempfile
+import queue
+import threading
 from gtts import gTTS
 import pygame
 from playsound import playsound
@@ -11,6 +13,15 @@ class TTSPlayer:
         self.enabled = True
         self.current_language = "english"
         self.selected_voice_name = ""
+
+        # Thread-safe queue for sequential text-to-speech playing
+        self.queue = queue.Queue()
+        self._abort_current = False
+        self._stop_event = threading.Event()
+
+        # Start worker thread
+        self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self.worker_thread.start()
 
     def set_enabled(self, val: bool):
         self.enabled = bool(val)
@@ -56,21 +67,16 @@ class TTSPlayer:
         return sanitized.strip()
 
     def get_gtts_config(self, lang_code: str) -> dict:
-        # Default fallback is en-US equivalent in gTTS: lang='en', tld='com'
         config = {"lang": "en", "tld": "com"}
-
-        # Clean up key for lookup
         key = lang_code.strip().lower()
 
         # Mapping voice selection names and standard locales
         voice_map = {
-            # Microsoft native voices
             "microsoft david - english (united states) (en-us)": {"lang": "en", "tld": "com"},
             "microsoft zira - english (united states) (en-us)": {"lang": "en", "tld": "com"},
             "microsoft hazel - english (great britain) (en-gb)": {"lang": "en", "tld": "co.uk"},
             "microsoft heera - english (india) (en-in)": {"lang": "en", "tld": "co.in"},
             "microsoft mark - english (united states) (en-us)": {"lang": "en", "tld": "com"},
-            # Standard locale codes
             "en-us": {"lang": "en", "tld": "com"},
             "en-gb": {"lang": "en", "tld": "co.uk"},
             "en-ca": {"lang": "en", "tld": "ca"},
@@ -84,16 +90,13 @@ class TTSPlayer:
             "tl": {"lang": "tl", "tld": "com"},
         }
 
-        # Direct match check in voice_map
         if key in voice_map:
             return voice_map[key]
 
-        # Check if the currently configured selected_voice_name matches
         voice_name_lower = self.selected_voice_name.strip().lower() if self.selected_voice_name else ""
         if voice_name_lower in voice_map:
             return voice_map[voice_name_lower]
 
-        # Fallbacks using substring matches
         if "en-us" in key or "united states" in key:
             return {"lang": "en", "tld": "com"}
         elif "en-gb" in key or "great britain" in key:
@@ -111,12 +114,40 @@ class TTSPlayer:
         if not self.enabled or not text:
             return
 
+        # Enqueue the text to be played sequentially in the worker thread
+        self.queue.put({
+            "text": text,
+            "lang": self.current_language,
+            "voice": self.selected_voice_name
+        })
+
+    def _worker_loop(self):
+        while not self._stop_event.is_set():
+            try:
+                # Wait for next item in queue
+                item = self.queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+
+            try:
+                self._abort_current = False
+                self._play_item(item)
+            except Exception as e:
+                print(f"Error playing queued item: {e}")
+            finally:
+                self.queue.task_done()
+
+    def _play_item(self, item: dict):
+        text = item["text"]
+        lang = item["lang"]
+        voice = item["voice"]
+
         clean_text = self.sanitize(text)
         if not clean_text:
             return
 
         # Detect if the text contains Tagalog keywords to dynamically adjust voice pronunciation
-        text_language = self.current_language
+        text_language = lang
         tagalog_pattern = re.compile(
             r'\b(ang|mga|ng|sa|na|ni|ay|si|po|opo|ako|ikaw|siya|ito|iyon|doon|dito|namin|nila|kaya|kasi|pero|maging|dahil|ano|sino|bakit|paano)\b',
             re.IGNORECASE
@@ -127,11 +158,13 @@ class TTSPlayer:
         # Split text into shorter clauses to avoid speech synth buffer truncation or hangs
         sentences = re.split(r'[.!?；。]+', clean_text)
         for sentence in sentences:
+            if self._abort_current:
+                break
             trimmed = sentence.strip()
             if trimmed:
-                self.play_sentence(trimmed, text_language)
+                self.play_sentence(trimmed, text_language, voice)
 
-    def play_sentence(self, sentence_text: str, lang: str):
+    def play_sentence(self, sentence_text: str, lang: str, voice: str):
         locale = self.get_locale_code(lang)
         gtts_config = self.get_gtts_config(locale)
 
@@ -150,7 +183,7 @@ class TTSPlayer:
 
             pygame.mixer.music.load(fp, 'mp3')
             pygame.mixer.music.play()
-            while pygame.mixer.music.get_busy():
+            while pygame.mixer.music.get_busy() and not self._abort_current:
                 pygame.time.Clock().tick(10)
             pygame.mixer.music.unload()
             return
@@ -163,7 +196,8 @@ class TTSPlayer:
                     temp_path = temp_file.name
 
                 try:
-                    playsound(temp_path)
+                    if not self._abort_current:
+                        playsound(temp_path)
                 finally:
                     # Attempt to remove the temporary file immediately
                     try:
@@ -174,6 +208,18 @@ class TTSPlayer:
                 print(f"TTS Playback failed with both pygame and playsound fallback: {e} | {fallback_err}")
 
     def stop(self):
+        # Abort current speaking loop
+        self._abort_current = True
+
+        # Clear the queue
+        while not self.queue.empty():
+            try:
+                self.queue.get_nowait()
+                self.queue.task_done()
+            except queue.Empty:
+                break
+
+        # Stop pygame audio immediately
         try:
             if pygame.mixer.get_init():
                 pygame.mixer.music.stop()

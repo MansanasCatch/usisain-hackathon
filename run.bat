@@ -44,5 +44,5 @@ call venv\Scripts\activate.bat
 echo [3/3] Starting backend server on http://localhost:8000...
 echo [Server] Press CTRL+C to stop the server.
 cd backend-api
-uvicorn usisain_backend.main:app --reload --app-dir src --port 8000
+uvicorn usisain_backend.main:app --reload --app-dir src --host 0.0.0.0 --port 8000
 pause

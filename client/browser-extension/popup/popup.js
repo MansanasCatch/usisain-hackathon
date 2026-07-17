@@ -189,6 +189,13 @@ async function loadSettings() {
     const res = await fetch(`${BACKEND}/api/settings`);
     const settings = await res.json();
     
+    if (settings?.server_ip) {
+      const serverIpVal = document.getElementById("server-ip-value");
+      if (serverIpVal) {
+        serverIpVal.textContent = `${settings.server_ip}:8000`;
+      }
+    }
+    
     if (settings?.default_llm_provider) {
       activeProvider = settings.default_llm_provider;
     }

@@ -561,6 +561,7 @@ function markRemainingStepsFailed(startStep) {
 
 function showPanel(previewText, previewImageUrl) {
   injectPanelStyles();
+  ttsPlayer.stop();
   document.getElementById("usisain-panel")?.remove();
   // Clear any active timers from a previous run
   for (let step = 1; step <= 5; step++) {
@@ -596,6 +597,7 @@ function showPanel(previewText, previewImageUrl) {
     </div>`;
 
   header.querySelector(".usisain-close-btn").onclick = () => {
+    ttsPlayer.stop();
     panel.style.animation = "none";
     panel.style.opacity = "0";
     panel.style.transform = "translateX(100%)";

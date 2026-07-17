@@ -78,6 +78,12 @@ let activeGeminiModel = "";
 async function loadSettings() {
   try {
     const settings = await ApiClient.getSettings();
+    if (settings?.server_ip) {
+      const serverIpVal = document.getElementById("server-ip-value");
+      if (serverIpVal) {
+        serverIpVal.textContent = `${settings.server_ip}:8000`;
+      }
+    }
     if (settings?.pipeline_step_timeout_seconds) {
       pipelineTimeoutSeconds = Number(settings.pipeline_step_timeout_seconds) || pipelineTimeoutSeconds;
     }
