@@ -1,5 +1,6 @@
-// tts_player.js — Modular Client-Side Text-to-Speech via Backend Python gTTS.
-// Bypasses browser speechSynthesis to play high-quality gTTS audio via backend speakers.
+// tts_player.js — Client-Side Text-to-Speech via Backend gTTS.
+// Fetches MP3 audio from the backend and plays it in the browser.
+// Works on all devices: desktop, mobile, tablet.
 
 const GTTS_VOICES = [
   { name: "Google TTS - English (United States) (en-US)", lang: "en-US" },
@@ -16,6 +17,12 @@ class TTSPlayer {
     this.currentLanguage = "english";
     this.voices = GTTS_VOICES;
     this.selectedVoiceName = "Google TTS - English (United States) (en-US)";
+
+    // Sequential playback queue
+    this._queue = [];
+    this._isPlaying = false;
+    this._currentAudio = null;
+    this._aborted = false;
   }
 
   setEnabled(val) {
@@ -53,44 +60,116 @@ class TTSPlayer {
     this.voices = GTTS_VOICES;
   }
 
+  _getBackendBase() {
+    // When served from the same server, use relative path.
+    // Otherwise (e.g. extension), use absolute localhost URL.
+    if (typeof window !== "undefined" && window.location.origin.includes(":8000")) {
+      return "";
+    }
+    return "http://localhost:8000";
+  }
+
   speak(text) {
     if (!this.enabled || !text) return;
 
-    // Send the speech request to the backend API
-    const backendUrl = typeof window !== "undefined" && window.location.origin.includes("localhost:8000")
-      ? "/api/tts"
-      : "http://localhost:8000/api/tts";
+    // Add to queue
+    this._queue.push({
+      text,
+      lang: this.currentLanguage,
+      voice: this.selectedVoiceName
+    });
 
-    const lang = this.currentLanguage || "english";
-    const selectedVoice = this.selectedVoiceName || "";
+    // Start processing if not already running
+    if (!this._isPlaying) {
+      this._processQueue();
+    }
+  }
 
-    fetch(`${backendUrl}?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}&voice=${encodeURIComponent(selectedVoice)}`, {
-      method: "POST"
-    })
-    .then(response => {
-      if (!response.ok) {
-        console.warn("Backend TTS returned non-ok status:", response.status);
+  async _processQueue() {
+    if (this._isPlaying) return;
+    this._isPlaying = true;
+    this._aborted = false;
+
+    while (this._queue.length > 0 && !this._aborted) {
+      const item = this._queue.shift();
+      try {
+        await this._playItem(item);
+      } catch (err) {
+        console.error("TTS playback error:", err);
       }
-    })
-    .catch(err => {
-      console.error("Failed to play TTS via backend:", err);
+    }
+
+    this._isPlaying = false;
+  }
+
+  async _playItem(item) {
+    const base = this._getBackendBase();
+    const url = `${base}/api/tts/generate?text=${encodeURIComponent(item.text)}&language=${encodeURIComponent(item.lang)}&voice=${encodeURIComponent(item.voice || "")}`;
+
+    const response = await fetch(url, { method: "POST" });
+    if (!response.ok) {
+      console.warn("Backend TTS generate returned non-ok status:", response.status);
+      return;
+    }
+
+    const blob = await response.blob();
+    const audioUrl = URL.createObjectURL(blob);
+
+    return new Promise((resolve) => {
+      const audio = new Audio(audioUrl);
+      this._currentAudio = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        this._currentAudio = null;
+        resolve();
+      };
+
+      audio.onerror = (err) => {
+        console.error("Audio playback error:", err);
+        URL.revokeObjectURL(audioUrl);
+        this._currentAudio = null;
+        resolve();
+      };
+
+      if (this._aborted) {
+        URL.revokeObjectURL(audioUrl);
+        this._currentAudio = null;
+        resolve();
+        return;
+      }
+
+      audio.play().catch(err => {
+        console.warn("Audio play() rejected (autoplay policy):", err);
+        URL.revokeObjectURL(audioUrl);
+        this._currentAudio = null;
+        resolve();
+      });
     });
   }
 
   stop() {
-    const backendUrl = typeof window !== "undefined" && window.location.origin.includes("localhost:8000")
-      ? "/api/tts/stop"
-      : "http://localhost:8000/api/tts/stop";
+    this._aborted = true;
+    this._queue = [];
 
-    fetch(backendUrl, { method: "POST" })
-    .then(response => {
-      if (!response.ok) {
-        console.warn("Backend TTS stop returned non-ok status:", response.status);
+    if (this._currentAudio) {
+      try {
+        this._currentAudio.pause();
+        this._currentAudio.currentTime = 0;
+        if (this._currentAudio.src) {
+          URL.revokeObjectURL(this._currentAudio.src);
+        }
+      } catch (e) {
+        // ignore
       }
-    })
-    .catch(err => {
-      console.error("Failed to stop backend TTS:", err);
-    });
+      this._currentAudio = null;
+    }
+
+    this._isPlaying = false;
+
+    // Also tell the backend to stop any server-side speaker playback
+    const base = this._getBackendBase();
+    fetch(`${base}/api/tts/stop`, { method: "POST" }).catch(() => {});
   }
 }
 

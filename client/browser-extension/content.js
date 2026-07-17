@@ -1206,6 +1206,12 @@ class TTSPlayer {
     this.voices = GTTS_VOICES;
     this.selectedVoiceName = "Google TTS - English (United States) (en-US)";
 
+    // Sequential playback queue (browser-side)
+    this._queue = [];
+    this._isPlaying = false;
+    this._currentAudio = null;
+    this._aborted = false;
+
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
       chrome.storage.local.get(["useTts", "selectedVoice"], (data) => {
         if (data.useTts !== undefined) {
@@ -1277,35 +1283,104 @@ class TTSPlayer {
   speak(text) {
     if (!this.enabled || !text) return;
 
-    const backendUrl = "http://localhost:8000/api/tts";
-    const lang = this.currentLanguage || "english";
-    const selectedVoice = this.selectedVoiceName || "";
+    // Add to sequential queue
+    this._queue.push({
+      text,
+      lang: this.currentLanguage || "english",
+      voice: this.selectedVoiceName || ""
+    });
 
-    fetch(`${backendUrl}?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}&voice=${encodeURIComponent(selectedVoice)}`, {
-      method: "POST"
-    })
-    .then(response => {
-      if (!response.ok) {
-        console.warn("Backend TTS returned non-ok status:", response.status);
+    // Start processing if not already running
+    if (!this._isPlaying) {
+      this._processQueue();
+    }
+  }
+
+  async _processQueue() {
+    if (this._isPlaying) return;
+    this._isPlaying = true;
+    this._aborted = false;
+
+    while (this._queue.length > 0 && !this._aborted) {
+      const item = this._queue.shift();
+      try {
+        await this._playItem(item);
+      } catch (err) {
+        console.error("TTS playback error:", err);
       }
-    })
-    .catch(err => {
-      console.error("Failed to play TTS via backend:", err);
+    }
+
+    this._isPlaying = false;
+  }
+
+  async _playItem(item) {
+    const backendUrl = `http://localhost:8000/api/tts/generate?text=${encodeURIComponent(item.text)}&language=${encodeURIComponent(item.lang)}&voice=${encodeURIComponent(item.voice || "")}`;
+
+    const response = await fetch(backendUrl, { method: "POST" });
+    if (!response.ok) {
+      console.warn("Backend TTS generate returned non-ok status:", response.status);
+      return;
+    }
+
+    const blob = await response.blob();
+    const audioUrl = URL.createObjectURL(blob);
+
+    return new Promise((resolve) => {
+      const audio = new Audio(audioUrl);
+      this._currentAudio = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        this._currentAudio = null;
+        resolve();
+      };
+
+      audio.onerror = (err) => {
+        console.error("Audio playback error:", err);
+        URL.revokeObjectURL(audioUrl);
+        this._currentAudio = null;
+        resolve();
+      };
+
+      if (this._aborted) {
+        URL.revokeObjectURL(audioUrl);
+        this._currentAudio = null;
+        resolve();
+        return;
+      }
+
+      audio.play().catch(err => {
+        console.warn("Audio play() rejected:", err);
+        URL.revokeObjectURL(audioUrl);
+        this._currentAudio = null;
+        resolve();
+      });
     });
   }
 
   stop() {
-    const backendUrl = "http://localhost:8000/api/tts/stop";
-    fetch(backendUrl, { method: "POST" })
-    .then(response => {
-      if (!response.ok) {
-        console.warn("Backend TTS stop returned non-ok status:", response.status);
+    this._aborted = true;
+    this._queue = [];
+
+    if (this._currentAudio) {
+      try {
+        this._currentAudio.pause();
+        this._currentAudio.currentTime = 0;
+        if (this._currentAudio.src) {
+          URL.revokeObjectURL(this._currentAudio.src);
+        }
+      } catch (e) {
+        // ignore
       }
-    })
-    .catch(err => {
-      console.error("Failed to stop backend TTS:", err);
-    });
+      this._currentAudio = null;
+    }
+
+    this._isPlaying = false;
+
+    // Also tell the backend to stop any server-side speaker playback
+    fetch("http://localhost:8000/api/tts/stop", { method: "POST" }).catch(() => {});
   }
 }
 
 const ttsPlayer = new TTSPlayer();
+
