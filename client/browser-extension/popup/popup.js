@@ -47,14 +47,23 @@ const ttsVoiceRow = document.getElementById("tts-voice-row");
 const ttsVoiceSelect = document.getElementById("tts-voice-select");
 
 // ─── Voice dropdown population ───
+const GTTS_VOICES = [
+  { name: "Google TTS - English (United States) (en-US)", lang: "en-US" },
+  { name: "Google TTS - English (Great Britain) (en-GB)", lang: "en-GB" },
+  { name: "Google TTS - English (Canada) (en-CA)", lang: "en-CA" },
+  { name: "Google TTS - English (Australia) (en-AU)", lang: "en-AU" },
+  { name: "Google TTS - English (India) (en-IN)", lang: "en-IN" },
+  { name: "Google TTS - Filipino/Tagalog (tl-PH)", lang: "tl-PH" }
+];
+
+// ─── Voice dropdown population ───
 function populateVoiceDropdown() {
   if (!ttsVoiceSelect) return;
-  const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
   ttsVoiceSelect.innerHTML = "";
-  for (const voice of voices) {
+  for (const voice of GTTS_VOICES) {
     const opt = document.createElement("option");
     opt.value = voice.name;
-    opt.textContent = `${voice.name} (${voice.lang})`;
+    opt.textContent = voice.name;
     ttsVoiceSelect.appendChild(opt);
   }
   // Restore saved voice
@@ -62,6 +71,8 @@ function populateVoiceDropdown() {
     chrome.storage.local.get(["selectedVoice"], (data) => {
       if (data.selectedVoice && ttsVoiceSelect.querySelector(`option[value="${CSS.escape(data.selectedVoice)}"]`)) {
         ttsVoiceSelect.value = data.selectedVoice;
+      } else {
+        ttsVoiceSelect.value = "Google TTS - English (United States) (en-US)";
       }
     });
   }
@@ -73,11 +84,7 @@ function updateTtsVoiceVisibility() {
   }
 }
 
-// Populate voices — speechSynthesis loads async in some browsers
-if (window.speechSynthesis) {
-  populateVoiceDropdown();
-  window.speechSynthesis.onvoiceschanged = populateVoiceDropdown;
-}
+populateVoiceDropdown();
 
 // ─── Load saved language, OCR, and TTS preferences ───
 if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {

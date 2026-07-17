@@ -1416,14 +1416,10 @@ if (urlParams.get("analyze") === "true") {
 
 
 // ---------- INITIALIZATION ----------
-if (window.speechSynthesis) {
-  window.speechSynthesis.onvoiceschanged = () => {
-    if (window.ttsPlayer) {
-      window.ttsPlayer.voices = window.speechSynthesis.getVoices();
-    }
-    populateVoiceDropdown();
-  };
+if (window.ttsPlayer) {
+  window.ttsPlayer.initVoices();
 }
+populateVoiceDropdown();
 loadSettings();
 loadOverview();
 loadScans();

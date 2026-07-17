@@ -25,4 +25,8 @@ pytesseract>=0.3.13
 scikit-learn>=1.5.2
 
 # --- text-to-speech (backend) ---
-pyttsx3>=2.98
+gTTS>=2.5.1
+pygame>=2.5.2
+playsound==1.2.2
+
+

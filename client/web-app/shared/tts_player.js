@@ -1,22 +1,21 @@
-// tts_player.js — Modular Client-Side Text-to-Speech using Browser SpeechSynthesis.
-// Fully free, local, offline, high-performance, and has zero impact on backend servers.
+// tts_player.js — Modular Client-Side Text-to-Speech via Backend Python gTTS.
+// Bypasses browser speechSynthesis to play high-quality gTTS audio via backend speakers.
+
+const GTTS_VOICES = [
+  { name: "Google TTS - English (United States) (en-US)", lang: "en-US" },
+  { name: "Google TTS - English (Great Britain) (en-GB)", lang: "en-GB" },
+  { name: "Google TTS - English (Canada) (en-CA)", lang: "en-CA" },
+  { name: "Google TTS - English (Australia) (en-AU)", lang: "en-AU" },
+  { name: "Google TTS - English (India) (en-IN)", lang: "en-IN" },
+  { name: "Google TTS - Filipino/Tagalog (tl-PH)", lang: "tl-PH" }
+];
 
 class TTSPlayer {
   constructor() {
     this.enabled = false;
     this.currentLanguage = "english";
-    this.utteranceQueue = [];
-    this.isSpeaking = false;
-    this.voices = [];
-    this.selectedVoiceName = "";
-
-    // Retrieve initial voices list
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      this.voices = window.speechSynthesis.getVoices();
-      window.speechSynthesis.onvoiceschanged = () => {
-        this.voices = window.speechSynthesis.getVoices();
-      };
-    }
+    this.voices = GTTS_VOICES;
+    this.selectedVoiceName = "Google TTS - English (United States) (en-US)";
   }
 
   setEnabled(val) {
@@ -35,108 +34,63 @@ class TTSPlayer {
       "english": "en-US",
       "taglish": "tl-PH",
       "tagalog": "tl-PH",
-      "cebuano": "fil-PH", // Cebuano/Bisaya fall back to Filipino voice if native ceb is unavailable
+      "cebuano": "fil-PH",
       "bisaya": "fil-PH",
       "ilocano": "fil-PH"
     };
     return map[lang.toLowerCase()] || "en-US";
   }
 
+  getVoices() {
+    return this.voices;
+  }
+
+  setSelectedVoice(voiceName) {
+    this.selectedVoiceName = voiceName;
+  }
+
+  initVoices() {
+    this.voices = GTTS_VOICES;
+  }
+
   speak(text) {
     if (!this.enabled || !text) return;
 
-    // 1. Remove dangerous script, style, and iframe blocks along with their inner code contents (XSS/Audio poisoning mitigation)
-    let sanitized = text
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "");
+    // Send the speech request to the backend API
+    const backendUrl = typeof window !== "undefined" && window.location.origin.includes("localhost:8000")
+      ? "/api/tts"
+      : "http://localhost:8000/api/tts";
 
-    // 2. Strip remaining HTML tags
-    sanitized = sanitized.replace(/<[^>]*>/g, "");
+    const lang = this.currentLanguage || "english";
+    const selectedVoice = this.selectedVoiceName || "";
 
-    // 3. Remove raw javascript commands and coding operators/brackets
-    sanitized = sanitized
-      .replace(/(?:console\.log|alert\s*\(|eval\s*\(|prompt\s*\(|confirm\s*\(|window\.|document\.)/gi, "")
-      .replace(/[\{\}\[\]\(\)\<\>\=\+\-\*\/\\`_]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    // 4. Clean markdown formatting
-    const cleanText = sanitized
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1")
-      .replace(/\*\*([^*]+)\*\*/g, "$1")
-      .trim();
-
-    if (!cleanText) return;
-
-    // Detect if the text contains Tagalog keywords to dynamically adjust voice pronunciation
-    let textLanguage = this.currentLanguage;
-    const tagalogPattern = /\b(ang|mga|ng|sa|na|ni|ay|si|po|opo|ako|ikaw|siya|ito|iyon|doon|dito|namin|nila|kaya|kasi|pero|maging|dahil|ano|sino|bakit|paano)\b/i;
-    if (tagalogPattern.test(cleanText)) {
-      textLanguage = "tagalog";
-    }
-
-    // Split text into shorter clauses to avoid speech synth buffer truncation or hangs
-    const sentences = cleanText.split(/[.!?；。]+/);
-    for (const sentence of sentences) {
-      const trimmed = sentence.trim();
-      if (trimmed.length > 0) {
-        this.enqueue(trimmed, textLanguage);
+    fetch(`${backendUrl}?text=${encodeURIComponent(text)}&language=${encodeURIComponent(lang)}&voice=${encodeURIComponent(selectedVoice)}`, {
+      method: "POST"
+    })
+    .then(response => {
+      if (!response.ok) {
+        console.warn("Backend TTS returned non-ok status:", response.status);
       }
-    }
-  }
-
-  enqueue(text, lang) {
-    this.utteranceQueue.push({ text, lang: lang || this.currentLanguage });
-    this.processQueue();
-  }
-
-  processQueue() {
-    if (this.isSpeaking || this.utteranceQueue.length === 0 || !window.speechSynthesis) return;
-
-    this.isSpeaking = true;
-    const item = this.utteranceQueue.shift();
-    const utterance = new SpeechSynthesisUtterance(item.text);
-    const locale = this.getLocaleCode(item.lang);
-    utterance.lang = locale;
-
-    // Locate the best matching voice
-    let matchingVoice = null;
-    if (locale === "tl-PH") {
-      matchingVoice = this.voices.find(v => v.lang.toLowerCase().startsWith("tl") || v.lang.toLowerCase().includes("fil"));
-    }
-    if (!matchingVoice && this.selectedVoiceName) {
-      matchingVoice = this.voices.find(v => v.name === this.selectedVoiceName);
-    }
-    if (!matchingVoice) {
-      matchingVoice = this.voices.find(v => v.lang.startsWith(locale) || v.lang.includes(locale.split("-")[0]));
-    }
-    if (matchingVoice) {
-      utterance.voice = matchingVoice;
-    }
-
-    utterance.onend = () => {
-      this.isSpeaking = false;
-      this.processQueue();
-    };
-
-    utterance.onerror = (e) => {
-      if (e.error !== "interrupted" && e.error !== "canceled") {
-        console.warn("TTS Playback error:", e);
-      }
-      this.isSpeaking = false;
-      this.processQueue();
-    };
-
-    window.speechSynthesis.speak(utterance);
+    })
+    .catch(err => {
+      console.error("Failed to play TTS via backend:", err);
+    });
   }
 
   stop() {
-    this.utteranceQueue = [];
-    this.isSpeaking = false;
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+    const backendUrl = typeof window !== "undefined" && window.location.origin.includes("localhost:8000")
+      ? "/api/tts/stop"
+      : "http://localhost:8000/api/tts/stop";
+
+    fetch(backendUrl, { method: "POST" })
+    .then(response => {
+      if (!response.ok) {
+        console.warn("Backend TTS stop returned non-ok status:", response.status);
+      }
+    })
+    .catch(err => {
+      console.error("Failed to stop backend TTS:", err);
+    });
   }
 }
 

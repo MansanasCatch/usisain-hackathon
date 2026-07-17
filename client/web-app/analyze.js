@@ -183,19 +183,11 @@ ttsReplayBtn.addEventListener("click", () => {
   }
 });
 
-if (window.speechSynthesis) {
-  window.speechSynthesis.onvoiceschanged = () => {
-    window.ttsPlayer.initVoices();
-    populateVoices();
-  };
-}
-
-// Check initial load
-setTimeout(() => {
+if (window.ttsPlayer) {
   window.ttsPlayer.initVoices();
-  populateVoices();
-  updateVoiceDropdownVisibility();
-}, 500);
+}
+populateVoices();
+updateVoiceDropdownVisibility();
 
 loadSettings();
 

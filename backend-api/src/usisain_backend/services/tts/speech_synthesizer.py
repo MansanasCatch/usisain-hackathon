@@ -1,42 +1,40 @@
 """
 speech_synthesizer.py — local TTS on the final aggregated explanation.
-Runs once, on the combined output, not per-step (see architecture notes).
-
-Uses pyttsx3, which wraps the OS's built-in voices (SAPI5 on Windows) —
-fully offline, no API key. English quality is reliably good since every
-Windows install ships English voices. Tagalog quality depends entirely on
-whether a Filipino voice pack is installed on the machine (Windows
-Settings → Time & Language → Speech → Add voices) — if none is installed,
-this falls back to whatever default voice is present, which will
-mispronounce Tagalog text. There's no good fully-offline Tagalog TTS
-option as of this writing; if quality matters more than staying fully
-local, swap this module for a cloud TTS API (e.g. Google Cloud
-Text-to-Speech) without changing callers.
+Uses Google Text-to-Speech (gTTS) for high-quality audio synthesis and
+plays it locally through speakers using pygame/playsound.
 """
 
 import uuid
+import tempfile
+import wave
 from pathlib import Path
+from .tts_player import tts_player
 
-OUTPUT_DIR = Path(__file__).resolve().parents[5] / "data" / "tts_output"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+def synthesize(text: str, language: str = "english", voice: str = None) -> str:
+    """Plays the speech audio immediately through speakers and returns a temporary silence WAV path."""
+    # Set the current player configurations
+    if voice:
+        tts_player.selected_voice_name = voice
+    tts_player.set_language(language)
 
+    # Automatically play the speech immediately through the computer's speakers
+    tts_player.speak(text)
 
-def synthesize(text: str, language: str = "english") -> str:
-    """Returns the path to a generated .wav file."""
-    import pyttsx3
+    # Generate a small 100-sample dummy silent WAV file in OS temp folder for FastAPI FileResponse compatibility
+    temp_dir = Path(tempfile.gettempdir())
+    out_path = temp_dir / f"silence_{uuid.uuid4().hex}.wav"
 
-    engine = pyttsx3.init()
-    voices = engine.getProperty("voices")
+    try:
+        with wave.open(str(out_path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(1)
+            w.setframerate(8000)
+            w.writeframes(b'\x80' * 100)  # 100 samples of silence (128/0x80 is silence in 8-bit unsigned PCM)
+    except Exception as e:
+        print(f"Failed to generate dummy WAV: {e}")
 
-    if language in ("taglish", "tagalog", "cebuano", "ilocano", "bisaya"):
-        # Best-effort: look for any installed voice whose name/id hints at
-        # Filipino/Tagalog. Falls back to the default voice if none found.
-        for voice in voices:
-            if any(hint in (voice.name or "").lower() for hint in ("filipino", "tagalog", "ph")):
-                engine.setProperty("voice", voice.id)
-                break
-
-    out_path = OUTPUT_DIR / f"{uuid.uuid4().hex}.wav"
-    engine.save_to_file(text, str(out_path))
-    engine.runAndWait()
     return str(out_path)
+
+def stop_playback():
+    """Stops any currently active audio playback."""
+    tts_player.stop()
