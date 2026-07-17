@@ -4,6 +4,7 @@
 //      from background.js (which does the actual fetch to the backend).
 
 let lastRightClickedEl = null;
+const extensionSpokenCompletes = {};
 document.addEventListener("contextmenu", (e) => { lastRightClickedEl = e.target; }, true);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -186,10 +187,9 @@ function injectPanelStyles() {
     }
 
     .usisain-tts-bar {
-      display: flex; gap: 6px; align-items: center; background: rgba(15,23,42,0.4);
-      padding: 6px 14px; border-bottom: 1px solid rgba(56,68,102,0.2);
+      display: flex; flex-direction: column; background: rgba(15,23,42,0.4);
+      padding: 8px 14px; border-bottom: 1px solid rgba(56,68,102,0.2);
       font-family: 'Inter', system-ui, sans-serif; font-size: 11px; color: #8892a8;
-      flex-wrap: wrap;
     }
 
     .usisain-tts-label {
@@ -202,19 +202,16 @@ function injectPanelStyles() {
     }
 
     .usisain-tts-select {
-      display: none; max-width: 130px; font-size: 10px; padding: 1px 4px;
+      width: 100%; font-size: 10.5px; padding: 4px 8px;
       background: #0f172a; border: 1px solid rgba(56,68,102,0.4); color: #c8d0e0;
-      border-radius: 3px; height: auto;
-    }
-    .usisain-tts-select.show-voice {
-      display: inline-block;
+      border-radius: 4px; height: auto; outline: none; cursor: pointer;
+      box-sizing: border-box;
     }
 
     .usisain-tts-replay-btn {
-      display: none; font-size: 10px; padding: 1px 6px;
+      display: none; font-size: 10px; padding: 2px 8px;
       background: rgba(56,68,102,0.3); border: 1px solid rgba(56,68,102,0.5);
-      color: #c8d0e0; cursor: pointer; border-radius: 3px; height: auto;
-      margin-left: auto;
+      color: #c8d0e0; cursor: pointer; border-radius: 4px; height: auto;
     }
     .usisain-tts-replay-btn.show-replay {
       display: inline-block;
@@ -584,11 +581,15 @@ function showPanel(previewText, previewImageUrl) {
       <button class="usisain-close-btn" title="Close panel">✕</button>
     </div>
     <div class="usisain-tts-bar">
-      <label class="usisain-tts-label">
-        <input type="checkbox" id="usisain-tts-toggle" class="usisain-tts-input"> Voice (TTS)
-      </label>
-      <select id="usisain-tts-voice" class="usisain-tts-select"></select>
-      <button id="usisain-tts-replay" class="usisain-tts-replay-btn">Re-play</button>
+      <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+        <label class="usisain-tts-label">
+          <input type="checkbox" id="usisain-tts-toggle" class="usisain-tts-input"> Narrate with voice (TTS)
+        </label>
+        <button id="usisain-tts-replay" class="usisain-tts-replay-btn">Re-play</button>
+      </div>
+      <div id="usisain-tts-voice-row" style="display: none; width: 100%; margin-top: 8px;">
+        <select id="usisain-tts-voice" class="usisain-tts-select"></select>
+      </div>
     </div>`;
 
   header.querySelector(".usisain-close-btn").onclick = () => {
@@ -626,7 +627,10 @@ function showPanel(previewText, previewImageUrl) {
 
   function updateDropdowns() {
     const enabled = ttsToggle.checked;
-    ttsVoice.classList.toggle("show-voice", enabled);
+    const voiceRow = header.querySelector("#usisain-tts-voice-row");
+    if (voiceRow) {
+      voiceRow.style.display = enabled ? "block" : "none";
+    }
     const hasCompleted = Array.from(panel.querySelectorAll(".usisain-step-row"))
       .some(row => row.dataset.status === "completed" && row.dataset.speechText);
     ttsReplay.classList.toggle("show-replay", enabled && hasCompleted);
@@ -1335,7 +1339,9 @@ class TTSPlayer {
     };
 
     utterance.onerror = (e) => {
-      console.warn("TTS Playback error:", e);
+      if (e.error !== "interrupted" && e.error !== "canceled") {
+        console.warn("TTS Playback error:", e);
+      }
       this.isSpeaking = false;
       this.processQueue();
     };

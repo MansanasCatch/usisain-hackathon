@@ -121,7 +121,9 @@ class TTSPlayer {
     };
 
     utterance.onerror = (e) => {
-      console.warn("TTS Playback error:", e);
+      if (e.error !== "interrupted" && e.error !== "canceled") {
+        console.warn("TTS Playback error:", e);
+      }
       this.isSpeaking = false;
       this.processQueue();
     };

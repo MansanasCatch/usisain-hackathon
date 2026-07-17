@@ -302,9 +302,9 @@
               </label>
             </div>
             <!-- Voice selector row (shown when TTS is enabled) -->
-            <div id="tts-voice-row" class="dashboard-voice-row">
-              <label class="dashboard-voice-label">Voice</label>
-              <select id="tts-voice" class="dashboard-voice-select"></select>
+            <div id="tts-voice-row" class="dashboard-modal-field dashboard-voice-row hidden">
+              <label class="dashboard-modal-label">Voice</label>
+              <select id="tts-voice" class="dashboard-modal-select"></select>
             </div>
             <button id="tts-replay" type="button" class="dashboard-voice-replay hidden">▶ Re-play Speech</button>
           </div>
@@ -329,7 +329,6 @@
               <button type="button" id="camera-retry-btn" class="btn btn-secondary dashboard-camera-btn hidden">🔄 Retry</button>
             </div>
             <canvas id="camera-canvas" class="hidden"></canvas>
-          </div>a-canvas" style="display:none;"></canvas>
           </div>
           
           <div class="file-preview-container" id="file-preview-container">

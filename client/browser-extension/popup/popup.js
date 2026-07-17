@@ -93,6 +93,7 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     }
     updateTtsVoiceVisibility();
   });
+}
 // ─── Sync settings in real-time when changed elsewhere ───
 if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
   chrome.storage.onChanged.addListener((changes) => {

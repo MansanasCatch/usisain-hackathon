@@ -1891,8 +1891,7 @@ pre {
 }
 
 .dashboard-voice-row {
-  display: none;
-  margin-bottom: 6px;
+  margin-bottom: 12px;
 }
 
 .dashboard-voice-label {
@@ -1918,7 +1917,6 @@ pre {
 }
 
 .dashboard-voice-replay {
-  display: none;
   font-size: 11px;
   padding: 4px 10px;
   background: var(--panel);

@@ -1383,6 +1383,14 @@ if (urlParams.get("analyze") === "true") {
 
 
 // ---------- INITIALIZATION ----------
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {
+    if (window.ttsPlayer) {
+      window.ttsPlayer.voices = window.speechSynthesis.getVoices();
+    }
+    populateVoiceDropdown();
+  };
+}
 loadSettings();
 loadOverview();
 loadScans();
