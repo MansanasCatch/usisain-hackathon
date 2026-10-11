@@ -1,13 +1,26 @@
+from mcp_server.services.llm.factory import get_provider
+from mcp_server.services.rag import retriever
+from mcp_server.services.search import google_search
 from mcp_server.steps.base import Step3Input
 from mcp_server.steps.step3 import (
     Step3LegitOrFake,
-    fetch_page_content,
-    score_sources as _score_sources_impl,
+)
+from mcp_server.steps.step3 import (
     generate_search_query as _generate_search_query_impl,
 )
-from mcp_server.services.search import google_search
-from mcp_server.services.rag import retriever
-from mcp_server.services.llm import get_provider
+from mcp_server.steps.step3 import (
+    score_sources as _score_sources_impl,
+)
+from mcp_server.steps.step3.page_scraper import fetch_page_content
+
+__all__ = [
+    "check_claim",
+    "generate_search_query",
+    "get_provider",
+    "google_search",
+    "fetch_page_content",
+    "retriever",
+]
 
 _step3_runner = Step3LegitOrFake()
 

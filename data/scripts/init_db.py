@@ -1,4 +1,5 @@
 """Run once before first use: python data/scripts/init_db.py"""
+
 import sys
 from pathlib import Path
 

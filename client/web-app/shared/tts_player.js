@@ -1,6 +1,6 @@
-// tts_player.js — Client-Side Text-to-Speech via Backend gTTS.
-// Fetches MP3 audio from the backend and plays it in the browser.
-// Works on all devices: desktop, mobile, tablet.
+
+
+
 
 const GTTS_VOICES = [
   { name: "Google TTS - English (United States) (en-US)", lang: "en-US" },
@@ -18,7 +18,7 @@ class TTSPlayer {
     this.voices = GTTS_VOICES;
     this.selectedVoiceName = "Google TTS - English (United States) (en-US)";
 
-    // Sequential playback queue
+    
     this._queue = [];
     this._isPlaying = false;
     this._currentAudio = null;
@@ -61,8 +61,8 @@ class TTSPlayer {
   }
 
   _getBackendBase() {
-    // When served from the same server, use relative path.
-    // Otherwise (e.g. extension), use absolute localhost URL.
+    
+    
     if (typeof window !== "undefined" && window.location.origin.includes(":8000")) {
       return "";
     }
@@ -72,14 +72,14 @@ class TTSPlayer {
   speak(text) {
     if (!this.enabled || !text) return;
 
-    // Add to queue
+    
     this._queue.push({
       text,
       lang: this.currentLanguage,
       voice: this.selectedVoiceName
     });
 
-    // Start processing if not already running
+    
     if (!this._isPlaying) {
       this._processQueue();
     }
@@ -160,18 +160,18 @@ class TTSPlayer {
           URL.revokeObjectURL(this._currentAudio.src);
         }
       } catch (e) {
-        // ignore
+        
       }
       this._currentAudio = null;
     }
 
     this._isPlaying = false;
 
-    // Also tell the backend to stop any server-side speaker playback
+    
     const base = this._getBackendBase();
     fetch(`${base}/api/tts/stop`, { method: "POST" }).catch(() => {});
   }
 }
 
-// Export single instance for global usage
+
 window.ttsPlayer = new TTSPlayer();

@@ -1,5 +1,6 @@
 import json
 from typing import Any
+
 from usisain_backend.core.config import settings
 from usisain_backend.data.repositories.connection import get_db_connection
 

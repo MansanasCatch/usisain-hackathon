@@ -1,8 +1,8 @@
-// api_client.js — thin wrapper around the backend's REST endpoints.
-// Used by dashboard.js (analyze.js uses sse_client.js directly since
-// that endpoint streams rather than returning JSON).
 
-const API = ""; // same origin — the backend serves this web app itself
+
+
+
+const API = ""; 
 
 const ApiClient = {
   async getScans({ channel, limit = 20, offset = 0 } = {}) {
@@ -38,7 +38,7 @@ const ApiClient = {
     return fetch(`${API}/api/reference-documents/${id}`, { method: "DELETE" }).then(r => r.json());
   },
 
-  // ---------- error log ----------
+  
   async getErrors(limit = 50, offset = 0) {
     return fetch(`${API}/api/errors?limit=${limit}&offset=${offset}`).then(r => r.json());
   },
@@ -55,7 +55,7 @@ const ApiClient = {
     return fetch(`${API}/api/scans`, { method: "DELETE" }).then(r => r.json());
   },
 
-  // ---------- ollama models ----------
+  
   async getOllamaModels() {
     return fetch(`${API}/api/ollama/models`).then(r => r.json());
   },

@@ -1,11 +1,9 @@
-/* ============================================================
-   UsisAIn Browser Extension — Enterprise Dark Theme
-   ============================================================ */
+
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  /* Core palette */
+  
   --bg-primary: #0c0e14;
   --bg-secondary: #12151e;
   --bg-card: rgba(18, 22, 34, 0.85);
@@ -13,23 +11,23 @@
   --border-primary: rgba(56, 68, 102, 0.35);
   --border-glow: rgba(96, 165, 250, 0.2);
 
-  /* Text */
+  
   --text-primary: #e8ecf4;
   --text-secondary: #8892a8;
   --text-muted: #5a6478;
 
-  /* Accent */
+  
   --accent-blue: #60a5fa;
   --accent-teal: #2dd4bf;
   --accent-indigo: #818cf8;
   --accent-gradient: linear-gradient(135deg, #60a5fa 0%, #818cf8 50%, #2dd4bf 100%);
 
-  /* Verdict colors */
+  
   --verdict-safe: #34d399;
   --verdict-suspicious: #fbbf24;
   --verdict-dangerous: #f87171;
 
-  /* Spacing */
+  
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -52,7 +50,7 @@ body {
   overflow-x: hidden;
 }
 
-/* ---- Header ---- */
+
 .ext-header {
   position: relative;
   padding: 18px 20px 14px;
@@ -155,7 +153,7 @@ body {
   50%      { opacity: 0.5; transform: scale(0.8); }
 }
 
-/* ---- Controls Section ---- */
+
 .controls-section {
   padding: 14px 20px;
   border-bottom: 1px solid var(--border-primary);
@@ -228,7 +226,7 @@ body {
   width: 100%;
 }
 
-/* ---- Navigation Buttons ---- */
+
 .nav-buttons {
   display: flex;
   gap: 8px;
@@ -286,7 +284,7 @@ body {
   box-shadow: 0 4px 24px rgba(96, 165, 250, 0.2), inset 0 0 0 1px rgba(96,165,250,0.15);
 }
 
-/* ---- Status ---- */
+
 #status {
   padding: 10px 20px;
   font-size: 11px;
@@ -305,7 +303,7 @@ body {
   color: var(--verdict-dangerous);
 }
 
-/* ---- History List ---- */
+
 #history {
   list-style: none;
   margin: 0;
@@ -410,7 +408,7 @@ body {
   word-break: break-word;
 }
 
-/* ---- Empty state ---- */
+
 .empty-state {
   text-align: center;
   padding: 30px 20px;
@@ -435,7 +433,7 @@ body {
   line-height: 1.5;
 }
 
-/* ──────── Custom Selectors Bar for LLM & Model (Uniform with Dashboard) ──────── */
+
 .selectors-bar {
   display: flex;
   flex-direction: row;
@@ -718,7 +716,7 @@ body {
   margin-bottom: 6px;
 }
 
-/* Checkmark visibility rule */
+
 .model-item-check {
   display: none;
 }
@@ -726,7 +724,7 @@ body {
   display: block !important;
 }
 
-/* Clean code standard utility classes */
+
 .popup-control-row-toggle {
   margin-top: 10px;
   display: flex;
@@ -752,17 +750,17 @@ body {
   font-size: 10px;
 }
 
-/* Server IP Display Badge */
+
 .server-ip-badge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: #e9d5ff; /* soft lavender */
-  background: rgba(147, 51, 234, 0.15); /* deeper purple background */
-  border: 1px solid rgba(168, 85, 247, 0.35); /* purple border */
-  border-radius: 30px; /* clean pill shape */
-  padding: 5px 14px; /* generous padding */
+  color: #e9d5ff; 
+  background: rgba(147, 51, 234, 0.15); 
+  border: 1px solid rgba(168, 85, 247, 0.35); 
+  border-radius: 30px; 
+  padding: 5px 14px; 
   font-weight: 500;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 10px rgba(168, 85, 247, 0.1);
@@ -780,7 +778,7 @@ body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #d8b4fe; /* glowing purple */
+  background-color: #d8b4fe; 
   box-shadow: 0 0 8px #d8b4fe;
   display: inline-block;
   animation: pulse-purple 2s infinite;

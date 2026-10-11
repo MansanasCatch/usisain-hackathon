@@ -1,6 +1,8 @@
 import io
-from PIL import Image, ImageChops
+
 import numpy as np
+from PIL import Image, ImageChops
+
 from mcp_server.constants import ELA_JPEG_QUALITY
 
 

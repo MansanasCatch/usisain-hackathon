@@ -1,12 +1,14 @@
 import os
+
 import cv2
-from mcp_server.steps.base import BaseStep, Step1Input, Step1Output
+
 from mcp_server.prompts.step1_prompts import (
-    SYSTEM_PROMPT,
     LANGUAGE_INSTRUCTIONS,
     SECURITY_GUARDRAIL,
+    SYSTEM_PROMPT,
 )
 from mcp_server.services.llm import get_provider
+from mcp_server.steps.base import BaseStep, Step1Input, Step1Output
 
 
 class Step1AIInsights(BaseStep):
@@ -20,21 +22,19 @@ class Step1AIInsights(BaseStep):
         provider = input_data.provider
         language = input_data.language
         use_ocr = input_data.use_ocr
-
         llm = get_provider(provider)
         system_prompt = SYSTEM_PROMPT
         if language in LANGUAGE_INSTRUCTIONS:
             system_prompt = f"{SYSTEM_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
         system_prompt = f"{system_prompt} {SECURITY_GUARDRAIL}"
-
         image_to_pass = None
         temp_frame_path = None
         ocr_text = ""
-
         if file_path and os.path.exists(file_path):
             if use_ocr:
-                from mcp_server.shared.ocr_utils import extract_text as ocr_extract
                 from PIL import Image
+
+                from mcp_server.shared.ocr_utils import extract_text as ocr_extract
 
                 try:
                     if content_type == "image":
@@ -57,14 +57,10 @@ class Step1AIInsights(BaseStep):
                             pass
                 except Exception:
                     pass
-
             if provider != "ollama":
                 if content_type == "image":
                     image_to_pass = file_path
-                    user_prompt = (
-                        f"Text content: {content_summary or '(no text provided)'}\n"
-                        "Please analyze the attached image and provide a short, clear, objective summary of what is visible."
-                    )
+                    user_prompt = f"Text content: {content_summary or '(no text provided)'}\nPlease analyze the attached image and provide a short, clear, objective summary of what is visible."
                 elif content_type == "video":
                     if not temp_frame_path:
                         try:
@@ -80,26 +76,18 @@ class Step1AIInsights(BaseStep):
                         except Exception:
                             pass
                     image_to_pass = temp_frame_path
-                    user_prompt = (
-                        f"Text content: {content_summary or '(no text provided)'}\n"
-                        "Please analyze the attached representative video frame and provide a short, clear, summary of the visible scene."
-                    )
+                    user_prompt = f"Text content: {content_summary or '(no text provided)'}\nPlease analyze the attached representative video frame and provide a short, clear, summary of the visible scene."
                 else:
                     user_prompt = f"Text content: {content_summary or '(no text provided)'}"
             else:
                 user_prompt = f"Text content: {content_summary or '(no text provided)'}"
         else:
             user_prompt = f"Text content: {content_summary or '(no text provided)'}"
-
         try:
             insight = await llm.complete(
                 system_prompt, user_prompt, image_path=image_to_pass, max_tokens=256
             )
-            return Step1Output(
-                insight=insight,
-                explanation=insight,
-                ocr_text=ocr_text,
-            )
+            return Step1Output(insight=insight, explanation=insight, ocr_text=ocr_text)
         except Exception as e:
             return Step1Output(
                 insight=None,

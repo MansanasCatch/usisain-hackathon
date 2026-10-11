@@ -36,17 +36,15 @@ def _save(entries: list[dict]) -> None:
 
 def add(text: str, metadata: dict) -> str:
     import re
-    
+
     def _sanitize_input(val: str) -> str:
         if not isinstance(val, str):
             return val
-        # Strip all HTML/script tags completely
-        cleaned = re.sub(r'<[^>]*>', '', val)
+        cleaned = re.sub("<[^>]*>", "", val)
         return cleaned.strip()
 
     entries = _load()
     entry_id = uuid.uuid4().hex
-    
     clean_text = _sanitize_input(text)
     clean_metadata = {}
     if isinstance(metadata, dict):
@@ -55,28 +53,27 @@ def add(text: str, metadata: dict) -> str:
                 clean_metadata[k] = _sanitize_input(v)
             else:
                 clean_metadata[k] = v
-
-    # Fetch semantic embedding for the new document entry
     vector = get_embedding(clean_text)
-    entries.append({
-        "id": entry_id,
-        "text": clean_text,
-        "embedding": vector,
-        "metadata": clean_metadata
-    })
+    entries.append(
+        {"id": entry_id, "text": clean_text, "embedding": vector, "metadata": clean_metadata}
+    )
     _save(entries)
     return entry_id
 
 
-def search(query: str, top_k: int = 3, min_score: float = 0.35, category: str | None = None) -> list[dict]:
+def search(
+    query: str, top_k: int = 3, min_score: float = 0.35, category: str | None = None
+) -> list[dict]:
     entries = _load()
     if not entries:
         return []
-    
-    # 1. Backward-compatibility auto-migration for legacy entries that lack vectors
     dirty = False
     for entry in entries:
-        if "embedding" not in entry or not isinstance(entry["embedding"], list) or len(entry["embedding"]) != 768:
+        if (
+            "embedding" not in entry
+            or not isinstance(entry["embedding"], list)
+            or len(entry["embedding"]) != 768
+        ):
             entry["embedding"] = get_embedding(entry["text"])
             dirty = True
         if "metadata" not in entry or entry["metadata"] is None:
@@ -87,32 +84,21 @@ def search(query: str, top_k: int = 3, min_score: float = 0.35, category: str | 
             dirty = True
     if dirty:
         _save(entries)
-        
-    # 2. Filter by category if specified
     filtered_entries = entries
     if category is not None:
         filtered_entries = [e for e in entries if e.get("metadata", {}).get("category") == category]
-        
     if not filtered_entries:
         return []
-        
-    # 3. Get embedding vector for the search query
     query_vector = get_embedding(query)
-    
-    # 4. Calculate similarities using numpy-accelerated cosine similarity
     doc_vectors = [e["embedding"] for e in filtered_entries]
     scores = rank_by_similarity(query_vector, doc_vectors)
-    
-    # 5. Rank and filter by minimum similarity score
     ranked = []
     for entry, score in zip(filtered_entries, scores):
-        # Exclude embedding vector from output payload for cleaner display
         clean_entry = {k: v for k, v in entry.items() if k != "embedding"}
         ranked.append((clean_entry, score))
-        
     ranked.sort(key=lambda pair: pair[1], reverse=True)
-    
     return [
         {**entry, "similarity": round(score, 3)}
-        for entry, score in ranked[:top_k] if score >= min_score
+        for entry, score in ranked[:top_k]
+        if score >= min_score
     ]

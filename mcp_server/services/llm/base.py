@@ -6,11 +6,7 @@ class BaseLLMProvider(ABC):
 
     @abstractmethod
     async def complete(
-        self,
-        system: str,
-        user: str,
-        image_path: str | None = None,
-        max_tokens: int | None = None,
+        self, system: str, user: str, image_path: str | None = None, max_tokens: int | None = None
     ) -> str:
         raise NotImplementedError
 

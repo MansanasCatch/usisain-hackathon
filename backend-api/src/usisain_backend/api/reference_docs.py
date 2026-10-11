@@ -1,11 +1,8 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends
-from usisain_backend.services.reference_docs_service import (
-    ReferenceDocsService,
-)
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 
-router = APIRouter(
-    prefix="/api/reference-documents", tags=["reference-documents"]
-)
+from usisain_backend.services.reference_docs_service import ReferenceDocsService
+
+router = APIRouter(prefix="/api/reference-documents", tags=["reference-documents"])
 
 
 def get_service() -> ReferenceDocsService:
@@ -28,15 +25,12 @@ async def upload_reference_document(
 
 @router.get("")
 def list_reference_documents(
-    category: str | None = None,
-    service: ReferenceDocsService = Depends(get_service),
+    category: str | None = None, service: ReferenceDocsService = Depends(get_service)
 ):
     return service.list_documents(category=category)
 
 
 @router.delete("/{doc_id}")
-def delete_reference_document(
-    doc_id: int, service: ReferenceDocsService = Depends(get_service)
-):
+def delete_reference_document(doc_id: int, service: ReferenceDocsService = Depends(get_service)):
     service.delete_document(doc_id)
     return {"deleted": doc_id}

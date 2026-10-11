@@ -4,7 +4,6 @@ venv/
 **/__pycache__/
 
 
-# runtime data — never commit generated content
 data/app.db
 data/uploads/*
 !data/uploads/.gitkeep
@@ -18,6 +17,5 @@ data/models/*
 !data/models/.gitkeep
 data/vector_index/
 
-# editor / OS
 .vscode/
 .DS_Store

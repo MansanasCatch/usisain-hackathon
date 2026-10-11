@@ -4,7 +4,6 @@ echo ===================================================
 echo             UsisAIn Startup Script
 echo ===================================================
 
-:: 1. Check if Ollama is running or installed
 echo [1/3] Checking Ollama service...
 where ollama >nul 2>&1
 if %errorlevel% neq 0 (
@@ -36,7 +35,6 @@ goto continue_startup
 echo [Ollama] Ollama is up and running!
 
 :continue_startup
-:: 2. Check and activate Virtual Environment
 echo [2/3] Checking virtual environment...
 if not exist "venv\Scripts\activate.bat" (
     echo [Error] Virtual environment not found in 'venv\'.
@@ -48,7 +46,6 @@ if not exist "venv\Scripts\activate.bat" (
 echo [Venv] Activating virtual environment...
 call venv\Scripts\activate.bat
 
-:: 3. Run the backend app
 echo [3/3] Starting backend server on http://localhost:8000...
 echo [Server] Press CTRL+C to stop the server.
 cd backend-api

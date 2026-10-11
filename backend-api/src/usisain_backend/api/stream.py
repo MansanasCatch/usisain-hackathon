@@ -1,10 +1,12 @@
 import json
 import traceback
-from fastapi import APIRouter, UploadFile, File, Form, Request, Depends
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import StreamingResponse
+
+from usisain_backend.data.repositories.errors_repository import ErrorsRepository
 from usisain_backend.extraction.extraction import cleanup_file
 from usisain_backend.orchestration.pipeline import run_pipeline
-from usisain_backend.data.repositories.errors_repository import ErrorsRepository
 from usisain_backend.services.analysis_service import AnalysisService
 
 router = APIRouter(prefix="/api/analyze", tags=["analyze"])
@@ -29,16 +31,11 @@ async def _sse_stream(
     results: dict[str, dict] = {}
     try:
         async for event in run_pipeline(
-            content,
-            language=language,
-            provider=provider,
-            use_ocr=use_ocr,
-            request=request,
+            content, language=language, provider=provider, use_ocr=use_ocr, request=request
         ):
             if event.status in ("completed", "error"):
                 results[f"step{event.step}"] = event.result
             yield f"data: {json.dumps(event.to_dict())}\n\n"
-
         scan_id = service.record_scan(
             channel=channel,
             content_type=content.get("content_type"),
@@ -77,7 +74,6 @@ async def analyze_stream(
     provider, language = service.resolve_provider_and_language(provider, language)
     content = await service.prepare_content(text, file, caption)
     input_summary = (text or caption or (file.filename if file else ""))[:200]
-
     return StreamingResponse(
         _sse_stream(
             request=request,

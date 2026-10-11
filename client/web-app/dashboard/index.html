@@ -16,7 +16,7 @@
     <nav id="header-nav">
       <div class="nav-selectors-group">
         <div class="selectors-row">
-          <!-- Custom LLM Provider Selector -->
+          
           <div class="model-selector-wrapper" id="llm-selector-container">
             <button class="model-selector-trigger" id="llm-trigger" aria-haspopup="listbox" aria-expanded="false">
               <span class="llm-provider-badge"></span>
@@ -65,7 +65,7 @@
             </div>
           </div>
 
-          <!-- Active Model Selector -->
+          
           <div class="model-selector-wrapper" id="ollama-selector-container">
             <button class="model-selector-trigger" id="model-trigger" aria-haspopup="listbox" aria-expanded="false">
               <span class="model-status-indicator"></span>
@@ -73,7 +73,7 @@
               <span class="chevron">▼</span>
             </button>
             <div class="model-selector-dropdown" id="model-dropdown">
-              <!-- Switching overlay loader -->
+              
               <div class="model-switch-overlay" id="model-switch-overlay">
                 <div class="spinner"></div>
                 <div class="loading-text">Switching active model...</div>
@@ -82,7 +82,7 @@
                 <input type="text" id="model-search" placeholder="Search models..." autocomplete="off">
               </div>
               <div class="model-selector-list" id="model-list">
-                <!-- Dynamically populated -->
+                
               </div>
             </div>
           </div>
@@ -112,9 +112,9 @@
       <button data-tab="stepinfo" class="tab-btn">Pipeline Info</button>
     </div>
 
-    <!-- MAIN DASHBOARD VIEW (Overview + Scan History) -->
+    
     <section id="tab-overview">
-      <!-- Stat Cards -->
+      
       <div class="cards" id="summary-cards">
         <div class="card stat-total">
           <span class="icon-badge">🔍</span>
@@ -138,7 +138,7 @@
         </div>
       </div>
 
-      <!-- Charts Grid -->
+      
       <div class="dashboard-grid">
         <div class="chart-box">
           <h3>📈 Scans Over Time</h3>
@@ -154,7 +154,7 @@
         </div>
       </div>
 
-      <!-- Scan History Table -->
+      
       <div class="card table-card">
         <div class="table-header-row">
           <div class="table-title">Scan History & Audit Logs</div>
@@ -188,14 +188,14 @@
               </tr>
             </thead>
             <tbody>
-              <!-- Filled dynamically in JS -->
+              
             </tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- REFERENCE DOCUMENTS VIEW -->
+    
     <section id="tab-refdocs" class="hidden">
       <div class="card refdoc-upload-card">
         <h3 class="refdoc-upload-title">Upload Reference Document</h3>
@@ -217,7 +217,7 @@
       <div id="refdoc-grid"></div>
     </section>
 
-    <!-- AI SETTINGS VIEW (Runtime API Keys & Model Management) -->
+    
     <section id="tab-aisettings" class="hidden">
       <div class="dashboard-stepinfo-header">
         <div>
@@ -231,7 +231,7 @@
         </div>
       </div>
 
-      <!-- Quick Default Provider Bar -->
+      
       <div class="card" style="padding:18px 24px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; border:1px solid var(--border); background:rgba(255,255,255,0.02);">
         <div>
           <div style="font-weight:600; font-size:14px; color:var(--text);">Active Default LLM Provider</div>
@@ -247,10 +247,10 @@
         </div>
       </div>
 
-      <!-- AI Provider Cards Grid -->
+      
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:20px; margin-bottom:24px;">
         
-        <!-- 1. OLLAMA CARD (Default & Fallback) -->
+        
         <div class="card" style="padding:22px; display:flex; flex-direction:column; gap:16px; border-top:3px solid var(--accent); position:relative;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
@@ -288,7 +288,7 @@
           </div>
         </div>
 
-        <!-- 2. GOOGLE GEMINI CARD -->
+        
         <div class="card" style="padding:22px; display:flex; flex-direction:column; gap:16px; border-top:3px solid #3b82f6; position:relative;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
@@ -334,7 +334,7 @@
           </div>
         </div>
 
-        <!-- 3. xAI GROK CARD -->
+        
         <div class="card" style="padding:22px; display:flex; flex-direction:column; gap:16px; border-top:3px solid #10b981; position:relative;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
@@ -386,7 +386,7 @@
 
       </div>
 
-      <!-- TESSERACT OCR OPTIONAL CARD -->
+      
       <div class="card" style="padding:20px; border-left:4px solid var(--warn); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
         <div style="flex:1; min-width:260px;">
           <div style="display:flex; align-items:center; gap:8px;">
@@ -404,7 +404,7 @@
       </div>
     </section>
 
-    <!-- ERROR LOG VIEW -->
+    
     <section id="tab-errors" class="hidden">
       <div class="card table-card">
         <div class="table-header-row">
@@ -431,7 +431,7 @@
       </div>
     </section>
 
-    <!-- PIPELINE STEP INFO VIEW (Preserved structure) -->
+    
     <section id="tab-stepinfo" class="hidden">
       <div class="dashboard-stepinfo-header">
         <h2 class="dashboard-stepinfo-title">Pipeline Architecture & Active Models</h2>
@@ -443,12 +443,12 @@
         Each analysis runs through a 5-step sequential pipeline (Step 1 → 2 → 3 → 4 → 5). Steps execute one after the other — each subsequent step builds on the outputs of the previous ones. Every step has a configurable timeout set in <code>.env</code> via <code>PIPELINE_STEP_TIMEOUT_SECONDS</code>. If a step fails or times out, the error is logged and the pipeline continues.
       </div>
       <div id="stepinfo-cards" class="dashboard-stepinfo-list">
-        <!-- Filled dynamically in JS -->
+        
       </div>
     </section>
   </main>
 
-  <!-- SCAN DETAIL MODAL -->
+  
   <div class="modal" id="detail-modal">
     <div class="modal-content">
       <button class="modal-close" id="modal-close">&times;</button>
@@ -457,12 +457,12 @@
     </div>
   </div>
 
-  <!-- RUN CONTENT ANALYSIS MODAL -->
+  
   <div class="modal" id="analyze-modal">
     <div class="modal-content analyze-modal-content">
       <button class="modal-close" id="analyze-modal-close">&times;</button>
       
-      <!-- STEP 1: INPUT FORM -->
+      
       <div id="analyze-input-stage">
         <h3 class="modal-header-title">⚡ Claim Verification & Visual Forensic Analysis</h3>
         
@@ -510,7 +510,7 @@
                 Use Tesseract-OCR
               </label>
             </div>
-            <!-- Voice selector row (shown when TTS is enabled) -->
+            
             <div id="tts-voice-row" class="dashboard-modal-field dashboard-voice-row hidden">
               <label class="dashboard-modal-label">Voice</label>
               <select id="tts-voice" class="dashboard-modal-select"></select>
@@ -522,7 +522,7 @@
             <textarea id="text-input" placeholder="Paste the claim, message, or caption to check..." rows="4" class="dashboard-textarea"></textarea>
           </div>
 
-          <!-- Drag and Drop Zone -->
+          
           <div class="drag-drop-zone hidden" id="drop-zone">
             <span class="icon">📥</span>
             <span class="title">Drag and drop file here</span>
@@ -530,7 +530,7 @@
             <input type="file" id="file-input" accept="image/*" class="hidden">
           </div>
 
-          <!-- Camera Capture Container -->
+          
           <div id="camera-container" class="dashboard-camera-container">
             <video id="camera-video" autoplay playsinline class="dashboard-camera-video"></video>
             <div class="dashboard-camera-buttons-row">
@@ -549,11 +549,11 @@
         </form>
       </div>
 
-      <!-- STEP 2: LOADING & PIPELINE EXECUTION -->
+      
       <div id="analyze-progress-stage" class="hidden">
         <h3 class="modal-header-title">⚡ Multi-Agent Pipeline Verification</h3>
         
-        <!-- Pipeline Node Graph -->
+        
         <div class="pipeline-visualizer">
           <div class="pipeline-progress-line" id="pipeline-progress-line"></div>
           
@@ -580,7 +580,7 @@
         </div>
 
         <div style="background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:16px; margin-bottom:16px;">
-          <!-- Thumbnail/Snippet Container -->
+          
           <div id="analysis-preview-media" class="hidden" style="flex-shrink: 0; width: 44px; height: 44px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.25);">
             <img id="analysis-preview-thumbnail" src="" style="width: 100%; height: 100%; object-fit: cover;" />
           </div>
@@ -591,7 +591,7 @@
             <div id="analysis-preview-text" style="font-size: 11.5px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic;"></div>
           </div>
           
-          <!-- Spinner / Status Icon -->
+          
           <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;">
             <div id="pipeline-spinner" style="width: 20px; height: 20px; border: 3px solid rgba(99,102,241,0.1); border-top-color: var(--accent-light); border-radius: 50%; animation: spin 1s linear infinite;"></div>
             <span id="pipeline-success-check" class="hidden" style="font-size: 20px; color: var(--good); font-weight: bold;">✓</span>
@@ -600,7 +600,7 @@
 
         <div id="error-banner" class="hidden" style="background:rgba(230,88,79,0.1); border:1px solid var(--bad); border-radius:10px; padding:12px; margin-bottom:16px; color:var(--bad); font-size:12.5px; font-family:monospace; white-space:pre-wrap;"></div>
 
-        <!-- Scrollable step detail blocks -->
+        
         <div class="results-modal-container">
           <div id="step-1" class="step-row"></div>
           <div id="step-2" class="step-row"></div>
@@ -618,7 +618,7 @@
     </div>
   </div>
 
-  <!-- Model switch feedback toast -->
+  
   <div id="model-switch-toast" class="model-switch-toast">
     <span class="toast-icon"></span>
     <span id="model-switch-toast-message">Model updated successfully</span>

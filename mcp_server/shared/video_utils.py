@@ -12,12 +12,10 @@ _whisper_model = None
 
 
 def get_whisper_model():
-    """Lazy-loaded so nothing pays the model-load cost until a video is
-    actually analyzed. Uses the small model on CPU by default — swap to a
-    larger model here if you have a GPU and want better accuracy."""
     global _whisper_model
     if _whisper_model is None:
         from faster_whisper import WhisperModel
+
         _whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
     return _whisper_model
 
@@ -26,12 +24,10 @@ def sample_frames(video_path: str, max_frames: int = 24):
     cap = cv2.VideoCapture(video_path)
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    duration = (total / fps) if fps else 0
-
+    duration = total / fps if fps else 0
     if total <= 0:
         cap.release()
-        return [], 0
-
+        return ([], 0)
     step = max(1, total // max_frames)
     frames = []
     idx = 0
@@ -43,13 +39,13 @@ def sample_frames(video_path: str, max_frames: int = 24):
             frames.append(Image.fromarray(rgb))
         idx += step
     cap.release()
-    return frames, duration
+    return (frames, duration)
 
 
 def transcribe_audio(video_path: str) -> str:
     try:
         model = get_whisper_model()
         segments, _info = model.transcribe(video_path, beam_size=1)
-        return " ".join(seg.text.strip() for seg in segments).strip()
+        return " ".join((seg.text.strip() for seg in segments)).strip()
     except Exception as e:
         return f"[transcription unavailable: {e}]"

@@ -1,4 +1,5 @@
 from typing import Any
+
 from usisain_backend.orchestration.events import STEP_NAMES, StepEvent
 
 
@@ -20,7 +21,4 @@ def skip_remaining_steps(start_step: int, reason: str) -> list[StepEvent]:
 
 
 def format_sse_payload(event: StepEvent) -> dict[str, Any]:
-    return {
-        "event": "step",
-        "data": event.to_json(),
-    }
+    return {"event": "step", "data": event.to_json()}

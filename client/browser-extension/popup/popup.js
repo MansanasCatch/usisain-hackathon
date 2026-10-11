@@ -1,6 +1,6 @@
 const BACKEND = "http://localhost:8000";
 
-// ─── All supported languages per provider ───
+
 const LANGUAGE_MAP = {
   ollama: [
     { value: "english", label: "English" },
@@ -23,7 +23,7 @@ const LANGUAGE_MAP = {
   ],
 };
 
-// ─── DOM references ───
+
 const languageSelect = document.getElementById("language-select");
 const providerBadge = document.getElementById("provider-badge");
 const providerName = document.getElementById("provider-name");
@@ -32,7 +32,7 @@ const btnDashboard = document.getElementById("btn-dashboard");
 const statusEl = document.getElementById("status");
 const historyList = document.getElementById("history");
 
-// ─── Navigation buttons ───
+
 btnAnalyze.addEventListener("click", () => {
   if (typeof chrome !== "undefined" && chrome.tabs) {
     chrome.tabs.create({ url: `${BACKEND}/app/` });
@@ -54,7 +54,7 @@ const ttsToggle = document.getElementById("tts-toggle");
 const ttsVoiceRow = document.getElementById("tts-voice-row");
 const ttsVoiceSelect = document.getElementById("tts-voice-select");
 
-// ─── Voice dropdown population ───
+
 const GTTS_VOICES = [
   { name: "Google TTS - English (United States) (en-US)", lang: "en-US" },
   { name: "Google TTS - English (Great Britain) (en-GB)", lang: "en-GB" },
@@ -64,7 +64,7 @@ const GTTS_VOICES = [
   { name: "Google TTS - Filipino/Tagalog (tl-PH)", lang: "tl-PH" }
 ];
 
-// ─── Voice dropdown population ───
+
 function populateVoiceDropdown() {
   if (!ttsVoiceSelect) return;
   ttsVoiceSelect.innerHTML = "";
@@ -74,7 +74,7 @@ function populateVoiceDropdown() {
     opt.textContent = voice.name;
     ttsVoiceSelect.appendChild(opt);
   }
-  // Restore saved voice
+  
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     chrome.storage.local.get(["selectedVoice"], (data) => {
       if (data.selectedVoice && ttsVoiceSelect.querySelector(`option[value="${CSS.escape(data.selectedVoice)}"]`)) {
@@ -94,7 +94,7 @@ function updateTtsVoiceVisibility() {
 
 populateVoiceDropdown();
 
-// ─── Load saved language, OCR, and TTS preferences ───
+
 if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
   chrome.storage.local.get(["preferredLanguage", "useOcr", "useTts"], (data) => {
     if (data.preferredLanguage) {
@@ -109,7 +109,7 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     updateTtsVoiceVisibility();
   });
 }
-// ─── Sync settings in real-time when changed elsewhere ───
+
 if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.useTts !== undefined) {
@@ -124,21 +124,21 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
   });
 }
 
-// ─── Save language on change ───
+
 languageSelect.addEventListener("change", () => {
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     chrome.storage.local.set({ preferredLanguage: languageSelect.value });
   }
 });
 
-// ─── Save OCR preference on change ───
+
 ocrToggle.addEventListener("change", () => {
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     chrome.storage.local.set({ useOcr: ocrToggle.checked });
   }
 });
 
-// ─── Save TTS preference on change & toggle voice row ───
+
 ttsToggle.addEventListener("change", () => {
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
     chrome.storage.local.set({ useTts: ttsToggle.checked });
@@ -146,7 +146,7 @@ ttsToggle.addEventListener("change", () => {
   updateTtsVoiceVisibility();
 });
 
-// ─── Save selected voice on change ───
+
 if (ttsVoiceSelect) {
   ttsVoiceSelect.addEventListener("change", () => {
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
@@ -155,7 +155,7 @@ if (ttsVoiceSelect) {
   });
 }
 
-// ─── Populate language dropdown based on provider ───
+
 function populateLanguages(provider) {
   const languages = LANGUAGE_MAP[provider] || LANGUAGE_MAP.gemini;
   const currentValue = languageSelect.value;
@@ -168,7 +168,7 @@ function populateLanguages(provider) {
     languageSelect.appendChild(option);
   }
 
-  // Restore saved selection if it's still valid for this provider
+  
   const validValues = languages.map((l) => l.value);
   if (validValues.includes(currentValue)) {
     languageSelect.value = currentValue;
@@ -178,7 +178,7 @@ function populateLanguages(provider) {
   }
 }
 
-// ─── Fetch settings from backend and configure UI ───
+
 let activeProvider = "ollama";
 let activeOllamaModel = "";
 let activeGeminiModel = "";
@@ -236,7 +236,7 @@ async function loadSettings() {
 
     const provider = activeProvider.toLowerCase();
 
-    // Use server-provided language list if available, otherwise use local map
+    
     if (settings.supported_languages && settings.supported_languages[provider]) {
       const serverLangs = settings.supported_languages[provider];
       LANGUAGE_MAP[provider] = serverLangs.map((v) => ({
@@ -252,7 +252,7 @@ async function loadSettings() {
   }
 }
 
-// ─── Verdict helpers ───
+
 function getVerdictClass(verdict) {
   if (!verdict) return "unknown";
   const v = verdict.toLowerCase();
@@ -265,7 +265,7 @@ function getVerdictClass(verdict) {
   return "unknown";
 }
 
-// ─── Load scan history ───
+
 async function loadHistory() {
   try {
     const scans = await fetch(`${BACKEND}/api/scans?limit=15`).then((r) => r.json());
@@ -313,12 +313,12 @@ async function loadHistory() {
   }
 }
 
-// ─── Initialize ───
+
 loadSettings();
 loadHistory();
 initModelSelector();
 
-// ---------- Custom Dropdowns Selector for Extension Popup ----------
+
 async function initModelSelector() {
   const container = document.getElementById("ollama-selector-container");
   const trigger = document.getElementById("model-trigger");
@@ -337,7 +337,7 @@ async function initModelSelector() {
 
   if (!trigger || !dropdown || !searchInput || !listContainer) return;
 
-  // Toggle dropdown on click for model selector
+  
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = trigger.classList.toggle("open");
@@ -355,7 +355,7 @@ async function initModelSelector() {
     }
   });
 
-  // Close dropdown on outside click
+  
   document.addEventListener("click", (e) => {
     if (!container.contains(e.target)) {
       trigger.classList.remove("open");
@@ -364,17 +364,17 @@ async function initModelSelector() {
     }
   });
 
-  // Handle search filtering
+  
   searchInput.addEventListener("input", (e) => {
     renderModelList(e.target.value);
   });
 
-  // Prevent dropdown closing when clicking inside search input
+  
   searchInput.addEventListener("click", (e) => {
     e.stopPropagation();
   });
 
-  // Toggle dropdown on click for LLM selector
+  
   if (llmTrigger && llmDropdown && llmList) {
     llmTrigger.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -395,7 +395,7 @@ async function initModelSelector() {
       }
     });
 
-    // Handle clicks on items in LLM list
+    
     const llmItems = llmList.querySelectorAll(".model-item");
     llmItems.forEach(item => {
       item.addEventListener("click", async (e) => {

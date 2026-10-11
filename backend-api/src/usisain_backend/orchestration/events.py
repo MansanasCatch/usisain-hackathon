@@ -1,11 +1,10 @@
 """events.py — the event shape every pipeline step emits. Small and
 consistent on purpose: the client never has to guess a step's state."""
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 Status = Literal["pending", "in_progress", "completed", "error"]
-
 STEP_NAMES = {
     1: "ai_insights",
     2: "content_analyser",

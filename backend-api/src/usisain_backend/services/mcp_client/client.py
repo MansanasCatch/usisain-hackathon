@@ -7,19 +7,16 @@ them in a thread-pool executor so sync Ollama/httpx calls don't block the
 event loop.
 """
 
-import sys
 import asyncio
+import sys
 import threading
 
 from usisain_backend.core.config import settings
 from usisain_backend.core.request_context import REQUEST_ID
 
-# Make sure the mcp_server package is importable.
-# settings.project_root is always an absolute, resolved Path.
 _mcp_server_root = settings.project_root / "mcp_server"
 if str(_mcp_server_root) not in sys.path:
     sys.path.insert(0, str(_mcp_server_root))
-
 from mcp_server.tools.step1_ai_insights import generate_insight
 from mcp_server.tools.step2_content_analyser import analyze_content
 from mcp_server.tools.step3_legit_or_fake import check_claim
@@ -33,38 +30,28 @@ _TOOL_MAP = {
     "step4_actionable_items": generate_actions,
     "step5_learnings": generate_learnings,
 }
-
-# Executor thread-local context used to transfer request metadata into the
-# worker thread that running tool functions (they run in a ThreadPoolExecutor).
 _EXEC_CTX = threading.local()
 
 
 async def call_tool(tool_name: str, arguments: dict) -> dict:
-    """Call an MCP tool function directly."""
     fn = _TOOL_MAP.get(tool_name)
     if fn is None:
         return {"error": f"Unknown tool: {tool_name}"}
-
-    # Capture current request id (if any) from the async context and
-    # copy it into the executor thread local before invoking the tool.
     req_id = None
     try:
         req_id = REQUEST_ID.get()
     except Exception:
         req_id = None
-
-    # Propagate request id
     try:
         _EXEC_CTX.request_id = req_id
     except Exception:
         pass
-
     if asyncio.iscoroutinefunction(fn):
         result = await fn(**arguments)
     else:
+
         def _run():
             try:
-                # Propagate request id into this worker thread for logging
                 _EXEC_CTX.request_id = req_id
             except Exception:
                 pass
@@ -72,7 +59,6 @@ async def call_tool(tool_name: str, arguments: dict) -> dict:
 
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, _run)
-
     if isinstance(result, dict):
         return result
     return {"raw": str(result)}

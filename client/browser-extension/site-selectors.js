@@ -1,6 +1,6 @@
-// site-selectors.js — per-platform DOM map for finding the post that
-// contains a right-clicked element. Expect to maintain this file as
-// platforms change their markup.
+
+
+
 
 const SITE_CONFIG = {
   "facebook.com": { postContainer: '[role="article"]', captionSelector: '[data-ad-preview="message"], [dir="auto"]' },

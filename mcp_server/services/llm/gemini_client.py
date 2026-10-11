@@ -24,34 +24,29 @@ Behaviour on errors:
        the local Ollama provider so the pipeline never dead-ends.
 """
 
+import asyncio
+import importlib
+import logging
 import os
 import sys
-import time
-import asyncio
-import logging
 import threading
-import importlib
-from pathlib import Path
+import time
 from datetime import datetime, timezone
+from pathlib import Path
 
-# Ensure backend-api/src is discoverable if running inside the repository
 _backend_src = str(Path(__file__).resolve().parents[3] / "backend-api" / "src")
 if _backend_src not in sys.path and os.path.exists(_backend_src):
     sys.path.insert(0, _backend_src)
-
 from .base import LLMProvider
 from .key_pool import KeyPool, mask_key
 
 logger = logging.getLogger(__name__)
-
 DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 GEMINI_REQUEST_TIMEOUT = 120.0
-
 KEY_POOL = KeyPool("GEMINI_API_KEY")
 
 
 def _get_request_id() -> str | None:
-    """Safely obtain current request ID from execution context if running under backend."""
     try:
         mod = sys.modules.get("usisain_backend.services.mcp_client.client")
         if not mod:
@@ -63,7 +58,6 @@ def _get_request_id() -> str | None:
 
 
 def current_model() -> str:
-    """Active Gemini model — read live so runtime switches apply instantly."""
     return (os.environ.get("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL).strip()
 
 
@@ -79,11 +73,6 @@ def safe_print(text: str, prefix: str = "", suffix: str = ""):
             pass
 
 
-# ---------------------------------------------------------------------------
-# Simple in-process token bucket to avoid exceeding the project RPM from this
-# application instance. Configure via GEMINI_RPM_LIMIT in .env (per key).
-# ---------------------------------------------------------------------------
-
 _TOKEN_LOCK = threading.Lock()
 _TOKENS: float | None = None
 _LAST_REFILL = time.time()
@@ -98,11 +87,6 @@ def _rpm_limit() -> int:
 
 
 def _try_consume_token() -> bool:
-    """Attempt to consume one token. Refills fully every 60 seconds.
-
-    This is an in-process limiter and won't coordinate across multiple
-    processes — use Redis/file-lock for cross-process enforcement.
-    """
     global _TOKENS, _LAST_REFILL
     now = time.time()
     limit = _rpm_limit()
@@ -110,7 +94,6 @@ def _try_consume_token() -> bool:
         if _TOKENS is None or now - _LAST_REFILL >= 60:
             _TOKENS = limit
             _LAST_REFILL = now
-        # Never let a lowered limit leave more tokens than allowed
         _TOKENS = min(_TOKENS, limit)
         if _TOKENS > 0:
             _TOKENS -= 1
@@ -119,42 +102,38 @@ def _try_consume_token() -> bool:
 
 
 def _is_quota_error(exc: Exception) -> bool:
-    """Return True if the exception is a Gemini quota/rate-limit error (HTTP 429).
-    Must NOT match 404 model-not-found errors (which contain 'generateContent')."""
     msg = str(exc).lower()
     if "404" in msg and "not found" in msg:
         return False
-    return "429" in msg or "quota" in msg or "resource_exhausted" in msg or "rate limit" in msg
+    return "429" in msg or "quota" in msg or "resource_exhausted" in msg or ("rate limit" in msg)
 
 
 def _is_auth_error(exc: Exception) -> bool:
     msg = str(exc).lower()
-    return any(term in msg for term in ("api key", "invalid key", "403", "unauthorized", "permission", "blocked"))
+    return any(
+        (
+            term in msg
+            for term in ("api key", "invalid key", "403", "unauthorized", "permission", "blocked")
+        )
+    )
 
-
-# ---------------------------------------------------------------------------
-# Provider class
-# ---------------------------------------------------------------------------
 
 class GeminiProvider(LLMProvider):
     name = "gemini"
 
     def __init__(self, api_key: str | None = None, model: str | None = None):
-        # If an explicit key is passed (e.g. "Test connection" in Settings),
-        # use it always. Otherwise keys come from the rotation pool.
         self._explicit_key = (api_key or "").strip() or None
         self.model = (model or "").strip() or current_model()
-        if not self._explicit_key and not KEY_POOL.has_keys():
+        if not self._explicit_key and (not KEY_POOL.has_keys()):
             raise RuntimeError(
-                "GEMINI_API_KEY is not set — add one in Dashboard → AI Settings "
-                "or get one at https://aistudio.google.com/apikey"
+                "GEMINI_API_KEY is not set — add one in Dashboard → AI Settings or get one at https://aistudio.google.com/apikey"
             )
 
-    async def complete(self, system: str, user: str, image_path: str = None, max_tokens: int | None = None) -> str:
+    async def complete(
+        self, system: str, user: str, image_path: str = None, max_tokens: int | None = None
+    ) -> str:
         import google.generativeai as genai
 
-        # Respect the local RPM budget: wait briefly (up to ~10s) for a token
-        # before giving up and letting the factory fall back to Ollama.
         retry_delay = 2.0
         max_limit_retries = 5
         limit_retries = 0
@@ -164,18 +143,17 @@ class GeminiProvider(LLMProvider):
             limit_retries += 1
             logger.warning(
                 "Gemini local RPM limit reached. Sleeping %.1fs and retrying (attempt %d/%d)...",
-                retry_delay, limit_retries, max_limit_retries,
+                retry_delay,
+                limit_retries,
+                max_limit_retries,
             )
             await asyncio.sleep(retry_delay)
-
         if self._explicit_key:
             try:
                 return await self._attempt(genai, system, user, self._explicit_key, image_path)
             except Exception as exc:
                 self._log_error_to_db(exc, mask_key(self._explicit_key), system)
                 raise
-
-        # One key per request; rotate to the next key only on quota/auth errors.
         max_attempts = max(1, len(KEY_POOL.keys()))
         last_exc: Exception | None = None
         for attempt in range(1, max_attempts + 1):
@@ -187,7 +165,13 @@ class GeminiProvider(LLMProvider):
                 return await self._attempt(genai, system, user, api_key, image_path)
             except Exception as exc:
                 last_exc = exc
-                logger.error("Gemini request failed (key=%s, attempt %d/%d): %s", key_hint, attempt, max_attempts, exc)
+                logger.error(
+                    "Gemini request failed (key=%s, attempt %d/%d): %s",
+                    key_hint,
+                    attempt,
+                    max_attempts,
+                    exc,
+                )
                 self._log_error_to_db(exc, key_hint, system)
                 if (_is_quota_error(exc) or _is_auth_error(exc)) and attempt < max_attempts:
                     logger.warning("Quota/auth error — retrying with the next key in the pool...")
@@ -195,18 +179,12 @@ class GeminiProvider(LLMProvider):
                 raise
         raise last_exc or RuntimeError("Gemini request failed")
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
-    async def _attempt(self, genai, system: str, user: str, api_key: str, image_path: str = None) -> str:
-        """Make a single Gemini API call with the given key. Raises on failure."""
+    async def _attempt(
+        self, genai, system: str, user: str, api_key: str, image_path: str = None
+    ) -> str:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(self.model, system_instruction=system)
-
-        # Correlate logs with the pipeline run when the backend set a request id.
         req_id = _get_request_id()
-
         now = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
         rid_msg = f" request_id={req_id}" if req_id else ""
         meta = f"{now} PID:{os.getpid()} TID:{threading.get_ident()}{rid_msg}"
@@ -220,25 +198,18 @@ class GeminiProvider(LLMProvider):
                 safe_print("--- GEMINI ATTACHED IMAGE ---", prefix="INFO:     ")
                 safe_print(image_path)
             safe_print("-----------------------------", prefix="INFO:     ", suffix="\n")
-
         contents = []
         if image_path and os.path.exists(image_path):
             img = _load_image_for_upload(image_path)
             if img is not None:
                 contents.append(img)
         contents.append(user)
-
-        # max_output_tokens is intentionally omitted: some Gemini flash models
-        # truncate responses prematurely (1-3 words) when it is set. The
-        # prompt instructions already keep answers concise.
         response = await model.generate_content_async(
-            contents,
-            request_options={"timeout": GEMINI_REQUEST_TIMEOUT},
+            contents, request_options={"timeout": GEMINI_REQUEST_TIMEOUT}
         )
         return response.text.strip()
 
     def _log_error_to_db(self, exc: Exception, key_hint: str, system: str) -> None:
-        """Silently log the error to the database (best-effort)."""
         try:
             db_mod = sys.modules.get("usisain_backend.data.db")
             if not db_mod:
@@ -255,19 +226,18 @@ class GeminiProvider(LLMProvider):
 
 
 def _load_image_for_upload(image_path: str):
-    """Open an image and downsample/compress it if large to reduce upload size."""
     try:
         from io import BytesIO
+
         from PIL import Image
 
         img = Image.open(image_path)
         max_dim = 1024
-        max_bytes = 200 * 1024  # 200 KB
+        max_bytes = 200 * 1024
         try:
             file_size = os.path.getsize(image_path)
         except OSError:
             file_size = 0
-
         if img.width > max_dim or img.height > max_dim or file_size > max_bytes:
             try:
                 img = img.convert("RGB")
@@ -285,7 +255,6 @@ def _load_image_for_upload(image_path: str):
 
 
 def list_models(api_key: str | None = None) -> list[str]:
-    """Return Gemini model ids that support text generation. Raises on failure."""
     import google.generativeai as genai
 
     key = (api_key or "").strip() or KEY_POOL.next_key()
@@ -302,6 +271,6 @@ def list_models(api_key: str | None = None) -> list[str]:
 
 
 def get_provider(preference: str = "ollama") -> LLMProvider:
-    """Backwards-compatible shim — use services.llm.factory.get_provider."""
     from .factory import get_provider as _factory_get_provider
+
     return _factory_get_provider(preference)

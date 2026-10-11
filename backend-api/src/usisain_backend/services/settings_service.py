@@ -1,10 +1,12 @@
 import os
 import socket
 from typing import Any
+
 from dotenv import load_dotenv
-from usisain_backend.core.config import settings
-from mcp_server.shared.ocr_utils import is_ocr_available
+
 from mcp_server.services.llm.key_pool import mask_key
+from mcp_server.shared.ocr_utils import is_ocr_available
+from usisain_backend.core.config import settings
 
 
 def get_local_ip() -> str:
@@ -22,7 +24,6 @@ def get_ai_settings() -> dict[str, Any]:
     load_dotenv(settings.project_root / ".env", override=True)
     gem_key = os.environ.get("GEMINI_API_KEY", "")
     grok_key = os.environ.get("GROK_API_KEY", "")
-
     return {
         "default_provider": os.environ.get("DEFAULT_LLM_PROVIDER", "ollama"),
         "ocr_available": is_ocr_available(),
@@ -76,25 +77,18 @@ def update_ai_settings(
         p = default_provider.strip().lower()
         if p in ("ollama", "gemini", "grok"):
             settings.persist_env_var("DEFAULT_LLM_PROVIDER", p)
-
     if gemini_api_key is not None:
         settings.persist_env_var("GEMINI_API_KEY", gemini_api_key)
-
     if gemini_model is not None and gemini_model.strip():
         settings.persist_env_var("GEMINI_MODEL", gemini_model)
-
     if grok_api_key is not None:
         settings.persist_env_var("GROK_API_KEY", grok_api_key)
-
     if grok_model is not None and grok_model.strip():
         settings.persist_env_var("GROK_MODEL", grok_model)
-
     if ollama_model is not None and ollama_model.strip():
         settings.persist_env_var("OLLAMA_MODEL", ollama_model)
-
     if ollama_vision_model is not None and ollama_vision_model.strip():
         settings.persist_env_var("OLLAMA_VISION_MODEL", ollama_vision_model)
-
     return {"status": "ok", "settings": get_ai_settings()}
 
 
@@ -114,7 +108,6 @@ def test_api_key(provider: str, api_key: str | None = None) -> dict[str, Any]:
             }
         except Exception as e:
             return {"status": "error", "message": f"Gemini test failed: {e}"}
-
     elif p == "grok":
         from mcp_server.services.llm.grok_client import GrokProvider
 
@@ -123,13 +116,9 @@ def test_api_key(provider: str, api_key: str | None = None) -> dict[str, Any]:
             import asyncio
 
             asyncio.run(prov.complete("Say ok", "test", max_tokens=5))
-            return {
-                "status": "ok",
-                "message": "Grok API key is valid and connected successfully.",
-            }
+            return {"status": "ok", "message": "Grok API key is valid and connected successfully."}
         except Exception as e:
             return {"status": "error", "message": f"Grok test failed: {e}"}
-
     return {"status": "error", "message": f"Unknown provider: {provider}"}
 
 
@@ -147,32 +136,26 @@ def list_ollama_models() -> dict[str, Any]:
             items = raw["models"]
         elif isinstance(raw, list):
             items = raw
-
         for m in items:
-            name = getattr(m, "model", None) or (
-                m.get("model") if isinstance(m, dict) else str(m)
-            )
-            size = getattr(m, "size", None) or (
-                m.get("size", 0) if isinstance(m, dict) else 0
-            )
+            name = getattr(m, "model", None) or (m.get("model") if isinstance(m, dict) else str(m))
+            size = getattr(m, "size", None) or (m.get("size", 0) if isinstance(m, dict) else 0)
             modified_at = getattr(m, "modified_at", None) or (
                 m.get("modified_at") if isinstance(m, dict) else None
             )
-
-            if modified_at and not isinstance(modified_at, str):
+            if modified_at and (not isinstance(modified_at, str)):
                 try:
                     modified_at = modified_at.isoformat()
                 except Exception:
                     modified_at = str(modified_at)
-
-            models_out.append({
-                "name": str(name).strip(),
-                "size_bytes": int(size or 0),
-                "modified_at": str(modified_at or ""),
-            })
+            models_out.append(
+                {
+                    "name": str(name).strip(),
+                    "size_bytes": int(size or 0),
+                    "modified_at": str(modified_at or ""),
+                }
+            )
     except Exception:
         pass
-
     return {
         "models": models_out,
         "active_model": active_model,
@@ -181,9 +164,7 @@ def list_ollama_models() -> dict[str, Any]:
 
 
 def list_grok_models() -> dict[str, Any]:
-    from mcp_server.services.llm.grok_client import (
-        list_grok_models as _list_grok,
-    )
+    from mcp_server.services.llm.grok_client import list_grok_models as _list_grok
 
     try:
         models = _list_grok()

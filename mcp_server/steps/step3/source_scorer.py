@@ -1,4 +1,4 @@
-from mcp_server.constants import SOURCE_TRUST_WEIGHT, SOURCE_SIMILARITY_WEIGHT
+from mcp_server.constants import SOURCE_SIMILARITY_WEIGHT, SOURCE_TRUST_WEIGHT
 from mcp_server.shared.text_utils import domain_trust, text_similarity
 
 
@@ -7,16 +7,15 @@ def score_sources(claim: str, results: list[dict]) -> list[dict]:
     for r in results:
         trust = domain_trust(r["url"])
         similarity = text_similarity(claim, r["snippet"])
-        combined = round(
-            trust * SOURCE_TRUST_WEIGHT + similarity * SOURCE_SIMILARITY_WEIGHT,
-            3,
+        combined = round(trust * SOURCE_TRUST_WEIGHT + similarity * SOURCE_SIMILARITY_WEIGHT, 3)
+        scored.append(
+            {
+                **r,
+                "domain_trust": round(trust, 2),
+                "text_similarity": round(similarity, 2),
+                "combined": combined,
+            }
         )
-        scored.append({
-            **r,
-            "domain_trust": round(trust, 2),
-            "text_similarity": round(similarity, 2),
-            "combined": combined,
-        })
     return sorted(scored, key=lambda s: s["combined"], reverse=True)
 
 

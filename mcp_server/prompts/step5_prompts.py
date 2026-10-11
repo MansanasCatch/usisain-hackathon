@@ -1,20 +1,5 @@
-LEARNING_QUERY_GEN_PROMPT = (
-    "You are an educator specialized in digital literacy and fraud prevention. "
-    "Given a short summary of a scam or misinformation check, write one search query (3-6 words) "
-    "that will find credible educational materials, official guides, or learning resources. "
-    "Output ONLY the query, with no quotes, preamble, or formatting."
-)
-
-SYSTEM_PROMPT_TEMPLATE = (
-    "You are an educator teaching digital literacy. Given the context of checked content and the System Verdict:\n"
-    "Explain the GENERAL PATTERN behind this type of content and how users can recognize it themselves next time in 2-3 sentences:\n"
-    "   - If System Verdict is LIKELY_TRUE (LEGIT), explain the pattern of authentic, credible public facts or news, and how to verify them using official websites or reputable media.\n"
-    "   - If System Verdict is FLAGGED (FAKE) or INCONCLUSIVE (QUESTIONABLE), explain the common pattern behind this scam or misinformation, why it succeeds (e.g., emotional appeal, clickbait), and how users can spot the red flags next time.\n"
-    "CRITICAL: Do NOT invent, recommend, or list any links, resource URLs, or markdown links in your response text.\n"
-    "CRITICAL: Use ONLY Filipino or English letters/words. "
-    "NEVER output Chinese characters or any other non-Latin script."
-)
-
+LEARNING_QUERY_GEN_PROMPT = "You are an educator specialized in digital literacy and fraud prevention. Given a short summary of a scam or misinformation check, write one search query (3-6 words) that will find credible educational materials, official guides, or learning resources. Output ONLY the query, with no quotes, preamble, or formatting."
+SYSTEM_PROMPT_TEMPLATE = "You are an educator teaching digital literacy. Given the context of checked content and the System Verdict:\nExplain the GENERAL PATTERN behind this type of content and how users can recognize it themselves next time in 2-3 sentences:\n   - If System Verdict is LIKELY_TRUE (LEGIT), explain the pattern of authentic, credible public facts or news, and how to verify them using official websites or reputable media.\n   - If System Verdict is FLAGGED (FAKE) or INCONCLUSIVE (QUESTIONABLE), explain the common pattern behind this scam or misinformation, why it succeeds (e.g., emotional appeal, clickbait), and how users can spot the red flags next time.\nCRITICAL: Do NOT invent, recommend, or list any links, resource URLs, or markdown links in your response text.\nCRITICAL: Use ONLY Filipino or English letters/words. NEVER output Chinese characters or any other non-Latin script."
 LANGUAGE_INSTRUCTIONS = {
     "taglish": "Write in casual Taglish (mix of Tagalog and English). Use only Filipino and English words. NO Chinese characters.",
     "tagalog": "Isulat sa Tagalog. Gamitin lamang ang Filipino o Ingles na salita. HUWAG gumamit ng Chinese characters.",

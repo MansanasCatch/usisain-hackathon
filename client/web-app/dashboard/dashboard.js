@@ -11,7 +11,7 @@ window.loadErrors = loadErrors;
 window.loadStepInfo = loadStepInfo;
 window.loadAISettingsTab = loadAISettingsTab;
 
-// ---------- Tab Switcher ----------
+
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -31,7 +31,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   });
 });
 
-// ---------- Settings & Global Configuration ----------
+
 let pipelineTimeoutSeconds = 120;
 let maxReferenceDocSizeMb = 10;
 let supportedLanguages = {
@@ -126,30 +126,30 @@ function populateVoiceDropdown() {
   }
 }
 
-// ---------- Overview Stats & Visual Charts ----------
+
 async function loadOverview() {
   try {
     const summary = await ApiClient.getSummary();
     
-    // Calculate custom metrics from summary verdict counts
+    
     const verdicts = summary.by_verdict || {};
     const safeCount = (verdicts.likely_true || 0) + (verdicts.likely_authentic || 0);
     const warnCount = verdicts.inconclusive || 0;
     const badCount = (verdicts.flagged || 0) + (verdicts.likely_edited || 0) + (verdicts.likely_ai_generated || 0);
 
-    // Update Top Stat Cards with count values
+    
     document.getElementById("val-total-scans").textContent = summary.total_scans || 0;
     document.getElementById("val-safe-scans").textContent = safeCount;
     document.getElementById("val-warn-scans").textContent = warnCount;
     document.getElementById("val-bad-scans").textContent = badCount;
     window.lastTotalScans = summary.total_scans || 0;
 
-    // Load Trend Stats
+    
     const trend = await ApiClient.getTrends(30);
     const days = [...new Set(trend.map(t => t.day))].sort();
     const channels = [...new Set(trend.map(t => t.channel))];
     
-    // Core visual palette
+    
     const colors = { extension: "#6366f1", webapp: "#f59e0b", api: "#10b981" };
     const chartColorsGlow = {
       extension: "rgba(99, 102, 241, 0.15)",
@@ -167,19 +167,19 @@ async function loadOverview() {
   }
 }
 
-// ---------- Scan History Table & Filters ----------
+
 async function loadScans() {
   const channel = document.getElementById("filter-channel").value;
   const limit = document.getElementById("limit-scans").value;
   const searchQuery = document.getElementById("search-scans").value.toLowerCase();
   
-  // Fetch slightly more to filter client side if searching
+  
   const fetchLimit = searchQuery ? 100 : Number(limit);
   const scans = await ApiClient.getScans({ channel, limit: fetchLimit });
   const tbody = document.querySelector("#scans-table tbody");
   tbody.innerHTML = "";
 
-  // Apply search query locally
+  
   const filteredScans = scans.filter(s => {
     if (!searchQuery) return true;
     const summary = (s.input_summary || "").toLowerCase();
@@ -188,7 +188,7 @@ async function loadScans() {
     return summary.includes(searchQuery) || verdict.includes(searchQuery) || type.includes(searchQuery);
   });
 
-  // Limit display to set limit
+  
   const displayScans = filteredScans.slice(0, Number(limit));
 
   if (displayScans.length === 0) {
@@ -213,7 +213,7 @@ async function loadScans() {
   }
 }
 
-// Bind Filter Event Listeners
+
 document.getElementById("refresh-scans").addEventListener("click", loadScans);
 document.getElementById("filter-channel").addEventListener("change", loadScans);
 document.getElementById("limit-scans").addEventListener("change", loadScans);
@@ -227,7 +227,7 @@ document.getElementById("clear-scans").addEventListener("click", async () => {
   }
 });
 
-// ---------- JSON Result Detail Modal ----------
+
 function openModal(rawJson) {
   try {
     document.getElementById("modal-body").textContent = JSON.stringify(JSON.parse(rawJson), null, 2);
@@ -241,14 +241,14 @@ document.getElementById("modal-close").addEventListener("click", () => {
   document.getElementById("detail-modal").classList.remove("open");
 });
 
-// Reference documents module events
+
 bindRefDocsEvents(() => maxReferenceDocSizeMb, ApiClient);
 
-// Error logs module events
+
 bindErrorLogEvents(openModal, ApiClient);
 
 
-// ---------- NEW ANALYZE MODAL SYSTEM ----------
+
 const STEP_LABELS = {
   1: "AI Insights", 2: "Content Analyser", 3: "Authenticity",
   4: "Actionable Items", 5: "Learnings",
@@ -335,7 +335,7 @@ function openAnalyzeModal() {
 function closeAnalyzeModal() {
   analyzeModal.classList.remove("open");
   window.ttsPlayer.stop();
-  // Refresh stats in case we completed runs
+  
   loadOverview();
   loadScans();
   loadErrors();
@@ -350,10 +350,10 @@ cancelVoiceBtn.addEventListener("click", () => {
   cancelVoiceBtn.classList.add("hidden");
 });
 
-// Dropzone click -> file select
+
 dropZone.addEventListener("click", () => fileInput.click());
 
-// Drag events
+
 dropZone.addEventListener("dragover", (e) => {
   e.preventDefault();
   dropZone.classList.add("dragover");
@@ -557,7 +557,7 @@ function updateFormFields() {
 
 modeSelect.addEventListener("change", updateFormFields);
 
-// Camera event listeners binding
+
 const captureBtnElement = document.getElementById("camera-capture-btn");
 const retryBtnElement = document.getElementById("camera-retry-btn");
 if (captureBtnElement) captureBtnElement.addEventListener("click", capturePhoto);
@@ -582,7 +582,7 @@ ttsReplay.addEventListener("click", () => {
   }
 });
 
-// ---------- Multi-Step Execution State Managers ----------
+
 const activeTimers = {};
 
 function clearTimerForStep(step) {
@@ -624,7 +624,7 @@ function updatePipelineNode(step, status) {
   if (!node) return;
   node.className = "pipeline-node " + status;
   
-  // Set progress bar line width
+  
   let pct = 0;
   if (status === "active") {
     pct = (step - 1) * 20 + 10;
@@ -655,7 +655,7 @@ function initStepRows() {
   errorBanner.classList.add("hidden");
   errorBanner.textContent = "";
   
-  // Set up preview in progress stage
+  
   const previewTextContainer = document.getElementById("analysis-preview-text");
   const previewMediaContainer = document.getElementById("analysis-preview-media");
   const previewThumb = document.getElementById("analysis-preview-thumbnail");
@@ -687,7 +687,7 @@ function initStepRows() {
   for (let step = 1; step <= 5; step++) {
     clearTimerForStep(step);
     
-    // Reset visual pipeline nodes
+    
     const node = document.getElementById(`node-${step}`);
     if (node) node.className = "pipeline-node";
     

@@ -20,20 +20,20 @@ const PRECACHE_ASSETS = [
   "/app/icons/icon-512-maskable.png"
 ];
 
-// Install Event: open cache and populate with static assets
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log("[Service Worker] Precaching static resources");
-        // Use cache.addAll to store the static resources
+        
         return cache.addAll(PRECACHE_ASSETS);
       })
       .then(() => self.skipWaiting())
   );
 });
 
-// Activate Event: clear out old caches
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -49,16 +49,16 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Fetch Event: handle routing strategies based on request type
+
 self.addEventListener("fetch", (event) => {
-  // Only intercept HTTP/HTTPS schemes (ignore chrome-extension, etc.)
+  
   if (!event.request.url.startsWith("http")) return;
 
   const url = new URL(event.request.url);
 
-  // 1. API Endpoints (Network First, fall back to Cache when offline)
+  
   if (url.pathname.includes("/api/")) {
-    // Only cache GET API responses (skip POST switches, uploads, etc.)
+    
     if (event.request.method !== "GET") {
       event.respondWith(fetch(event.request));
       return;
@@ -83,7 +83,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 2. Static Assets & Pages (Stale-While-Revalidate strategy)
+  
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)

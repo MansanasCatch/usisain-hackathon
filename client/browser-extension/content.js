@@ -1,14 +1,14 @@
-// content.js — runs in the page. Handles two jobs:
-//   1. Tracking the right-clicked element and extracting page/post context.
-//   2. Rendering the progressive 5-step results panel as events stream in
-//      from background.js (which does the actual fetch to the backend).
+
+
+
+
 
 let lastRightClickedEl = null;
 const extensionSpokenCompletes = {};
 document.addEventListener("contextmenu", (e) => { lastRightClickedEl = e.target; }, true);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Ping/pong — lets the background script know we're already injected
+  
   if (message.action === "ping") {
     sendResponse({ pong: true });
     return;
@@ -56,7 +56,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     
     if (message.action === "fetch-and-resize") {
-      // message: { action: 'fetch-and-resize', url, maxDim, quality }
+      
       const { url, maxDim = 1024, quality = 0.75 } = message;
       (async () => {
         try {
@@ -108,7 +108,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "pipeline-error") { showPanelError(message.error); return; }
 });
 
-// ---------- results panel — enterprise UI ----------
+
 
 const STEP_LABELS = {
   1: "AI Insights", 2: "Content Analyser", 3: "Authenticity",
@@ -120,7 +120,7 @@ const STEP_ICONS = { 1: "💡", 2: "🔬", 3: "✅", 4: "🎯", 5: "📚" };
 let pipelineTimeoutSeconds = 120;
 const activeTimers = {};
 
-// ─── Inject scoped stylesheet (once) ───
+
 function injectPanelStyles() {
   if (document.getElementById("usisain-panel-styles")) return;
   const style = document.createElement("style");
@@ -479,7 +479,7 @@ function clearTimerForStep(step) {
   }
 }
 
-// Temporary banner helpers
+
 function showTemporaryBanner(text) {
   let banner = document.getElementById('usisain-temp-banner');
   if (!banner) {
@@ -515,7 +515,7 @@ async function resizeBlobToDataUrl(blob, maxDim = 1024, quality = 0.75) {
         if (maxSide > maxDim) scale = maxDim / maxSide;
         if (scale >= 1) {
           URL.revokeObjectURL(url);
-          // return original blob as dataURL
+          
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result);
           reader.readAsDataURL(blob);
@@ -563,7 +563,7 @@ function showPanel(previewText, previewImageUrl) {
   injectPanelStyles();
   ttsPlayer.stop();
   document.getElementById("usisain-panel")?.remove();
-  // Clear any active timers from a previous run
+  
   for (let step = 1; step <= 5; step++) {
     clearTimerForStep(step);
   }
@@ -571,7 +571,7 @@ function showPanel(previewText, previewImageUrl) {
   const panel = document.createElement("div");
   panel.id = "usisain-panel";
 
-  // ── Header ──
+  
   const header = document.createElement("div");
   header.className = "usisain-header";
   header.innerHTML = `
@@ -623,7 +623,7 @@ function showPanel(previewText, previewImageUrl) {
   };
   panel.appendChild(header);
 
-  // Setup TTS Controls
+  
   const ttsToggle = header.querySelector("#usisain-tts-toggle");
   const ttsVoice = header.querySelector("#usisain-tts-voice");
   const ttsReplay = header.querySelector("#usisain-tts-replay");
@@ -691,7 +691,7 @@ function showPanel(previewText, previewImageUrl) {
 
   panel.updateVoiceUI = updateDropdowns;
 
-  // Dragging logic on header
+  
   let isDragging = false;
   let startX = 0;
   let startY = 0;
@@ -748,7 +748,7 @@ function showPanel(previewText, previewImageUrl) {
     }
   }
 
-  // ── Preview container ──
+  
   if (previewImageUrl) {
     const previewContainer = document.createElement("div");
     previewContainer.className = "usisain-preview-box";
@@ -768,7 +768,7 @@ function showPanel(previewText, previewImageUrl) {
     panel.appendChild(previewContainer);
   }
 
-  // ── Steps container ──
+  
   const stepsContainer = document.createElement("div");
   stepsContainer.className = "usisain-steps-container";
 
@@ -1378,7 +1378,7 @@ class TTSPlayer {
     this._isPlaying = false;
 
     // Also tell the backend to stop any server-side speaker playback
-    fetch("http://localhost:8000/api/tts/stop", { method: "POST" }).catch(() => {});
+    fetch("http:
   }
 }
 

@@ -11,10 +11,12 @@ Create typed dataclasses in `mcp_server/steps/base.py` extending `BaseStep`:
 from dataclasses import dataclass
 from typing import Any
 
+
 @dataclass
 class Step6Input:
     claim_text: str
     metadata: dict[str, Any]
+
 
 @dataclass
 class Step6Output:
@@ -27,6 +29,7 @@ Create `mcp_server/steps/step6/step.py`:
 
 ```python
 from mcp_server.steps.base import BaseStep, Step6Input, Step6Output
+
 
 class Step6(BaseStep[Step6Input, Step6Output]):
     async def run(self, input_data: Step6Input) -> Step6Output:
@@ -49,6 +52,7 @@ Implement the abstract interface in `mcp_server/services/llm/provider_name.py`:
 ```python
 from mcp_server.services.llm.base import BaseLLMProvider
 
+
 class CustomProvider(BaseLLMProvider):
     def __init__(self, api_key: str, model: str):
         self.api_key = api_key
@@ -66,6 +70,7 @@ Add the provider to `mcp_server/services/llm/factory.py`:
 
 ```python
 from mcp_server.core.enums import Provider
+
 
 def get_provider(provider_type: Provider):
     if provider_type == Provider.CUSTOM:

@@ -1,10 +1,11 @@
 from typing import Any
+
 from usisain_backend.data.repositories.connection import get_db_connection
-from usisain_backend.data.repositories.scans_repository import ScansRepository
+from usisain_backend.data.repositories.errors_repository import ErrorsRepository
 from usisain_backend.data.repositories.reference_docs_repository import (
     ReferenceDocsRepository,
 )
-from usisain_backend.data.repositories.errors_repository import ErrorsRepository
+from usisain_backend.data.repositories.scans_repository import ScansRepository
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS scans (
@@ -78,9 +79,7 @@ def insert_scan(
     )
 
 
-def get_scans(
-    channel: str | None = None, limit: int = 20, offset: int = 0
-) -> list[dict[str, Any]]:
+def get_scans(channel: str | None = None, limit: int = 20, offset: int = 0) -> list[dict[str, Any]]:
     return _scans_repo.get_all(channel=channel, limit=limit, offset=offset)
 
 
@@ -95,9 +94,7 @@ def get_trend(days: int = 30) -> list[dict[str, Any]]:
 def insert_reference_document(
     name: str, category: str, image_path: str, notes: str | None = None
 ) -> int:
-    return _ref_docs_repo.insert(
-        name=name, category=category, image_path=image_path, notes=notes
-    )
+    return _ref_docs_repo.insert(name=name, category=category, image_path=image_path, notes=notes)
 
 
 def get_reference_documents(category: str | None = None) -> list[dict[str, Any]]:

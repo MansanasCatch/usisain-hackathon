@@ -1,23 +1,25 @@
-import sys
 import os
+import sys
+
 from fastapi import APIRouter
+
 from usisain_backend.api.schemas.settings import (
-    UpdateAISettingsRequest,
-    TestKeyRequest,
-    SwitchModelRequest,
-    SwitchProviderRequest,
     SwitchGeminiRequest,
     SwitchGrokRequest,
-)
-from usisain_backend.services.settings_service import (
-    get_ai_settings,
-    update_ai_settings,
-    test_api_key,
-    list_ollama_models,
-    list_grok_models,
-    get_local_ip,
+    SwitchModelRequest,
+    SwitchProviderRequest,
+    TestKeyRequest,
+    UpdateAISettingsRequest,
 )
 from usisain_backend.core.config import settings
+from usisain_backend.services.settings_service import (
+    get_ai_settings,
+    get_local_ip,
+    list_grok_models,
+    list_ollama_models,
+    test_api_key,
+    update_ai_settings,
+)
 
 router = APIRouter(tags=["settings"])
 
@@ -92,17 +94,10 @@ def switch_ollama_model(req: SwitchModelRequest):
 
 
 @router.post("/api/settings/switch-provider")
-def switch_provider(
-    req: SwitchProviderRequest | None = None, provider: str | None = None
-):
-    chosen = (
-        req.provider if req and req.provider else provider or ""
-    ).strip().lower()
+def switch_provider(req: SwitchProviderRequest | None = None, provider: str | None = None):
+    chosen = (req.provider if req and req.provider else provider or "").strip().lower()
     if chosen not in ("ollama", "gemini", "grok"):
-        return {
-            "status": "error",
-            "message": "Invalid provider. Supported: ollama, gemini, grok",
-        }
+        return {"status": "error", "message": "Invalid provider. Supported: ollama, gemini, grok"}
     settings.persist_env_var("DEFAULT_LLM_PROVIDER", chosen)
     return {"status": "ok", "active_provider": chosen}
 
@@ -112,10 +107,7 @@ def switch_gemini_model(req: SwitchGeminiRequest):
     new_model = req.model.strip()
     if new_model:
         settings.persist_env_var("GEMINI_MODEL", new_model)
-    return {
-        "status": "ok",
-        "active_model": os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"),
-    }
+    return {"status": "ok", "active_model": os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")}
 
 
 @router.post("/api/settings/switch-grok-model")
@@ -123,10 +115,7 @@ def switch_grok_model(req: SwitchGrokRequest):
     new_model = req.model.strip()
     if new_model:
         settings.persist_env_var("GROK_MODEL", new_model)
-    return {
-        "status": "ok",
-        "active_model": os.environ.get("GROK_MODEL", "gpt-oss-120b"),
-    }
+    return {"status": "ok", "active_model": os.environ.get("GROK_MODEL", "gpt-oss-120b")}
 
 
 @router.get("/api/grok/models")

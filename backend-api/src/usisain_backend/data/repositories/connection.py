@@ -1,6 +1,7 @@
 import sqlite3
 from contextlib import contextmanager
 from typing import Generator
+
 from usisain_backend.core.config import settings
 
 

@@ -1,11 +1,10 @@
 from typing import Any
+
 from usisain_backend.data.repositories.connection import get_db_connection
 
 
 class ReferenceDocsRepository:
-    def insert(
-        self, name: str, category: str, image_path: str, notes: str | None = None
-    ) -> int:
+    def insert(self, name: str, category: str, image_path: str, notes: str | None = None) -> int:
         with get_db_connection() as conn:
             cur = conn.execute(
                 """INSERT INTO reference_documents (name, category, image_path, notes)

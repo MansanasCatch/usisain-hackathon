@@ -1,7 +1,8 @@
-from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
+
+from usisain_backend.core.config import settings
 from usisain_backend.extraction.extraction import cleanup_file
 from usisain_backend.orchestration.pipeline import run_pipeline_blocking
-from usisain_backend.core.config import settings
 from usisain_backend.services.analysis_service import AnalysisService
 
 router = APIRouter(prefix="/api/analyze", tags=["analyze"])
@@ -25,7 +26,6 @@ async def analyze(
 ):
     provider, language = service.resolve_provider_and_language(provider, language)
     content = await service.prepare_content(text, file, caption)
-
     try:
         results = await run_pipeline_blocking(
             content, language=language, provider=provider, use_ocr=use_ocr

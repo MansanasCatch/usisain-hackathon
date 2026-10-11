@@ -1,9 +1,14 @@
 from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from usisain_backend.services.tts.speech_synthesizer import synthesize, stop_playback, generate_audio
 from usisain_backend.core.config import settings
+from usisain_backend.services.tts.speech_synthesizer import (
+    generate_audio,
+    stop_playback,
+    synthesize,
+)
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 
@@ -12,8 +17,7 @@ router = APIRouter(prefix="/api/tts", tags=["tts"])
 def text_to_speech(text: str, language: str = "english", voice: str = None):
     if not settings.tts_enabled:
         raise HTTPException(
-            status_code=400,
-            detail="Text-to-speech is disabled in configuration settings."
+            status_code=400, detail="Text-to-speech is disabled in configuration settings."
         )
     path = synthesize(text, language, voice)
     return FileResponse(path, media_type="audio/wav", filename=Path(path).name)
@@ -21,18 +25,15 @@ def text_to_speech(text: str, language: str = "english", voice: str = None):
 
 @router.post("/generate")
 def generate_speech(text: str, language: str = "english", voice: str = None):
-    """Generate TTS audio and return it as an MP3 stream for browser playback.
-    This endpoint does NOT play through the server speakers — the browser plays it."""
     if not settings.tts_enabled:
         raise HTTPException(
-            status_code=400,
-            detail="Text-to-speech is disabled in configuration settings."
+            status_code=400, detail="Text-to-speech is disabled in configuration settings."
         )
     audio_bytes = generate_audio(text, language, voice)
     return StreamingResponse(
         audio_bytes,
         media_type="audio/mpeg",
-        headers={"Content-Disposition": "inline; filename=speech.mp3"}
+        headers={"Content-Disposition": "inline; filename=speech.mp3"},
     )
 
 

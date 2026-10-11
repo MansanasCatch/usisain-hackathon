@@ -1,8 +1,8 @@
-// background.js — registers the right-click menu, builds the request,
-// and streams the backend's SSE response into the content script's panel.
+
+
 
 const BACKEND = "http://localhost:8000";
-const DEFAULT_LANGUAGE = "english"; // fallback if no language saved in chrome.storage yet
+const DEFAULT_LANGUAGE = "english"; 
 
 const activeTabAbortControllers = new Map();
 
@@ -22,7 +22,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  // Use a parent menu item so sub-items nest under one entry
+  
   chrome.contextMenus.create({
     id: "usisain-parent",
     title: "UsisAIn — Trust  Fraud Detector",
@@ -35,21 +35,17 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 
-// ---------------------------------------------------------------------------
-// Helpers to ensure the content script is loaded before sending messages
-// ---------------------------------------------------------------------------
 
-/**
- * Injects site-selectors.js + content.js into `tabId` if they aren't already
- * loaded. Uses a "ping" message: if the content script responds, it's alive;
- * otherwise we inject it with chrome.scripting.executeScript().
- */
+
+
+
+
 async function ensureContentScript(tabId) {
   try {
     const response = await chrome.tabs.sendMessage(tabId, { action: "ping" });
-    if (response && response.pong) return; // already alive
+    if (response && response.pong) return; 
   } catch {
-    // content script not loaded — inject it
+    
   }
 
   try {
@@ -57,7 +53,7 @@ async function ensureContentScript(tabId) {
       target: { tabId },
       files: ["site-selectors.js", "content.js"],
     });
-    // Give the content script a moment to initialize its listener
+    
     await new Promise(resolve => setTimeout(resolve, 100));
   } catch (err) {
     console.warn("[UsisAIn] Could not inject content script:", err.message);
@@ -65,10 +61,7 @@ async function ensureContentScript(tabId) {
   }
 }
 
-/**
- * Safely send a message to a tab's content script, ensuring it's injected first.
- * Returns null if the message can't be delivered (instead of throwing).
- */
+
 async function safeSendMessage(tabId, message) {
   try {
     await ensureContentScript(tabId);
@@ -80,9 +73,9 @@ async function safeSendMessage(tabId, message) {
 }
 
 
-// ---------------------------------------------------------------------------
-// Context menu handler
-// ---------------------------------------------------------------------------
+
+
+
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return;
@@ -120,7 +113,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }
       
       if (dataUrl) {
-        // Send screenshot back to content script to crop it with canvas
+        
         const cropRes = await safeSendMessage(tab.id, {
           action: "crop-screenshot",
           dataUrl: dataUrl,
@@ -135,7 +128,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }
       }
       
-      // Append text as caption if we have an image file, otherwise as text
+      
       if (extractedData.selectedText) {
         if (form.has("file")) {
           form.append("caption", extractedData.selectedText);
@@ -149,11 +142,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       try {
         await streamAnalysis(tab.id, form, previewText, previewImageUrl);
       } finally {
-        // Clear upload banner
+        
         try { await safeSendMessage(tab.id, { action: 'upload-end' }); } catch (e) { }
       }
     } else {
-      // Ensure content script is injected, then ask it for page context
+      
       const context = await safeSendMessage(tab.id, { action: "get-context", srcUrl: info.srcUrl });
       if (!context) {
         console.error("[UsisAIn] Could not get context from content script.");
@@ -201,17 +194,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         }
       }
 
-      // Notify content script we're starting the upload (for UI banner)
+      
       try {
         await safeSendMessage(tab.id, { action: 'upload-start' });
       } catch (e) {
-        // ignore
+        
       }
 
       try {
         await streamAnalysis(tab.id, form, previewText, previewImageUrl);
       } finally {
-        // Clear upload banner
+        
         try { await safeSendMessage(tab.id, { action: 'upload-end' }); } catch (e) { }
       }
     }
@@ -224,12 +217,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 
-// ---------------------------------------------------------------------------
-// Fetch helper — asks the content script to fetch a cross-origin resource
-// ---------------------------------------------------------------------------
+
+
+
 
 async function fetchAsBlob(tabId, url) {
-  // Deprecated: kept for backward compatibility
+  
   const res = await safeSendMessage(tabId, { action: "fetch-as-dataurl", url });
   if (!res || res.error) throw new Error(res?.error || "Failed to fetch resource from page");
   return await (await fetch(res.dataUrl)).blob();
@@ -243,9 +236,9 @@ async function fetchAndResizeBlob(tabId, url, maxDim = 1024, quality = 0.75) {
 }
 
 
-// ---------------------------------------------------------------------------
-// SSE stream — sends backend results to the content script panel step by step
-// ---------------------------------------------------------------------------
+
+
+
 
 async function getBackendSettings() {
   try {
@@ -258,7 +251,7 @@ async function getBackendSettings() {
 }
 
 async function streamAnalysis(tabId, form, previewText, previewImageUrl) {
-  // If there's an existing active AbortController for this tab, abort it first
+  
   if (activeTabAbortControllers.has(tabId)) {
     console.log(`[UsisAIn] Aborting existing analysis stream for tab ${tabId}`);
     try {
@@ -275,7 +268,7 @@ async function streamAnalysis(tabId, form, previewText, previewImageUrl) {
   const settings = await getBackendSettings();
   const selectedLanguage = form.get("language") || "english";
 
-  // Get local settings first
+  
   let useTts = false;
   let selectedVoice = null;
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
@@ -330,7 +323,7 @@ async function streamAnalysis(tabId, form, previewText, previewImageUrl) {
 
         try {
           const payload = JSON.parse(frame.slice(6));
-          if (payload.done) continue; // final marker, nothing to render
+          if (payload.done) continue; 
           if (payload.error && !payload.step) {
             await safeSendMessage(tabId, { action: "pipeline-error", error: payload.error });
             continue;

@@ -1,10 +1,10 @@
 from usisain_backend.api.schemas.settings import (
-    UpdateAISettingsRequest,
-    TestKeyRequest,
-    SwitchModelRequest,
-    SwitchProviderRequest,
     SwitchGeminiRequest,
     SwitchGrokRequest,
+    SwitchModelRequest,
+    SwitchProviderRequest,
+    TestKeyRequest,
+    UpdateAISettingsRequest,
 )
 
 __all__ = [

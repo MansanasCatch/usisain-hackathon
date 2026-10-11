@@ -1,7 +1,7 @@
-// sse_client.js — consumes the backend's /api/analyze/stream response.
-// Shared by analyze.js. EventSource can't be used here because the
-// request is a POST with file uploads — this reads the raw stream
-// instead, same technique as the browser extension's background.js.
+
+
+
+
 
 async function streamAnalyze(formData, onEvent, backendUrl = "") {
   const response = await fetch(`${backendUrl}/api/analyze/stream`, { method: "POST", body: formData });
@@ -30,7 +30,7 @@ async function streamAnalyze(formData, onEvent, backendUrl = "") {
         continue;
       }
       if (payload.error && !payload.step) {
-        // Top-level system error (e.g. quota exceeded, server crash)
+        
         onEvent({ systemError: payload.error });
         continue;
       }

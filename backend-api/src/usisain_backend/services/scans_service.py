@@ -1,4 +1,5 @@
 from typing import Any
+
 from usisain_backend.data.repositories.scans_repository import ScansRepository
 
 
