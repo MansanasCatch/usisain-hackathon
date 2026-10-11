@@ -54,15 +54,24 @@ client/web-app ────────────┘         │              
                                                              Vector DB: Local RAG cache
 ```
 
-- **`backend-api/`** — API gateway and orchestration layer.
+- **`backend-api/`** — API gateway and orchestration layer (`usisain_backend/`).
+  - `api/`: Domain-specific routers (`analyze`, `stream`, `scans`, `settings`, `reference_docs`, `errors`, `tts`).
+  - `services/`: Encapsulated business logic services consumed via FastAPI `Depends`.
+  - `orchestration/`: Pipeline decomposition (`step_runner`, `event_formatter`, `aggregator`, `pipeline`).
+  - `data/repositories/`: Context-managed SQLite repositories for scans, reference documents, and error logs.
+  - `core/`: Pydantic `BaseSettings` centralized configuration and system enums.
   - Streams step-by-step results in real time over SSE (`/api/analyze/stream`).
   - Returns aggregated JSON results for non-streaming callers (`/api/analyze`).
   - Generates speech from verified summaries (`/api/tts`).
   - Exposes runtime AI settings management (`/api/settings/ai`, `/api/settings/test-key`).
   - Directly serves the web application and dashboard at `/app` and `/app/dashboard`.
-- **`mcp_server/`** — Sequential 5-step pipeline. Registered as MCP tools and executed in-process inside the backend.
+- **`mcp_server/`** — Modular 5-step pipeline registered as MCP tools and executed in-process inside the backend.
+  - `steps/`: Typed dataclass inputs and outputs for Steps 1 through 5.
+  - `prompts/`: Isolated LLM prompt definitions.
+  - `services/llm/`: Standardized provider hierarchy (`BaseLLMProvider`, `OllamaProvider`, `GeminiProvider`, `GrokProvider`, `FallbackProvider`, `KeyPool`).
+  - `constants.py`: Centralized scoring weights, thresholds, and forensic parameters.
 - **`client/browser-extension/`** — Desktop browser extension. Right-click text, images, or video, or use the interactive **Usisain Snipping Tool** to crop any webpage region. Includes active LLM provider and model switcher in the popup.
-- **`client/web-app/`** — Zero-build vanilla HTML5/CSS3/JavaScript client. Includes interactive verification modal, 30-day analytics, error logs, reference document RAG manager, and a dedicated **AI Settings** control center.
+- **`client/web-app/`** — Zero-build vanilla HTML5/CSS3/JavaScript ES modules client. Includes interactive verification modal, 30-day analytics, error logs, reference document RAG manager, and a dedicated **AI Settings** control center.
 
 ---
 
