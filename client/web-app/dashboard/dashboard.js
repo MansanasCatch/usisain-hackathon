@@ -43,10 +43,12 @@ let activeProvider = "ollama";
 let activeOllamaModel = "";
 let activeGeminiModel = "";
 let activeGrokModel = "gpt-oss-120b";
+let isGroqActive = false;
 
 async function loadSettings() {
   try {
     const settings = await ApiClient.getSettings();
+    isGroqActive = !!settings?.is_groq;
     if (settings?.server_ip) {
       const serverIpVal = document.getElementById("server-ip-value");
       if (serverIpVal) {
@@ -1193,10 +1195,18 @@ async function initModelSelector() {
       } else if (activeProvider === "gemini") {
         activeLlmName.textContent = "Gemini (Cloud)";
       } else if (activeProvider === "grok") {
-        activeLlmName.textContent = "Grok (xAI)";
+        activeLlmName.textContent = isGroqActive ? "Groq (Cloud)" : "Grok (xAI)";
       } else {
         activeLlmName.textContent = activeProvider.toUpperCase();
       }
+    }
+    const grokLabel = document.getElementById("llm-grok-label");
+    if (grokLabel) {
+      grokLabel.textContent = isGroqActive ? "Groq (Cloud)" : "Grok (xAI)";
+    }
+    const grokSublabel = document.getElementById("llm-grok-sublabel");
+    if (grokSublabel) {
+      grokSublabel.textContent = isGroqActive ? "Fast LPU Cloud" : "xAI Online";
     }
     const settingDefault = document.getElementById("setting-default-provider");
     if (settingDefault && activeProvider) {
@@ -1441,6 +1451,7 @@ async function initModelSelector() {
     if (!name) return false;
     const p = (provider || activeProvider || "").toLowerCase();
     if (p === "gemini") return true;
+    if (p === "grok" && isGroqActive) return false;
     const lower = name.toLowerCase();
     const visionKeywords = ["vision", "moondream", "llava", "bakllava", "minicpm-v", "scout", "multimodal", "-vl", "vl-", "_vl"];
     return visionKeywords.some(kw => lower.includes(kw));
@@ -1502,10 +1513,6 @@ async function initModelSelector() {
           </div>
           <div class="model-item-details">
             ${model.size_bytes ? `<span class="model-item-size">${formatSize(model.size_bytes)}</span>` : '<span class="model-item-size">API Cloud</span>'}
-            <span class="model-item-divider">•</span>
-            <span class="model-capability-badge ${supportsVision ? 'cap-vision' : 'cap-text'}" title="${supportsVision ? 'Supports multimodal visual inspection & text' : 'Pure text model'}">
-              ${supportsVision ? '👁️ Vision + Text' : '📝 Text Only'}
-            </span>
             ${relativeTime ? `<span class="model-item-divider">•</span> <span class="model-item-modified">Modified ${relativeTime}</span>` : ''}
           </div>
         </div>

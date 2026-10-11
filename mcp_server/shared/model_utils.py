@@ -1,5 +1,9 @@
 """Model capability and vision support utilities."""
 
+import os
+
+from mcp_server.services.llm.key_pool import parse_keys
+
 VISION_KEYWORDS = (
     "vision",
     "moondream",
@@ -22,7 +26,8 @@ def model_supports_vision(provider: str, model_name: str | None = None) -> bool:
     """Determine whether a given model supports multimodal image vision.
 
     - Google Gemini: All active Gemini models natively support vision.
-    - Grok / Groq / OpenAI compatible: Vision models have vision/multimodal keywords.
+    - Grok (xAI): Vision models (e.g. grok-2-vision) support vision with xAI keys.
+    - Groq Cloud: Keys starting with gsk_ route to text-only open models (gpt-oss-120b, etc.).
     - Ollama: Models with vision architectures (moondream, llava, etc.) support vision.
     """
     p = (provider or "").strip().lower()
@@ -32,6 +37,12 @@ def model_supports_vision(provider: str, model_name: str | None = None) -> bool:
     name = (model_name or "").strip().lower()
     if not name:
         return False
+
+    if p == "grok":
+        keys = parse_keys(os.environ.get("GROK_API_KEY", ""))
+        if keys and keys[0].startswith("gsk_"):
+            # Groq Cloud endpoints currently do not support vision on chat models
+            return False
 
     return any(k in name for k in VISION_KEYWORDS)
 

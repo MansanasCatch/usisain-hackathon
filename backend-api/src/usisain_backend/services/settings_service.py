@@ -43,7 +43,8 @@ def get_ai_settings() -> dict[str, Any]:
             ],
         },
         "grok": {
-            "has_key": bool(grok_key.strip()),
+            "has_key": bool(str(grok_key or "").strip()),
+            "is_groq": str(grok_key or "").strip().startswith("gsk_"),
             "key_masked": mask_key(grok_key),
             "model": os.environ.get("GROK_MODEL", "gpt-oss-120b"),
             "available_models": list_grok_models()["models"] if not grok_key.strip() else [m["name"] for m in list_grok_models().get("models", [])],
@@ -304,6 +305,70 @@ def list_grok_models() -> dict[str, Any]:
     ]
     from mcp_server.services.llm.grok_client import KEY_POOL, current_model, list_models
 
+    raw_key = (KEY_POOL.next_key() if KEY_POOL.has_keys() else "") or os.environ.get("GROK_API_KEY", "") or ""
+    active_key = str(raw_key).strip()
+    is_groq = active_key.startswith("gsk_")
+    cur_model = current_model()
+
+    if is_groq:
+        if cur_model.startswith("grok-") or "vision" in cur_model.lower():
+            cur_model = "openai/gpt-oss-120b"
+            settings.persist_env_var("GROK_MODEL", cur_model)
+
+        groq_fallback = [
+            {
+                "name": "openai/gpt-oss-120b",
+                "description": "High-capacity reasoning & open-weight architecture (Recommended)",
+                "supports_vision": False,
+                "capability": "Text Only",
+            },
+            {
+                "name": "openai/gpt-oss-20b",
+                "description": "Fast lightweight reasoning",
+                "supports_vision": False,
+                "capability": "Text Only",
+            },
+            {
+                "name": "qwen/qwen3.8-27b",
+                "description": "High-performance general reasoning",
+                "supports_vision": False,
+                "capability": "Text Only",
+            },
+            {
+                "name": "allam-2-7b",
+                "description": "Compact multilingual model",
+                "supports_vision": False,
+                "capability": "Text Only",
+            },
+        ]
+
+        if active_key:
+            try:
+                live = list_models(active_key)
+                models_out = [
+                    {
+                        "name": m,
+                        "description": "Groq Cloud Fast LPU Inference",
+                        "supports_vision": False,
+                        "capability": "Text Only",
+                    }
+                    for m in live
+                    if not m.startswith("whisper") and "guard" not in m
+                ]
+                if models_out:
+                    return {
+                        "models": models_out,
+                        "active_model": cur_model,
+                        "provider_type": "groq",
+                    }
+            except Exception:
+                pass
+        return {
+            "models": groq_fallback,
+            "active_model": cur_model,
+            "provider_type": "groq",
+        }
+
     if KEY_POOL.has_keys():
         try:
             live = list_models()
@@ -316,7 +381,7 @@ def list_grok_models() -> dict[str, Any]:
                 }
                 for m in live
             ]
-            return {"models": models_out, "active_model": current_model()}
+            return {"models": models_out, "active_model": cur_model, "provider_type": "xai"}
         except Exception:
             pass
-    return {"models": default_models, "active_model": current_model()}
+    return {"models": default_models, "active_model": cur_model, "provider_type": "xai"}

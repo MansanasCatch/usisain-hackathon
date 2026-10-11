@@ -54,11 +54,14 @@ def get_settings():
     cur_ollama = os.environ.get("OLLAMA_MODEL", settings.ollama_model)
     cur_ollama_v = os.environ.get("OLLAMA_VISION_MODEL", settings.ollama_vision_model)
     cur_grok = os.environ.get("GROK_MODEL", settings.grok_model)
+    grok_key = str(os.environ.get("GROK_API_KEY", "") or "").strip()
+    is_groq = grok_key.startswith("gsk_")
     return {
         "default_llm_provider": cur_provider,
         "default_language": settings.default_language,
         "tts_enabled": settings.tts_enabled,
         "ocr_available": is_ocr_available(),
+        "is_groq": is_groq,
         "gemini_model": cur_gemini,
         "ollama_model": cur_ollama,
         "ollama_vision_model": cur_ollama_v,

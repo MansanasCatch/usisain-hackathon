@@ -177,9 +177,9 @@ class GrokProvider(LLMProvider):
         target_url = "https://api.groq.com/openai/v1/chat/completions" if is_groq else GROK_API_URL
 
         from mcp_server.shared.model_utils import model_supports_vision
-        model_has_vision = model_supports_vision("grok", self.model)
+        model_has_vision = False if is_groq else model_supports_vision("grok", self.model)
 
-        if image_path and os.path.exists(image_path) and model_has_vision:
+        if image_path and os.path.exists(image_path) and model_has_vision and not is_groq:
             img_b64 = _encode_image_b64(image_path)
             if img_b64:
                 messages.append(

@@ -1,7 +1,8 @@
-function isVisionModel(name, provider) {
+function isVisionModel(name, provider, isGroq) {
   if (!name) return false;
   const p = (provider || "").toLowerCase();
   if (p === "gemini") return true;
+  if (p === "grok" && isGroq) return false;
   const lower = name.toLowerCase();
   const visionKeywords = ["vision", "moondream", "llava", "bakllava", "minicpm-v", "scout", "multimodal", "-vl", "vl-", "_vl"];
   return visionKeywords.some(kw => lower.includes(kw));
@@ -18,7 +19,8 @@ export async function loadStepInfo(apiClient) {
   const provider = settings.default_llm_provider || "ollama";
   const bannerBadge = document.getElementById("banner-provider-badge");
   if (bannerBadge) {
-    bannerBadge.textContent = provider.toUpperCase();
+    const pLabel = (provider === "grok" && settings.is_groq) ? "GROQ (CLOUD)" : provider.toUpperCase();
+    bannerBadge.textContent = pLabel;
     bannerBadge.className = `badge ${provider === "gemini" ? "likely_true" : (provider === "grok" ? "likely_true" : "inconclusive")}`;
   }
 
@@ -147,7 +149,7 @@ export async function loadStepInfo(apiClient) {
 
   for (const step of steps) {
     const activeModel = typeof step.get_model === "function" ? step.get_model(settings) : "";
-    const isVis = isVisionModel(activeModel, provider);
+    const isVis = isVisionModel(activeModel, provider, settings.is_groq);
     const substepsHtml = (step.substeps || []).map(s =>
       `<li style="margin-bottom:6px; line-height:1.5;">${s}</li>`
     ).join("");
