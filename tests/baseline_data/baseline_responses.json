@@ -1,0 +1,1609 @@
+{
+  "GET /docs": {
+    "status_code": 200,
+    "content_type": "text/html; charset=utf-8",
+    "is_json": false,
+    "body": "\n    <!DOCTYPE html>\n    <html>\n    <head>\n    <link type=\"text/css\" rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css\">\n    <link rel=\"shortcut icon\" href=\"https://"
+  },
+  "GET /openapi.json": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": {
+      "openapi": "3.1.0",
+      "info": {
+        "title": "UsisAIn Backend",
+        "version": "0.1.0"
+      },
+      "paths": {
+        "/api/analyze/stream": {
+          "post": {
+            "tags": [
+              "analyze"
+            ],
+            "summary": "Analyze Stream",
+            "operationId": "analyze_stream_api_analyze_stream_post",
+            "requestBody": {
+              "content": {
+                "multipart/form-data": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Body_analyze_stream_api_analyze_stream_post"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/analyze": {
+          "post": {
+            "tags": [
+              "analyze"
+            ],
+            "summary": "Analyze",
+            "operationId": "analyze_api_analyze_post",
+            "requestBody": {
+              "content": {
+                "multipart/form-data": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Body_analyze_api_analyze_post"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/scans": {
+          "get": {
+            "tags": [
+              "scans"
+            ],
+            "summary": "List Scans",
+            "operationId": "list_scans_api_scans_get",
+            "parameters": [
+              {
+                "name": "channel",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Channel"
+                }
+              },
+              {
+                "name": "limit",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "integer",
+                  "default": 20,
+                  "title": "Limit"
+                }
+              },
+              {
+                "name": "offset",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "integer",
+                  "default": 0,
+                  "title": "Offset"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "delete": {
+            "tags": [
+              "scans"
+            ],
+            "summary": "Clear All Scans",
+            "operationId": "clear_all_scans_api_scans_delete",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/scans/stats/summary": {
+          "get": {
+            "tags": [
+              "scans"
+            ],
+            "summary": "Stats Summary",
+            "operationId": "stats_summary_api_scans_stats_summary_get",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/scans/stats/trends": {
+          "get": {
+            "tags": [
+              "scans"
+            ],
+            "summary": "Stats Trends",
+            "operationId": "stats_trends_api_scans_stats_trends_get",
+            "parameters": [
+              {
+                "name": "days",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "integer",
+                  "default": 30,
+                  "title": "Days"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/tts": {
+          "post": {
+            "tags": [
+              "tts"
+            ],
+            "summary": "Text To Speech",
+            "operationId": "text_to_speech_api_tts_post",
+            "parameters": [
+              {
+                "name": "text",
+                "in": "query",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "title": "Text"
+                }
+              },
+              {
+                "name": "language",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "default": "english",
+                  "title": "Language"
+                }
+              },
+              {
+                "name": "voice",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "title": "Voice"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/tts/generate": {
+          "post": {
+            "tags": [
+              "tts"
+            ],
+            "summary": "Generate Speech",
+            "description": "Generate TTS audio and return it as an MP3 stream for browser playback.\nThis endpoint does NOT play through the server speakers \u2014 the browser plays it.",
+            "operationId": "generate_speech_api_tts_generate_post",
+            "parameters": [
+              {
+                "name": "text",
+                "in": "query",
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "title": "Text"
+                }
+              },
+              {
+                "name": "language",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "default": "english",
+                  "title": "Language"
+                }
+              },
+              {
+                "name": "voice",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "string",
+                  "title": "Voice"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/tts/stop": {
+          "post": {
+            "tags": [
+              "tts"
+            ],
+            "summary": "Stop Speech",
+            "operationId": "stop_speech_api_tts_stop_post",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/reference-documents": {
+          "post": {
+            "tags": [
+              "reference-documents"
+            ],
+            "summary": "Upload Reference Document",
+            "operationId": "upload_reference_document_api_reference_documents_post",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "multipart/form-data": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Body_upload_reference_document_api_reference_documents_post"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "get": {
+            "tags": [
+              "reference-documents"
+            ],
+            "summary": "List Reference Documents",
+            "operationId": "list_reference_documents_api_reference_documents_get",
+            "parameters": [
+              {
+                "name": "category",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Category"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/reference-documents/{doc_id}": {
+          "delete": {
+            "tags": [
+              "reference-documents"
+            ],
+            "summary": "Delete Reference Document",
+            "operationId": "delete_reference_document_api_reference_documents__doc_id__delete",
+            "parameters": [
+              {
+                "name": "doc_id",
+                "in": "path",
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "title": "Doc Id"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/errors": {
+          "get": {
+            "tags": [
+              "errors"
+            ],
+            "summary": "List Errors",
+            "operationId": "list_errors_api_errors_get",
+            "parameters": [
+              {
+                "name": "limit",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "integer",
+                  "default": 50,
+                  "title": "Limit"
+                }
+              },
+              {
+                "name": "offset",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "type": "integer",
+                  "default": 0,
+                  "title": "Offset"
+                }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "delete": {
+            "tags": [
+              "errors"
+            ],
+            "summary": "Clear All Errors",
+            "operationId": "clear_all_errors_api_errors_delete",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/errors/stats": {
+          "get": {
+            "tags": [
+              "errors"
+            ],
+            "summary": "Error Stats",
+            "operationId": "error_stats_api_errors_stats_get",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/": {
+          "get": {
+            "summary": "Root",
+            "operationId": "root__get",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/debug/env": {
+          "get": {
+            "summary": "Debug Env",
+            "operationId": "debug_env_api_debug_env_get",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/settings": {
+          "get": {
+            "summary": "Get Settings",
+            "description": "Always re-read .env so the dashboard reflects the latest config.",
+            "operationId": "get_settings_api_settings_get",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/settings/ai": {
+          "get": {
+            "summary": "Get Ai Settings",
+            "description": "Detailed runtime configuration of all AI providers, keys, and models.",
+            "operationId": "get_ai_settings_api_settings_ai_get",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          },
+          "post": {
+            "summary": "Update Ai Settings",
+            "description": "Update API keys, active models, or default provider in runtime and persist to .env.",
+            "operationId": "update_ai_settings_api_settings_ai_post",
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/UpdateAISettingsRequest"
+                  }
+                }
+              },
+              "required": true
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/settings/test-key": {
+          "post": {
+            "summary": "Test Api Key",
+            "description": "Test Gemini or Grok key at runtime.",
+            "operationId": "test_api_key_api_settings_test_key_post",
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TestKeyRequest"
+                  }
+                }
+              },
+              "required": true
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/ollama/models": {
+          "get": {
+            "summary": "List Ollama Models",
+            "description": "List all locally available Ollama models with their sizes and modification dates.",
+            "operationId": "list_ollama_models_api_ollama_models_get",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/ollama/switch-model": {
+          "post": {
+            "summary": "Switch Ollama Model",
+            "description": "Switch the active Ollama text model and persist to .env.",
+            "operationId": "switch_ollama_model_api_ollama_switch_model_post",
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SwitchModelRequest"
+                  }
+                }
+              },
+              "required": true
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/settings/switch-provider": {
+          "post": {
+            "summary": "Switch Provider",
+            "description": "Switch the default LLM provider and persist to .env.",
+            "operationId": "switch_provider_api_settings_switch_provider_post",
+            "parameters": [
+              {
+                "name": "provider",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Provider"
+                }
+              }
+            ],
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/SwitchProviderRequest"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Req"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/settings/switch-gemini-model": {
+          "post": {
+            "summary": "Switch Gemini Model",
+            "description": "Switch the active Gemini model and persist to .env.",
+            "operationId": "switch_gemini_model_api_settings_switch_gemini_model_post",
+            "parameters": [
+              {
+                "name": "model",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Model"
+                }
+              }
+            ],
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/SwitchGeminiRequest"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Req"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/settings/switch-grok-model": {
+          "post": {
+            "summary": "Switch Grok Model",
+            "description": "Switch the active Grok model and persist to .env.",
+            "operationId": "switch_grok_model_api_settings_switch_grok_model_post",
+            "parameters": [
+              {
+                "name": "model",
+                "in": "query",
+                "required": false,
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Model"
+                }
+              }
+            ],
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/SwitchGrokRequest"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Req"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              },
+              "422": {
+                "description": "Validation Error",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/api/grok/models": {
+          "get": {
+            "summary": "List Grok Models",
+            "description": "List Grok models either dynamically from xAI API if key exists, or defaults.",
+            "operationId": "list_grok_models_api_grok_models_get",
+            "responses": {
+              "200": {
+                "description": "Successful Response",
+                "content": {
+                  "application/json": {
+                    "schema": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "components": {
+        "schemas": {
+          "Body_analyze_api_analyze_post": {
+            "properties": {
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Text"
+              },
+              "file": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "File"
+              },
+              "caption": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Caption"
+              },
+              "language": {
+                "type": "string",
+                "title": "Language",
+                "default": "english"
+              },
+              "provider": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Provider"
+              },
+              "channel": {
+                "type": "string",
+                "title": "Channel",
+                "default": "webapp"
+              },
+              "source_url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Source Url"
+              },
+              "use_ocr": {
+                "type": "boolean",
+                "title": "Use Ocr",
+                "default": true
+              }
+            },
+            "type": "object",
+            "title": "Body_analyze_api_analyze_post"
+          },
+          "Body_analyze_stream_api_analyze_stream_post": {
+            "properties": {
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Text"
+              },
+              "file": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "File"
+              },
+              "caption": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Caption"
+              },
+              "language": {
+                "type": "string",
+                "title": "Language",
+                "default": "english"
+              },
+              "provider": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Provider"
+              },
+              "source_url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Source Url"
+              },
+              "use_ocr": {
+                "type": "boolean",
+                "title": "Use Ocr",
+                "default": true
+              }
+            },
+            "type": "object",
+            "title": "Body_analyze_stream_api_analyze_stream_post"
+          },
+          "Body_upload_reference_document_api_reference_documents_post": {
+            "properties": {
+              "file": {
+                "type": "string",
+                "format": "binary",
+                "title": "File"
+              },
+              "name": {
+                "type": "string",
+                "title": "Name"
+              },
+              "category": {
+                "type": "string",
+                "title": "Category"
+              },
+              "notes": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Notes"
+              }
+            },
+            "type": "object",
+            "required": [
+              "file",
+              "name",
+              "category"
+            ],
+            "title": "Body_upload_reference_document_api_reference_documents_post"
+          },
+          "HTTPValidationError": {
+            "properties": {
+              "detail": {
+                "items": {
+                  "$ref": "#/components/schemas/ValidationError"
+                },
+                "type": "array",
+                "title": "Detail"
+              }
+            },
+            "type": "object",
+            "title": "HTTPValidationError"
+          },
+          "SwitchGeminiRequest": {
+            "properties": {
+              "model": {
+                "type": "string",
+                "title": "Model",
+                "default": ""
+              }
+            },
+            "type": "object",
+            "title": "SwitchGeminiRequest"
+          },
+          "SwitchGrokRequest": {
+            "properties": {
+              "model": {
+                "type": "string",
+                "title": "Model",
+                "default": ""
+              }
+            },
+            "type": "object",
+            "title": "SwitchGrokRequest"
+          },
+          "SwitchModelRequest": {
+            "properties": {
+              "model": {
+                "type": "string",
+                "title": "Model"
+              }
+            },
+            "type": "object",
+            "required": [
+              "model"
+            ],
+            "title": "SwitchModelRequest"
+          },
+          "SwitchProviderRequest": {
+            "properties": {
+              "provider": {
+                "type": "string",
+                "title": "Provider"
+              }
+            },
+            "type": "object",
+            "required": [
+              "provider"
+            ],
+            "title": "SwitchProviderRequest"
+          },
+          "TestKeyRequest": {
+            "properties": {
+              "provider": {
+                "type": "string",
+                "title": "Provider"
+              },
+              "api_key": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Api Key"
+              }
+            },
+            "type": "object",
+            "required": [
+              "provider"
+            ],
+            "title": "TestKeyRequest"
+          },
+          "UpdateAISettingsRequest": {
+            "properties": {
+              "default_provider": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Default Provider"
+              },
+              "gemini_api_key": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Gemini Api Key"
+              },
+              "gemini_model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Gemini Model"
+              },
+              "grok_api_key": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Grok Api Key"
+              },
+              "grok_model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Grok Model"
+              },
+              "ollama_model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Ollama Model"
+              },
+              "ollama_vision_model": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Ollama Vision Model"
+              }
+            },
+            "type": "object",
+            "title": "UpdateAISettingsRequest"
+          },
+          "ValidationError": {
+            "properties": {
+              "loc": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                },
+                "type": "array",
+                "title": "Location"
+              },
+              "msg": {
+                "type": "string",
+                "title": "Message"
+              },
+              "type": {
+                "type": "string",
+                "title": "Error Type"
+              }
+            },
+            "type": "object",
+            "required": [
+              "loc",
+              "msg",
+              "type"
+            ],
+            "title": "ValidationError"
+          }
+        }
+      }
+    }
+  },
+  "GET /app/": {
+    "status_code": 200,
+    "content_type": "text/html; charset=utf-8",
+    "is_json": false,
+    "body": "<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n  <meta charset=\"UTF-8\">\r\n  <meta http-equiv=\"refresh\" content=\"0; url=/app/dashboard/?analyze=true\">\r\n  <title>UsisAIn \u2014 Redirecting...</title>\r\n  <link rel"
+  },
+  "GET /app/dashboard/": {
+    "status_code": 200,
+    "content_type": "text/html; charset=utf-8",
+    "is_json": false,
+    "body": "<!DOCTYPE html>\r\n<html lang=\"en\">\r\n<head>\r\n  <meta charset=\"UTF-8\">\r\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n  <title>UsisAIn \u2014 Premium Analytics Dashboard</title>\r\n "
+  },
+  "GET /api/scans": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": [
+      {
+        "id": 4,
+        "channel": "extension",
+        "content_type": "text",
+        "created_at": "2026-10-11 12:54:04",
+        "source_url": null,
+        "input_summary": "Streaming test claim",
+        "language": "english",
+        "step2_score": null,
+        "step3_verdict": null,
+        "raw_result_json": "{\"step1\": {\"insight\": \"Stream insight\"}}"
+      },
+      {
+        "id": 3,
+        "channel": "webapp",
+        "content_type": "text",
+        "created_at": "2026-10-11 12:54:04",
+        "source_url": null,
+        "input_summary": "Test claim message",
+        "language": "english",
+        "step2_score": null,
+        "step3_verdict": "likely_true",
+        "raw_result_json": "{\"step1\": {\"insight\": \"Test insight\", \"explanation\": \"Test insight\"}, \"step2\": {\"applicable\": false}, \"step3\": {\"score\": 80, \"verdict\": \"likely_true\", \"explanation\": \"Legit\"}, \"step4\": {\"actions\": [\"Keep calm\"]}, \"step5\": {\"learnings\": \"Study hard\", \"resources\": []}}"
+      },
+      {
+        "id": 2,
+        "channel": "extension",
+        "content_type": "text",
+        "created_at": "2026-10-11 12:53:13",
+        "source_url": null,
+        "input_summary": "Streaming test claim",
+        "language": "english",
+        "step2_score": null,
+        "step3_verdict": null,
+        "raw_result_json": "{\"step1\": {\"insight\": \"Stream insight\"}}"
+      },
+      {
+        "id": 1,
+        "channel": "webapp",
+        "content_type": "text",
+        "created_at": "2026-10-11 12:53:13",
+        "source_url": null,
+        "input_summary": "Test claim message",
+        "language": "english",
+        "step2_score": null,
+        "step3_verdict": "likely_true",
+        "raw_result_json": "{\"step1\": {\"insight\": \"Test insight\", \"explanation\": \"Test insight\"}, \"step2\": {\"applicable\": false}, \"step3\": {\"score\": 80, \"verdict\": \"likely_true\", \"explanation\": \"Legit\"}, \"step4\": {\"actions\": [\"Keep calm\"]}, \"step5\": {\"learnings\": \"Study hard\", \"resources\": []}}"
+      }
+    ]
+  },
+  "GET /api/scans/stats/summary": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": {
+      "total_scans": 4,
+      "by_channel": {
+        "extension": 2,
+        "webapp": 2
+      },
+      "by_verdict": {
+        "null": 2,
+        "likely_true": 2
+      }
+    }
+  },
+  "GET /api/scans/stats/trends": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": [
+      {
+        "day": "2026-10-11",
+        "channel": "extension",
+        "c": 2,
+        "avg_score": null
+      },
+      {
+        "day": "2026-10-11",
+        "channel": "webapp",
+        "c": 2,
+        "avg_score": null
+      }
+    ]
+  },
+  "GET /api/settings/ai": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": {
+      "default_provider": "ollama",
+      "ocr_available": false,
+      "gemini": {
+        "has_key": false,
+        "key_masked": "",
+        "model": "gemini-3.5-flash",
+        "available_models": [
+          "gemini-2.5-flash",
+          "gemini-2.5-pro",
+          "gemini-2.0-flash",
+          "gemini-2.0-pro-exp-02-05",
+          "gemini-1.5-flash",
+          "gemini-1.5-pro"
+        ]
+      },
+      "grok": {
+        "has_key": true,
+        "key_masked": "gsk_\u20263XfZ",
+        "model": "gpt-oss-120b",
+        "available_models": [
+          "gpt-oss-120b",
+          "grok-4.1-fast",
+          "grok-4.7",
+          "grok-4.6",
+          "grok-4.5",
+          "grok-4.3",
+          "grok-4.20-reasoning",
+          "grok-beta",
+          "grok-2-vision-1212"
+        ]
+      },
+      "ollama": {
+        "model": "llama3.2:1b",
+        "vision_model": "moondream",
+        "host": "http://localhost:11434"
+      }
+    }
+  },
+  "POST /api/settings/test-key": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": {
+      "status": "error",
+      "message": "Unknown provider: invalid"
+    }
+  },
+  "GET /api/reference-documents": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": []
+  },
+  "GET /api/errors": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": [
+      {
+        "id": 1,
+        "step": null,
+        "step_name": "grok_client",
+        "error_type": "api",
+        "error_msg": "Grok API call failed: Grok API returned HTTP 401: Unauthorized",
+        "details": "Model: gpt-oss-120b\nKey hint: dumm\u2026-key\nSystem: system prompt",
+        "created_at": "2026-10-11 12:07:37"
+      }
+    ]
+  },
+  "GET /api/errors/stats": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": {
+      "total_errors": 1,
+      "by_type": {
+        "api": 1
+      },
+      "by_step": {}
+    }
+  },
+  "GET /api/grok/models": {
+    "status_code": 200,
+    "content_type": "application/json",
+    "is_json": true,
+    "body": {
+      "models": [
+        {
+          "name": "gpt-oss-120b",
+          "description": "High-capacity reasoning & open-weight architecture (Recommended)"
+        },
+        {
+          "name": "grok-4.1-fast",
+          "description": "High-speed, cost-efficient reasoning & chat"
+        },
+        {
+          "name": "grok-4.7",
+          "description": "Flagship high-capability model"
+        },
+        {
+          "name": "grok-4.6",
+          "description": "Advanced reasoning model"
+        },
+        {
+          "name": "grok-4.5",
+          "description": "High-performance general model"
+        },
+        {
+          "name": "grok-4.3",
+          "description": "Long-context reasoning"
+        },
+        {
+          "name": "grok-4.20-reasoning",
+          "description": "Specialized deep reasoning model"
+        },
+        {
+          "name": "grok-beta",
+          "description": "Public beta preview"
+        },
+        {
+          "name": "grok-2-vision-1212",
+          "description": "Dedicated multimodal vision model"
+        }
+      ],
+      "active_model": "gpt-oss-120b"
+    }
+  }
+}
