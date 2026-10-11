@@ -1,22 +1,28 @@
-"""errors.py — API endpoints for the error log / error catcher history."""
-
-from fastapi import APIRouter
-from usisain_backend.data import db
+from fastapi import APIRouter, Depends
+from usisain_backend.services.errors_service import ErrorsService
 
 router = APIRouter(prefix="/api/errors", tags=["errors"])
 
 
+def get_service() -> ErrorsService:
+    return ErrorsService()
+
+
 @router.get("")
-def list_errors(limit: int = 50, offset: int = 0):
-    return db.get_errors(limit=limit, offset=offset)
+def list_errors(
+    limit: int = 50,
+    offset: int = 0,
+    service: ErrorsService = Depends(get_service),
+):
+    return service.get_errors(limit=limit, offset=offset)
 
 
 @router.get("/stats")
-def error_stats():
-    return db.get_error_stats()
+def error_stats(service: ErrorsService = Depends(get_service)):
+    return service.get_stats()
 
 
 @router.delete("")
-def clear_all_errors():
-    count = db.clear_errors()
+def clear_all_errors(service: ErrorsService = Depends(get_service)):
+    count = service.clear()
     return {"deleted": count}

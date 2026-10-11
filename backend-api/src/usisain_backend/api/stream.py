@@ -1,45 +1,64 @@
-"""stream.py — SSE endpoint. Streams one event per pipeline step the
-instant it completes, instead of buffering the whole response.
-Temp files are cleaned up after the pipeline finishes."""
-
 import json
-import os
 import traceback
-from fastapi import APIRouter, UploadFile, File, Form, Request
+from fastapi import APIRouter, UploadFile, File, Form, Request, Depends
 from fastapi.responses import StreamingResponse
-
-from usisain_backend.extraction.extraction import extract_text, extract_image, extract_video, extract_post, cleanup_file
+from usisain_backend.extraction.extraction import cleanup_file
 from usisain_backend.orchestration.pipeline import run_pipeline
-from usisain_backend.data import db
-from usisain_backend.core.config import settings
+from usisain_backend.data.repositories.errors_repository import ErrorsRepository
+from usisain_backend.services.analysis_service import AnalysisService
 
 router = APIRouter(prefix="/api/analyze", tags=["analyze"])
+_errors_repo = ErrorsRepository()
 
 
-async def _sse_stream(request: Request, content: dict, channel: str, language: str, provider: str,
-                       source_url: str | None, input_summary: str | None, use_ocr: bool = True):
+def get_service() -> AnalysisService:
+    return AnalysisService()
+
+
+async def _sse_stream(
+    request: Request,
+    content: dict,
+    channel: str,
+    language: str,
+    provider: str,
+    source_url: str | None,
+    input_summary: str | None,
+    use_ocr: bool,
+    service: AnalysisService,
+):
     results: dict[str, dict] = {}
     try:
-        async for event in run_pipeline(content, language=language, provider=provider, use_ocr=use_ocr, request=request):
+        async for event in run_pipeline(
+            content,
+            language=language,
+            provider=provider,
+            use_ocr=use_ocr,
+            request=request,
+        ):
             if event.status in ("completed", "error"):
                 results[f"step{event.step}"] = event.result
             yield f"data: {json.dumps(event.to_dict())}\n\n"
 
-        scan_id = db.insert_scan(
-            channel=channel, content_type=content.get("content_type"), results=results,
-            source_url=source_url, input_summary=input_summary, language=language,
+        scan_id = service.record_scan(
+            channel=channel,
+            content_type=content.get("content_type"),
+            results=results,
+            source_url=source_url,
+            input_summary=input_summary,
+            language=language,
         )
         yield f"data: {json.dumps({'done': True, 'scan_id': scan_id})}\n\n"
     except Exception as exc:
         err_msg = str(exc).strip() or f"Unexpected error: {type(exc).__name__}"
-        db.insert_error(
-            step=None, step_name=None,
-            error_msg=err_msg, error_type="system",
+        _errors_repo.insert(
+            step=None,
+            step_name=None,
+            error_msg=err_msg,
+            error_type="system",
             details=traceback.format_exc(),
         )
         yield f"data: {json.dumps({'error': err_msg})}\n\n"
     finally:
-        # Clean up the temp file after the pipeline is done
         cleanup_file(content.get("file_path"))
 
 
@@ -53,29 +72,29 @@ async def analyze_stream(
     provider: str | None = Form(None),
     source_url: str | None = Form(None),
     use_ocr: bool = Form(True),
+    service: AnalysisService = Depends(get_service),
 ):
-    default_provider = os.environ.get("DEFAULT_LLM_PROVIDER", "ollama").strip().lower()
-    provider = (provider or default_provider).strip().lower()
-    if provider not in ("ollama", "gemini", "grok"):
-        provider = default_provider
-    # Ollama only supports English — enforce server-side
-    if provider == "ollama" and language.strip().lower() != "english":
-        language = "english"
-    file_bytes = await file.read() if file else None
-
-    if file_bytes and caption is not None:
-        content = extract_post(caption, file_bytes, file.filename)
-    elif file_bytes:
-        ext = (file.filename or "").lower()
-        content = extract_video(file_bytes, file.filename, caption) if ext.endswith((".mp4", ".mov", ".webm")) \
-            else extract_image(file_bytes, file.filename, caption)
-    else:
-        content = extract_text(text or "")
-
+    provider, language = service.resolve_provider_and_language(provider, language)
+    content = await service.prepare_content(text, file, caption)
     input_summary = (text or caption or (file.filename if file else ""))[:200]
 
     return StreamingResponse(
-        _sse_stream(request, content, "extension", language, provider, source_url, input_summary, use_ocr),
+        _sse_stream(
+            request=request,
+            content=content,
+            channel="extension",
+            language=language,
+            provider=provider,
+            source_url=source_url,
+            input_summary=input_summary,
+            use_ocr=use_ocr,
+            service=service,
+        ),
         media_type="text/event-stream",
         status_code=202,
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
