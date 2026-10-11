@@ -126,7 +126,8 @@ async def test_pipeline_blocking_characterization():
             return {"tips": ["Tip 1"], "explanation": "Learn 1", "learning_material": "Learn 1", "source_links": []}
         return {}
 
-    with patch("usisain_backend.orchestration.pipeline.call_tool", side_effect=mock_call):
+    with patch("usisain_backend.orchestration.step_runner.call_tool", side_effect=mock_call), \
+         patch("usisain_backend.orchestration.pipeline.call_tool", side_effect=mock_call):
         results = await run_pipeline_blocking({"content_type": "text", "text": "Hello world"})
         assert "step1" in results
         assert "step2" in results
