@@ -1,18 +1,19 @@
-"""config.py — centralized settings. Every value has a sensible default
-except the API keys, which must come from .env (see README for where to
-get each one)."""
-
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-BACKEND_DIR = Path(__file__).resolve().parents[3]  # backend/
+BACKEND_DIR = Path(__file__).resolve().parents[3]
 PROJECT_ROOT = BACKEND_DIR.parent
-load_dotenv(PROJECT_ROOT / ".env", override=True)
+ENV_FILE = PROJECT_ROOT / ".env"
 
 
-class Settings:
-    # Paths
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=str(ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     project_root: Path = PROJECT_ROOT
     data_dir: Path = PROJECT_ROOT / "data"
     uploads_dir: Path = PROJECT_ROOT / "data" / "uploads"
@@ -20,30 +21,47 @@ class Settings:
     db_path: Path = PROJECT_ROOT / "data" / "app.db"
     mcp_server_path: Path = PROJECT_ROOT / "mcp_server" / "server.py"
 
-    # LLM
-    default_llm_provider: str = os.environ.get("DEFAULT_LLM_PROVIDER", "ollama")
-    default_language: str = os.environ.get("DEFAULT_LANGUAGE", "english")
-    gemini_model: str = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
-    ollama_model: str = os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
-    ollama_vision_model: str = os.environ.get("OLLAMA_VISION_MODEL", "moondream")
+    default_llm_provider: str = "ollama"
+    default_language: str = "english"
+    gemini_model: str = "gemini-3.5-flash"
+    ollama_model: str = "llama3.2:1b"
+    ollama_vision_model: str = "moondream"
+    ollama_host: str = "http://localhost:11434"
 
-    grok_model: str = os.environ.get("GROK_MODEL", "gpt-oss-120b")
+    grok_model: str = "gpt-oss-120b"
+    gemini_api_key: str = ""
+    grok_api_key: str = ""
+    gemini_rpm_limit: int = 15
 
-    # Text-to-speech
-    tts_enabled: bool = os.environ.get("TTS_ENABLED", "False").lower() in ("true", "1", "yes")
+    tts_enabled: bool = False
+    pipeline_step_timeout_seconds: float = 120.0
 
-    # Pipeline timeout (seconds)
-    pipeline_step_timeout_seconds: float = float(os.environ.get("PIPELINE_STEP_TIMEOUT_SECONDS", "120.0"))
+    step3_fast_query_gen: bool = True
+    step3_fetch_full_page: bool = False
 
-    # Step 3 settings
-    step3_fast_query_gen: bool = os.environ.get("STEP3_FAST_QUERY_GEN", "True").lower() in ("true", "1", "yes")
-    step3_fetch_full_page: bool = os.environ.get("STEP3_FETCH_FULL_PAGE", "False").lower() in ("true", "1", "yes")
+    max_video_frames: int = 24
+    max_reference_doc_size_mb: float = 10.0
 
-    # Video analysis
-    max_video_frames: int = int(os.environ.get("MAX_VIDEO_FRAMES", "24"))
-
-    # Upload restrictions (reference documents)
-    max_reference_doc_size_mb: float = float(os.environ.get("MAX_REFERENCE_DOC_SIZE_MB", "10.0"))
+    def persist_env_var(self, key: str, val: str) -> None:
+        clean_val = val.strip()
+        os.environ[key] = clean_val
+        try:
+            if ENV_FILE.exists():
+                lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
+            else:
+                lines = []
+            found = False
+            prefix = f"{key}="
+            for i, line in enumerate(lines):
+                if line.strip().startswith(prefix):
+                    lines[i] = f"{key}={clean_val}"
+                    found = True
+                    break
+            if not found:
+                lines.append(f"{key}={clean_val}")
+            ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except Exception:
+            pass
 
 
 settings = Settings()
