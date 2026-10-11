@@ -449,7 +449,7 @@
         </div>
       </div>
       <div class="dashboard-stepinfo-desc">
-        Each analysis runs through a 5-step sequential pipeline (Step 1 → 2 → 3 → 4 → 5). Steps execute one after the other — each subsequent step builds on the outputs of the previous ones. Every step has a configurable timeout set in <code>.env</code> via <code>PIPELINE_STEP_TIMEOUT_SECONDS</code>. If a step fails or times out, the error is logged and the pipeline continues.
+        The UsisAIn verification engine runs a 5-step multi-agent pipeline (Steps 1 &rarr; 2 &rarr; 3 execute sequentially; Steps 4 &amp; 5 run concurrently in parallel for cloud LLMs, or sequentially for local Ollama). Every step is monitored by a configurable timeout set in <code>.env</code> via <code>PIPELINE_STEP_TIMEOUT_SECONDS</code> (default 120s) with automated error logging to the system audit database. If a prerequisite step fails or times out, downstream dependent steps are safely skipped to avoid cascading failures.
       </div>
       <div id="stepinfo-cards" class="dashboard-stepinfo-list">
         
