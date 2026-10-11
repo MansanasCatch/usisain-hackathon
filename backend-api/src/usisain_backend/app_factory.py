@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -21,6 +22,7 @@ from usisain_backend.services.bootstrap_service import (
     auto_configure_fallback_ai,
     ensure_ollama_model,
 )
+from usisain_backend.services.browser_launcher import schedule_browser_launch
 
 
 @asynccontextmanager
@@ -31,6 +33,7 @@ async def lifespan(app: FastAPI):
         ensure_ollama_model(settings.ollama_vision_model)
     else:
         auto_configure_fallback_ai()
+    asyncio.create_task(schedule_browser_launch())
     yield
 
 

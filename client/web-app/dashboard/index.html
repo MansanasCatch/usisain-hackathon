@@ -70,6 +70,7 @@
             <button class="model-selector-trigger" id="model-trigger" aria-haspopup="listbox" aria-expanded="false">
               <span class="model-status-indicator"></span>
               <span class="model-name-text" id="active-model-name">Loading...</span>
+              <span class="trigger-mode-badge" id="active-model-badge"></span>
               <span class="chevron">▼</span>
             </button>
             <div class="model-selector-dropdown" id="model-dropdown">
@@ -279,6 +280,14 @@
             <div>
               <label style="font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Ollama Host</label>
               <input type="text" id="setting-ollama-host" class="form-input" style="width:100%; margin-top:6px;" value="http://localhost:11434" readonly>
+            </div>
+
+            <div id="ollama-guide-box" class="hidden" style="padding:12px; border-radius:10px; font-size:12px; line-height:1.5; display:flex; flex-direction:column; gap:8px;"></div>
+
+            <div id="ollama-pull-actions" class="hidden">
+              <button id="btn-pull-default-ollama" type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; font-size: 12px; border-color: var(--accent); padding: 8px 12px;">
+                📥 Auto-Pull Default Model (llama3.2:1b)
+              </button>
             </div>
           </div>
 
@@ -624,10 +633,10 @@
     <span id="model-switch-toast-message">Model updated successfully</span>
   </div>
 
-  <script src="../shared/api_client.js"></script>
-  <script src="../shared/sse_client.js"></script>
-  <script src="../shared/tts_player.js"></script>
-  <script type="module" src="dashboard.js"></script>
+  <script src="../shared/api_client.js?v=3"></script>
+  <script src="../shared/sse_client.js?v=3"></script>
+  <script src="../shared/tts_player.js?v=3"></script>
+  <script type="module" src="dashboard.js?v=3"></script>
 </body>
 </html>
 

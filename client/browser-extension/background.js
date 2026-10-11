@@ -1,5 +1,8 @@
-
-
+// Chromium service workers load the shim here; Firefox lists it in background.scripts.
+if (typeof globalThis.usisainExt === "undefined" && typeof importScripts === "function") {
+  importScripts("compat.js");
+}
+const menusApi = globalThis.usisainExt ? globalThis.usisainExt.menus : undefined;
 
 const BACKEND = "http://localhost:8000";
 const DEFAULT_LANGUAGE = "english"; 
@@ -21,17 +24,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-chrome.runtime.onInstalled.addListener(() => {
-  
-  chrome.contextMenus.create({
+chrome.runtime.onInstalled.addListener((details) => {
+  // Automatically navigate to the app dashboard upon extension installation
+  if (details && details.reason === "install") {
+    try {
+      chrome.tabs.create({ url: `${BACKEND}/app/dashboard` });
+    } catch (err) {
+      console.warn("[UsisAIn] Could not open dashboard tab on install:", err);
+    }
+  }
+
+  if (!menusApi) {
+    console.warn("[UsisAIn] Context menus API is not available in this browser.");
+    return;
+  }
+  menusApi.create({
     id: "usisain-parent",
     title: "UsisAIn — Trust  Fraud Detector",
     contexts: ["image", "selection", "page", "video"],
   });
-  chrome.contextMenus.create({ id: "analyzeimage", parentId: "usisain-parent", title: "Usisain ang imahe", contexts: ["image"] });
-  chrome.contextMenus.create({ id: "analyzetext", parentId: "usisain-parent", title: "Usisain ang text", contexts: ["selection"] });
-  chrome.contextMenus.create({ id: "analyzevideo", parentId: "usisain-parent", title: "Usisain ang video", contexts: ["video"] });
-  chrome.contextMenus.create({id: "snip-extract", parentId: "usisain-parent", title: "Usisain Snipping", contexts: ["all"]});
+  menusApi.create({ id: "analyzeimage", parentId: "usisain-parent", title: "Usisain ang imahe", contexts: ["image"] });
+  menusApi.create({ id: "analyzetext", parentId: "usisain-parent", title: "Usisain ang text", contexts: ["selection"] });
+  menusApi.create({ id: "analyzevideo", parentId: "usisain-parent", title: "Usisain ang video", contexts: ["video"] });
+  menusApi.create({id: "snip-extract", parentId: "usisain-parent", title: "Usisain Snipping", contexts: ["all"]});
 });
 
 
@@ -77,16 +92,58 @@ async function safeSendMessage(tabId, message) {
 
 
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+function isVisionModel(name, provider) {
+  if (!name) return false;
+  const p = (provider || "").toLowerCase();
+  if (p === "gemini") return true;
+  const lower = name.toLowerCase();
+  const visionKeywords = ["vision", "moondream", "llava", "bakllava", "minicpm-v", "scout", "multimodal", "-vl", "vl-", "_vl"];
+  return visionKeywords.some(kw => lower.includes(kw));
+}
+
+function getActiveModelName(storage) {
+  const provider = (storage.activeProvider || "ollama").toLowerCase();
+  if (provider === "grok") return storage.activeGrokModel || "gpt-oss-120b";
+  if (provider === "gemini") return storage.activeGeminiModel || "gemini-3.5-flash";
+  if (provider === "ollama") return storage.activeOllamaModel || "llama3.2:1b";
+  return "";
+}
+
+if (menusApi) menusApi.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return;
   
   try {
-    const storage = await chrome.storage.local.get(["preferredLanguage", "useOcr"]);
+    const storage = await chrome.storage.local.get([
+      "preferredLanguage",
+      "useOcr",
+      "activeProvider",
+      "activeGrokModel",
+      "activeGeminiModel",
+      "activeOllamaModel"
+    ]);
     const selectedLanguage = storage.preferredLanguage || DEFAULT_LANGUAGE;
     const useOcr = storage.useOcr !== undefined ? storage.useOcr : true;
+    const activeProvider = (storage.activeProvider || "ollama").toLowerCase();
+    const activeModel = getActiveModelName(storage);
+    const hasVision = isVisionModel(activeModel, activeProvider);
+
+    if (info.menuItemId === "snip-extract" || info.menuItemId === "analyzeimage") {
+      if (!hasVision) {
+        const errorMsg = `Cannot analyze image: The active model "${activeModel}" (${activeProvider.toUpperCase()}) is Text-Only and does not support image analysis. Please switch to a Vision-supported model (such as Google Gemini or a model with the 👁️ Vision badge in the UsisAIn popup) to analyze images.`;
+        await safeSendMessage(tab.id, {
+          action: "pipeline-error",
+          error: errorMsg
+        });
+        return;
+      }
+    }
+
     const form = new FormData();
     form.append("language", selectedLanguage);
     form.append("use_ocr", useOcr.toString());
+    if (storage.activeProvider) {
+      form.append("provider", storage.activeProvider);
+    }
 
     let previewText = null;
     let previewImageUrl = null;
@@ -99,7 +156,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       
       let dataUrl;
       try {
-        dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+        if (globalThis.usisainExt && globalThis.usisainExt.has("tabs.captureVisibleTab")) {
+          dataUrl = await chrome.tabs.captureVisibleTab(null, { format: "png" });
+        } else {
+          console.warn("[UsisAIn] tabs.captureVisibleTab is not available in this browser.");
+        }
       } catch (err) {
         console.error("[UsisAIn] captureVisibleTab failed:", err.message);
       }

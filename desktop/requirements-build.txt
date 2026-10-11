@@ -1,0 +1,4 @@
+# Build dependencies for packaging UsisAIn desktop launcher
+pyinstaller>=6.16.0
+pillow>=10.4.0
+cryptography>=42.0.0

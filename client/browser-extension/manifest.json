@@ -3,6 +3,7 @@
   "name": "UsisAIn — Trust & Fraud Detector",
   "version": "0.2.0",
   "description": "Analyze text, images, and video for scams, misinformation, and AI generation — right from the right-click menu.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAujrX7D0qjNMH2he01Z9vuNRXP8SVYjjg1naImACRrduX5o8b1Gwn3OZaywrFVmVL0ryirIfhwen5glhF0Gmasu166Ag3rRkvCUf8ZR7Jnc7zRLCtlbtgFTKdZAdEsPSL2oX6rXMRDig/5akKSWJK1thBivzXQqvtAs9PJTLaZXjQk8vhMxR3UtY4JrOaUHf5tjQaSGV89qKZOGLuo6e9OyBcc39Ijo+Zcuti7KXaBCwDmBo2CdQOaz1SyA9uhHgY/4uMJHEXZxyL3/uuQ5zzDMRdfVItINYmTfJe8IH84hKW4bKlXw9rB1Nofn+ExVUZBKgso7z5AxKLD7Pwu+nxAQIDAQAB",
   "permissions": ["contextMenus", "activeTab", "scripting", "storage"],
   "host_permissions": [
     "http://localhost:8000/*",
@@ -12,6 +13,12 @@
     "https://*.twitter.com/*",
     "<all_urls>"
   ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {
@@ -22,6 +29,12 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "UsisAIn"
+    "default_title": "UsisAIn",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
   }
 }

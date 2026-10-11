@@ -4,6 +4,11 @@ const BACKEND = "http://localhost:8000";
 const LANGUAGE_MAP = {
   ollama: [
     { value: "english", label: "English" },
+    { value: "taglish", label: "Taglish" },
+    { value: "tagalog", label: "Tagalog" },
+    { value: "cebuano", label: "Cebuano" },
+    { value: "bisaya", label: "Bisaya" },
+    { value: "ilocano", label: "Ilocano" },
   ],
   gemini: [
     { value: "english", label: "English" },
@@ -158,24 +163,23 @@ if (ttsVoiceSelect) {
 
 function populateLanguages(provider) {
   const languages = LANGUAGE_MAP[provider] || LANGUAGE_MAP.gemini;
-  const currentValue = languageSelect.value;
+  chrome.storage.local.get(["preferredLanguage"], (data) => {
+    const saved = data?.preferredLanguage || languageSelect.value || "english";
+    languageSelect.innerHTML = "";
+    for (const lang of languages) {
+      const option = document.createElement("option");
+      option.value = lang.value;
+      option.textContent = lang.label;
+      languageSelect.appendChild(option);
+    }
 
-  languageSelect.innerHTML = "";
-  for (const lang of languages) {
-    const option = document.createElement("option");
-    option.value = lang.value;
-    option.textContent = lang.label;
-    languageSelect.appendChild(option);
-  }
-
-  
-  const validValues = languages.map((l) => l.value);
-  if (validValues.includes(currentValue)) {
-    languageSelect.value = currentValue;
-  } else {
-    languageSelect.value = "english";
-    chrome.storage.local.set({ preferredLanguage: "english" });
-  }
+    const validValues = languages.map((l) => l.value);
+    if (validValues.includes(saved)) {
+      languageSelect.value = saved;
+    } else {
+      languageSelect.value = "english";
+    }
+  });
 }
 
 
@@ -220,18 +224,53 @@ async function loadSettings() {
     if (settings?.default_llm_provider) {
       activeProvider = settings.default_llm_provider;
     }
-    if (settings?.gemini_model) {
-      activeGeminiModel = settings.gemini_model;
+    const geminiM = settings?.gemini_model || settings?.models?.gemini;
+    if (geminiM) {
+      activeGeminiModel = geminiM;
     }
-    if (settings?.grok_model) {
-      activeGrokModel = settings.grok_model;
+    const grokM = settings?.grok_model || settings?.models?.grok;
+    if (grokM) {
+      activeGrokModel = grokM;
     }
-    if (settings?.ollama_model) {
-      activeOllamaModel = settings.ollama_model;
+    const ollamaM = settings?.ollama_model || settings?.models?.ollama;
+    if (ollamaM) {
+      activeOllamaModel = ollamaM;
+    }
+
+    const ocrAvailable = !!settings?.ocr_available;
+    const ocrBadge = document.getElementById("ocr-status-badge");
+    if (ocrBadge) {
+      if (ocrAvailable) {
+        ocrBadge.textContent = "Installed ✓";
+        ocrBadge.className = "ocr-status-badge ocr-available";
+        ocrBadge.title = "Tesseract-OCR is installed and active on the system.";
+      } else {
+        ocrBadge.textContent = "Not Installed";
+        ocrBadge.className = "ocr-status-badge ocr-missing";
+        ocrBadge.title = "Tesseract-OCR is not installed on this system. OCR extraction unavailable.";
+      }
+    }
+    if (ocrToggle && !ocrAvailable) {
+      ocrToggle.checked = false;
+      ocrToggle.disabled = true;
+      ocrToggle.title = "Tesseract-OCR is not installed on this system.";
+    }
+
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({
+        activeProvider,
+        activeGeminiModel,
+        activeGrokModel,
+        activeOllamaModel,
+        ocrAvailable
+      });
     }
 
     if (window.updateLlmSelectorUI) {
       window.updateLlmSelectorUI();
+    }
+    if (window.updateActiveModelUI) {
+      window.updateActiveModelUI();
     }
 
     const provider = activeProvider.toLowerCase();
@@ -314,9 +353,11 @@ async function loadHistory() {
 }
 
 
-loadSettings();
-loadHistory();
-initModelSelector();
+(async () => {
+  await loadSettings();
+  loadHistory();
+  await initModelSelector();
+})();
 
 
 async function initModelSelector() {
@@ -490,33 +531,37 @@ async function initModelSelector() {
 
   await fetchAndRenderModels();
 
+  function isVisionModel(name, provider) {
+    if (!name) return false;
+    const p = (provider || activeProvider || "").toLowerCase();
+    if (p === "gemini") return true;
+    const lower = name.toLowerCase();
+    const visionKeywords = ["vision", "moondream", "llava", "bakllava", "minicpm-v", "scout", "multimodal", "-vl", "vl-", "_vl"];
+    return visionKeywords.some(kw => lower.includes(kw));
+  }
+
   async function fetchAndRenderModels() {
+    updateActiveModelUI();
+
     if (activeProvider === "ollama") {
       try {
-        if (activeNameSpan) activeNameSpan.innerHTML = '<span class="loading-dot" style="display:inline-block; vertical-align:middle; margin-right:4px;"></span> Fetching...';
-        if (trigger) trigger.disabled = true;
-
-        const data = await fetch(`${BACKEND}/api/ollama/models`).then(r => r.json());
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const data = await fetch(`${BACKEND}/api/ollama/models`, { signal: controller.signal })
+          .then(r => r.json())
+          .finally(() => clearTimeout(timeoutId));
         
         if (trigger) trigger.disabled = false;
         allOllamaModels = data.models || [];
-        activeOllamaModel = data.active_model || "";
-        activeVisionModel = data.active_vision_model || "";
+        if (data.active_model) activeOllamaModel = data.active_model;
+        if (data.active_vision_model) activeVisionModel = data.active_vision_model;
 
-        if (data.error) {
-          if (statusIndicator) {
-            statusIndicator.style.backgroundColor = "var(--verdict-dangerous)";
-            statusIndicator.style.boxShadow = "0 0 8px var(--verdict-dangerous)";
-          }
-        } else {
-          if (statusIndicator) {
-            statusIndicator.style.backgroundColor = "var(--verdict-safe)";
-            statusIndicator.style.boxShadow = "0 0 8px var(--verdict-safe)";
-          }
+        if (statusIndicator) {
+          statusIndicator.style.backgroundColor = data.error ? "var(--verdict-dangerous)" : "var(--verdict-safe)";
+          statusIndicator.style.boxShadow = data.error ? "0 0 8px var(--verdict-dangerous)" : "0 0 8px var(--verdict-safe)";
         }
       } catch (err) {
         if (trigger) trigger.disabled = false;
-        if (activeNameSpan) activeNameSpan.textContent = "Offline";
         if (statusIndicator) {
           statusIndicator.style.backgroundColor = "var(--verdict-dangerous)";
           statusIndicator.style.boxShadow = "0 0 8px var(--verdict-dangerous)";
@@ -524,6 +569,17 @@ async function initModelSelector() {
       }
     } else if (activeProvider === "gemini") {
       if (trigger) trigger.disabled = false;
+      try {
+        const geminiData = await fetch(`${BACKEND}/api/gemini/models`).then(r => r.json());
+        if (geminiData?.models && geminiData.models.length > 0) {
+          allGeminiModels = geminiData.models;
+        }
+        if (geminiData?.active_model) {
+          activeGeminiModel = geminiData.active_model;
+        }
+      } catch (err) {
+        console.warn("Using default gemini models in popup:", err);
+      }
       if (statusIndicator) {
         statusIndicator.style.backgroundColor = "var(--verdict-safe)";
         statusIndicator.style.boxShadow = "0 0 8px var(--verdict-safe)";
@@ -552,27 +608,37 @@ async function initModelSelector() {
   function updateActiveModelUI() {
     if (!activeNameSpan) return;
     
+    let currentActive = "";
     if (activeProvider === "ollama") {
-      if (activeOllamaModel) {
-        activeNameSpan.textContent = cleanModelName(activeOllamaModel);
-      } else {
-        activeNameSpan.textContent = "Select Model";
-      }
+      currentActive = activeOllamaModel;
     } else if (activeProvider === "gemini") {
-      if (activeGeminiModel) {
-        activeNameSpan.textContent = cleanModelName(activeGeminiModel);
-      } else {
-        activeNameSpan.textContent = "Select Model";
-      }
+      currentActive = activeGeminiModel;
     } else if (activeProvider === "grok") {
-      if (activeGrokModel) {
-        activeNameSpan.textContent = cleanModelName(activeGrokModel);
-      } else {
-        activeNameSpan.textContent = "Select Model";
+      currentActive = activeGrokModel;
+    }
+
+    const triggerBadge = document.getElementById("active-model-badge");
+    if (currentActive) {
+      const sVis = isVisionModel(currentActive, activeProvider);
+      activeNameSpan.textContent = cleanModelName(currentActive);
+      activeNameSpan.title = `${cleanModelName(currentActive)} (${sVis ? '👁️ Vision + Text' : '📝 Text Only'})`;
+      if (triggerBadge) {
+        triggerBadge.textContent = sVis ? "👁️ Vision" : "📝 Text";
+        triggerBadge.className = `trigger-mode-badge ${sVis ? 'mode-vision' : 'mode-text'}`;
+        triggerBadge.title = sVis ? "Supports Text + Images" : "Text Only (No images)";
+      }
+    } else {
+      activeNameSpan.textContent = "Select Model";
+      if (triggerBadge) {
+        triggerBadge.textContent = "";
+        triggerBadge.className = "trigger-mode-badge";
       }
     }
     renderModelList("");
   }
+
+  window.updateActiveModelUI = updateActiveModelUI;
+  window.fetchAndRenderModels = fetchAndRenderModels;
 
   function cleanModelName(rawName) {
     if (!rawName) return "Unknown";
@@ -589,7 +655,10 @@ async function initModelSelector() {
       return name;
     }
 
-    if (name === "gpt-oss-120b") return "GPT OSS 120B";
+    if (name === "gpt-oss-120b" || name === "openai/gpt-oss-120b") return "GPT OSS 120B";
+    if (name === "gpt-oss-20b" || name === "openai/gpt-oss-20b") return "GPT OSS 20B";
+    if (name === "qwen/qwen3.8-27b") return "Qwen 3.8 27B";
+    if (name === "allam-2-7b") return "Allam 2 7B";
 
     if (name.startsWith("grok-")) {
       if (name === "grok-4.1-fast") return "Grok 4.1 Fast";
@@ -652,7 +721,11 @@ async function initModelSelector() {
     const modelsToRender = activeProvider === "ollama" 
       ? allOllamaModels 
       : (activeProvider === "gemini" ? allGeminiModels : allGrokModels);
-    const filtered = modelsToRender.filter(m => m.name.toLowerCase().includes(filter));
+    const filtered = modelsToRender.filter(m => {
+      const sVis = (typeof m.supports_vision === "boolean") ? m.supports_vision : isVisionModel(m.name, activeProvider);
+      const capKeywords = sVis ? "vision image multimodal text" : "text only";
+      return m.name.toLowerCase().includes(filter) || capKeywords.includes(filter);
+    });
 
     if (filtered.length === 0) {
       if (modelsToRender.length === 0) {
@@ -675,6 +748,9 @@ async function initModelSelector() {
         : (activeProvider === "gemini" ? activeGeminiModel : activeGrokModel);
       const isTxtActive = model.name === activeModelName || model.name.split(":")[0] === activeModelName.split(":")[0];
       const isActive = isTxtActive;
+      const supportsVision = (typeof model.supports_vision === "boolean")
+        ? model.supports_vision
+        : isVisionModel(model.name, activeProvider);
 
       const item = document.createElement("div");
       item.className = `model-item ${isActive ? 'active-model' : ''}`;
@@ -685,12 +761,19 @@ async function initModelSelector() {
         <div class="model-item-info">
           <div class="model-item-header">
             <span class="model-item-name" title="${model.name}">${cleanModelName(model.name)}</span>
+            <span class="model-mode-badge ${supportsVision ? 'mode-vision' : 'mode-text'}">
+              ${supportsVision ? '👁️ Image+Text' : '📝 Text Only'}
+            </span>
             <span class="model-item-status-badge ${isActive ? 'status-active' : 'status-available'}">
               ${isActive ? 'Active' : 'Available'}
             </span>
           </div>
           <div class="model-item-details">
             ${model.size_bytes ? `<span class="model-item-size">${formatSize(model.size_bytes)}</span>` : '<span class="model-item-size">API Cloud</span>'}
+            <span class="model-item-divider">•</span>
+            <span class="model-capability-badge ${supportsVision ? 'cap-vision' : 'cap-text'}" title="${supportsVision ? 'Supports multimodal visual inspection & text' : 'Pure text model'}">
+              ${supportsVision ? '👁️ Vision + Text' : '📝 Text Only'}
+            </span>
             ${relativeTime ? `<span class="model-item-divider">•</span> <span class="model-item-modified">${relativeTime}</span>` : ''}
           </div>
         </div>

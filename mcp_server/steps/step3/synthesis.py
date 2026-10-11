@@ -51,8 +51,10 @@ async def synthesize_explanation(
             except Exception:
                 pass
     system_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(sources_rule=sources_rule)
-    if language in LANGUAGE_INSTRUCTIONS:
-        system_prompt = f"{system_prompt} {LANGUAGE_INSTRUCTIONS[language]}"
+    lang_key = (language or "english").strip().lower()
+    lang_inst = LANGUAGE_INSTRUCTIONS.get(lang_key, LANGUAGE_INSTRUCTIONS.get("english", ""))
+    if lang_inst:
+        system_prompt = f"{system_prompt} {lang_inst}"
     system_prompt = f"{system_prompt} {SECURITY_GUARDRAIL}"
     llm = get_provider(provider)
     try:

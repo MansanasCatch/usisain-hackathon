@@ -21,9 +21,7 @@ class AnalysisService:
         resolved_provider = (provider or default_provider).strip().lower()
         if resolved_provider not in ("ollama", "gemini", "grok"):
             resolved_provider = default_provider
-        resolved_language = language
-        if resolved_provider == "ollama" and resolved_language.strip().lower() != "english":
-            resolved_language = "english"
+        resolved_language = (language or os.environ.get("DEFAULT_LANGUAGE", "english")).strip().lower()
         return (resolved_provider, resolved_language)
 
     async def prepare_content(

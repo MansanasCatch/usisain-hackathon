@@ -1,5 +1,10 @@
-export async function loadRefDocs(apiClient = window.ApiClient) {
-  const docs = await apiClient.getReferenceDocuments();
+export async function loadRefDocs(apiClient) {
+  const client = apiClient || window.ApiClient || (typeof ApiClient !== "undefined" ? ApiClient : null);
+  if (!client || typeof client.getReferenceDocuments !== "function") {
+    setTimeout(() => loadRefDocs(apiClient), 150);
+    return;
+  }
+  const docs = await client.getReferenceDocuments();
   const grid = document.getElementById("refdoc-grid");
   if (!grid) return;
   grid.innerHTML = "";

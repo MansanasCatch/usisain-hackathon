@@ -4,7 +4,7 @@
 
 const API = ""; 
 
-const ApiClient = {
+var ApiClient = {
   async getScans({ channel, limit = 20, offset = 0 } = {}) {
     const params = new URLSearchParams({ limit, offset });
     if (channel) params.set("channel", channel);
@@ -115,4 +115,23 @@ const ApiClient = {
       body: JSON.stringify({ provider, api_key: apiKey }),
     }).then(r => r.json());
   },
+
+  async pullOllamaModel(modelName = "llama3.2:1b") {
+    return fetch(`${API}/api/ollama/pull-model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelName }),
+    }).then(r => r.json());
+  },
+
+  async getOllamaStatus() {
+    return fetch(`${API}/api/ollama/status`).then(r => r.json());
+  },
 };
+
+if (typeof window !== "undefined") {
+  window.ApiClient = ApiClient;
+}
+if (typeof globalThis !== "undefined") {
+  globalThis.ApiClient = ApiClient;
+}

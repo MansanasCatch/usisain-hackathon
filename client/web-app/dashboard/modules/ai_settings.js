@@ -2,22 +2,29 @@ let aiSettingsEventsBound = false;
 
 export async function loadAISettingsTab(options = {}) {
   const {
-    apiClient = window.ApiClient,
+    apiClient,
     allOllamaModels = window.allOllamaModels || [],
     loadSettingsFn = window.loadSettings
   } = options;
 
+  const client = apiClient || window.ApiClient || (typeof ApiClient !== "undefined" ? ApiClient : null);
+  if (!client || typeof client.getAISettings !== "function") {
+    setTimeout(() => loadAISettingsTab(options), 150);
+    return;
+  }
+
   try {
     const [aiData, generalData] = await Promise.all([
-      apiClient.getAISettings().catch(() => null),
-      apiClient.getSettings().catch(() => null)
+      client.getAISettings().catch(() => null),
+      client.getSettings().catch(() => null)
     ]);
 
     if (!aiData) return;
 
-    const selectDefault = document.getElementById("select-default-provider");
-    if (selectDefault && aiData.default_provider) {
-      selectDefault.value = aiData.default_provider;
+    const selectDefault = document.getElementById("setting-default-provider") || document.getElementById("select-default-provider");
+    const activeProv = aiData.default_provider || generalData?.default_llm_provider || window.activeProvider || "ollama";
+    if (selectDefault) {
+      selectDefault.value = activeProv;
     }
 
     if (aiData.ollama) {
@@ -54,17 +61,83 @@ export async function loadAISettingsTab(options = {}) {
     }
 
     const ollamaBadge = document.getElementById("ollama-status-badge");
-    if (ollamaBadge) {
-      try {
-        const oModels = await apiClient.getOllamaModels();
-        if (oModels && !oModels.error) {
-          ollamaBadge.className = "badge likely_true";
-          ollamaBadge.textContent = "ONLINE (DEFAULT)";
+    const guideBox = document.getElementById("ollama-guide-box");
+    const pullActions = document.getElementById("ollama-pull-actions");
+
+    try {
+      const oStatus = await (apiClient.getOllamaStatus ? apiClient.getOllamaStatus() : apiClient.getOllamaModels());
+      const isOnline = oStatus && (oStatus.online !== undefined ? oStatus.online : !oStatus.error);
+      const defModel = oStatus?.default_model || aiData.ollama?.model || "llama3.2:1b";
+
+      if (isOnline) {
+        if (oStatus.is_pulling) {
+          if (ollamaBadge) {
+            ollamaBadge.className = "badge inconclusive";
+            ollamaBadge.textContent = "PULLING MODEL...";
+          }
+          if (guideBox) {
+            guideBox.classList.remove("hidden");
+            guideBox.innerHTML = `
+              <div style="background: rgba(99,102,241,0.12); border: 1px solid var(--accent); border-radius: 8px; padding: 10px; color: var(--text);">
+                <div style="font-weight: 700; color: var(--accent-light); display: flex; align-items: center; gap: 8px;">
+                  <span style="display:inline-block; width:12px; height:12px; border:2px solid var(--accent-light); border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>
+                  ${oStatus.pull_status || `Downloading default model (${defModel})...`}
+                </div>
+                <div style="color: var(--muted); font-size: 11px; margin-top: 4px;">Downloading model weights in the background...</div>
+              </div>`;
+          }
+          if (pullActions) pullActions.classList.add("hidden");
+          setTimeout(() => loadAISettingsTab({ apiClient, loadSettingsFn }), 3000);
+        } else if (oStatus.has_default_model || (oStatus.models && oStatus.models.length > 0)) {
+          if (ollamaBadge) {
+            ollamaBadge.className = "badge likely_true";
+            ollamaBadge.textContent = "ONLINE · READY";
+          }
+          if (guideBox) {
+            guideBox.classList.remove("hidden");
+            guideBox.innerHTML = `
+              <div style="background: rgba(46,125,50,0.12); border: 1px solid var(--good); border-radius: 8px; padding: 8px 12px; color: var(--good); font-size: 12px; font-weight: 500;">
+                ✅ Ollama is active with ${oStatus.models.length} model(s). Default model <strong>${defModel}</strong> is ready for offline analysis!
+              </div>`;
+          }
+          if (pullActions) pullActions.classList.add("hidden");
         } else {
-          ollamaBadge.className = "badge flagged";
-          ollamaBadge.textContent = "OFFLINE";
+          if (ollamaBadge) {
+            ollamaBadge.className = "badge inconclusive";
+            ollamaBadge.textContent = "NO MODELS";
+          }
+          if (guideBox) {
+            guideBox.classList.remove("hidden");
+            guideBox.innerHTML = `
+              <div style="background: rgba(234,179,8,0.12); border: 1px solid #eab308; border-radius: 8px; padding: 10px; color: var(--text);">
+                <div style="font-weight: 700; color: #eab308; margin-bottom: 2px;">⚡ Ollama Connected - Model Needed</div>
+                <div style="color: var(--muted); font-size: 11.5px;">Click below to download the recommended lightweight model (<code>${defModel}</code>).</div>
+              </div>`;
+          }
+          if (pullActions) pullActions.classList.remove("hidden");
         }
-      } catch (e) {
+      } else {
+        if (ollamaBadge) {
+          ollamaBadge.className = "badge flagged";
+          ollamaBadge.textContent = "NOT INSTALLED / OFFLINE";
+        }
+        if (guideBox) {
+          guideBox.classList.remove("hidden");
+          guideBox.innerHTML = `
+            <div style="background: rgba(230,88,79,0.08); border: 1px solid var(--bad); border-radius: 8px; padding: 12px; color: var(--text);">
+              <div style="font-weight: 700; color: var(--bad); margin-bottom: 4px;">⚠️ Ollama Not Detected</div>
+              <div style="color: var(--muted); font-size: 11.5px; margin-bottom: 8px;">To run AI 100% locally and offline without API keys:</div>
+              <ol style="margin: 0; padding-left: 18px; color: var(--text); font-size: 11.5px; display: flex; flex-direction: column; gap: 4px;">
+                <li>Download & install from <a href="https://ollama.com/download" target="_blank" style="color: var(--accent-light); text-decoration: underline; font-weight: 600;">ollama.com/download ↗</a> (or run <code>winget install Ollama.Ollama</code>).</li>
+                <li>Launch Ollama on your computer.</li>
+                <li>Once detected, UsisAIn will automatically pull the default model (<code>${defModel}</code>).</li>
+              </ol>
+            </div>`;
+        }
+        if (pullActions) pullActions.classList.add("hidden");
+      }
+    } catch (e) {
+      if (ollamaBadge) {
         ollamaBadge.className = "badge flagged";
         ollamaBadge.textContent = "OFFLINE";
       }
@@ -115,8 +188,24 @@ export async function loadAISettingsTab(options = {}) {
       }
 
       const grokModelSelect = document.getElementById("setting-grok-model");
-      if (grokModelSelect && aiData.grok.model) {
-        grokModelSelect.value = aiData.grok.model;
+      if (grokModelSelect) {
+        const curM = aiData.grok.model || "openai/gpt-oss-120b";
+        const avail = aiData.grok.available_models || [];
+        if (avail.length > 0) {
+          grokModelSelect.innerHTML = "";
+          avail.forEach(m => {
+            const mName = typeof m === "string" ? m : m.name;
+            const opt = document.createElement("option");
+            opt.value = mName;
+            opt.textContent = mName;
+            if (mName === curM || (curM === "gpt-oss-120b" && mName.endsWith("gpt-oss-120b"))) {
+              opt.selected = true;
+            }
+            grokModelSelect.appendChild(opt);
+          });
+        } else if (aiData.grok.model) {
+          grokModelSelect.value = aiData.grok.model;
+        }
       }
     }
 
@@ -179,30 +268,45 @@ export function bindAISettingsEvents(options = {}) {
   }
 
   const btnSaveDefault = document.getElementById("btn-save-default-provider");
-  if (btnSaveDefault) {
-    btnSaveDefault.addEventListener("click", async () => {
-      const select = document.getElementById("select-default-provider");
-      const provider = select?.value;
-      if (!provider) return;
+  const selectDefaultInput = document.getElementById("setting-default-provider") || document.getElementById("select-default-provider");
 
+  async function handleApplyDefaultProvider() {
+    const provider = selectDefaultInput?.value;
+    if (!provider) return;
+
+    if (btnSaveDefault) {
       btnSaveDefault.disabled = true;
-      btnSaveDefault.textContent = "Saving...";
-      try {
-        const res = await apiClient.updateAISettings({ default_provider: provider });
+      btnSaveDefault.textContent = "Applying...";
+    }
+    try {
+      if (window.switchActiveProvider) {
+        await window.switchActiveProvider(provider);
+      } else {
+        const res = await apiClient.switchProvider(provider);
         if (res?.status === "ok") {
-          if (window.updateLlmSelectorUI) window.updateLlmSelectorUI();
           toastFeedback(`Default AI provider set to <strong>${provider.toUpperCase()}</strong>`);
+          if (window.updateLlmSelectorUI) window.updateLlmSelectorUI();
           if (typeof loadSettingsFn === "function") await loadSettingsFn();
+          if (window.fetchAndRenderModels) await window.fetchAndRenderModels();
         } else {
           toastFeedback("Failed to update default provider", true);
         }
-      } catch (err) {
-        toastFeedback("Error updating default provider", true);
-      } finally {
-        btnSaveDefault.disabled = false;
-        btnSaveDefault.textContent = "Save Default";
       }
-    });
+    } catch (err) {
+      toastFeedback("Error updating default provider", true);
+    } finally {
+      if (btnSaveDefault) {
+        btnSaveDefault.disabled = false;
+        btnSaveDefault.textContent = "Apply";
+      }
+    }
+  }
+
+  if (btnSaveDefault) {
+    btnSaveDefault.addEventListener("click", handleApplyDefaultProvider);
+  }
+  if (selectDefaultInput) {
+    selectDefaultInput.addEventListener("change", handleApplyDefaultProvider);
   }
 
   const btnSaveOllama = document.getElementById("btn-save-ollama");
@@ -222,6 +326,8 @@ export function bindAISettingsEvents(options = {}) {
           toastFeedback("Ollama configuration updated successfully");
           await loadAISettingsTab({ apiClient, loadSettingsFn });
           if (typeof loadSettingsFn === "function") await loadSettingsFn();
+          if (window.updateActiveModelUI) window.updateActiveModelUI();
+          if (window.fetchAndRenderModels) await window.fetchAndRenderModels();
         } else {
           toastFeedback("Failed to update Ollama settings", true);
         }
@@ -255,6 +361,24 @@ export function bindAISettingsEvents(options = {}) {
     });
   }
 
+  const btnPullDefault = document.getElementById("btn-pull-default-ollama");
+  if (btnPullDefault) {
+    btnPullDefault.addEventListener("click", async () => {
+      btnPullDefault.disabled = true;
+      btnPullDefault.textContent = "Starting download...";
+      try {
+        const res = await (apiClient.pullOllamaModel ? apiClient.pullOllamaModel("llama3.2:1b") : Promise.resolve({}));
+        toastFeedback(res?.message || "Pull started in background");
+        await loadAISettingsTab({ apiClient, loadSettingsFn });
+      } catch (err) {
+        toastFeedback("Failed to trigger model pull", true);
+      } finally {
+        btnPullDefault.disabled = false;
+        btnPullDefault.textContent = "📥 Auto-Pull Default Model (llama3.2:1b)";
+      }
+    });
+  }
+
   const btnSaveGemini = document.getElementById("btn-save-gemini");
   if (btnSaveGemini) {
     btnSaveGemini.addEventListener("click", async () => {
@@ -273,6 +397,8 @@ export function bindAISettingsEvents(options = {}) {
           if (key) document.getElementById("setting-gemini-key").value = "";
           await loadAISettingsTab({ apiClient, loadSettingsFn });
           if (typeof loadSettingsFn === "function") await loadSettingsFn();
+          if (window.updateActiveModelUI) window.updateActiveModelUI();
+          if (window.fetchAndRenderModels) await window.fetchAndRenderModels();
         } else {
           toastFeedback("Failed to update Gemini settings", true);
         }
@@ -347,6 +473,8 @@ export function bindAISettingsEvents(options = {}) {
           if (key) document.getElementById("setting-grok-key").value = "";
           await loadAISettingsTab({ apiClient, loadSettingsFn });
           if (typeof loadSettingsFn === "function") await loadSettingsFn();
+          if (window.updateActiveModelUI) window.updateActiveModelUI();
+          if (window.fetchAndRenderModels) await window.fetchAndRenderModels();
         } else {
           toastFeedback("Failed to update Grok settings", true);
         }

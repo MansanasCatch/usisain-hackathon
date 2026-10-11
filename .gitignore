@@ -19,3 +19,8 @@ data/vector_index/
 
 .vscode/
 .DS_Store
+
+# Desktop packaging artifacts
+desktop/dist/
+desktop/build/
+desktop/keys/

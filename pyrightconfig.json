@@ -1,11 +1,19 @@
 {
   "include": [
     "backend-api",
-    "mcp_server"
+    "mcp_server",
+    "desktop"
+  ],
+  "exclude": [
+    "desktop/dist",
+    "desktop/build",
+    "venv",
+    ".agents"
   ],
   "extraPaths": [
     "backend-api/src",
     "mcp_server",
+    "desktop",
     "."
   ],
   "executionEnvironments": [

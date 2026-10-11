@@ -1,0 +1,71 @@
+name: Build Desktop Launchers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'desktop/**'
+      - 'client/**'
+      - 'backend-api/**'
+      - 'mcp_server/**'
+      - '.github/workflows/desktop-build.yml'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r desktop/requirements-build.txt
+
+      - name: Build Windows Desktop Bundle
+        shell: pwsh
+        run: |
+          .\desktop\build_windows.ps1
+
+      - name: Upload Windows Bundle Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsisAIn-windows-x64
+          path: desktop/dist/UsisAIn-windows-x64.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install -r requirements.txt
+          pip3 install -r desktop/requirements-build.txt
+
+      - name: Build macOS .app and .dmg
+        run: |
+          chmod +x desktop/build_macos.sh
+          ./desktop/build_macos.sh
+
+      - name: Upload macOS DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UsisAIn-macOS-dmg
+          path: desktop/dist/UsisAIn-macOS.dmg

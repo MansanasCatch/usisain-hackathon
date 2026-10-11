@@ -1,285 +1,492 @@
 # UsisAIn
 
-A local-first, multimodal trust, fraud, scam, and misinformation detection system powered by a 5-step educational pipeline, reachable from two client channels: a **Chrome/Edge Browser Extension** (desktop) and a responsive **Web App & Analytics Dashboard**.
+**A local-first, multimodal trust, fraud, scam, and misinformation detection system, powered by a 5-step educational pipeline.**
+
+UsisAIn checks text, images, and video for scams, manipulation, and misinformation, then explains *why* a piece of content is risky and what to do about it. It runs fully offline with a local model (Ollama) by default, and can optionally use cloud models (Gemini, Grok/Groq).
+
+It is reachable from two client channels:
+
+- **Cross-browser extension**: Chrome, Edge, Brave, Opera, Firefox, Safari
+- **Web app and analytics dashboard**: responsive PWA served by the backend
 
 ---
 
-## 1. Project Structure
+## Table of Contents
 
-```
-usisain/
-├── backend-api/            # FastAPI gateway + pipeline orchestration + static web app server
-│   └── src/usisain_backend/
-│       ├── api/            # Stream, analyze, scans, tts, reference docs, settings, errors
-│       ├── core/           # Configuration, logging
-│       ├── data/           # SQLite database layer (app.db)
-│       ├── extraction/     # Input normalization (text, image, video, post)
-│       ├── orchestration/  # Sequential 5-step pipeline execution
-│       └── services/       # MCP client integration
-├── client/
-│   ├── browser-extension/  # Desktop extension — right-click or snipping tool to verify
-│   └── web-app/            # PWA web app & analytics dashboard (served at /app and /app/dashboard)
-├── data/                   # Runtime state (gitignored except structure)
-│   ├── models/             # Cached local models (whisper, etc.)
-│   ├── reference_images/   # Verified documents for RAG comparison
-│   ├── scripts/            # Ops scripts (init_db.py)
-│   ├── uploads/            # Temporary file upload staging
-│   └── vector_index/       # Local RAG cache (Step 3)
-├── docs/                   # Documentation and architectural records
-├── mcp_server/             # The 5 pipeline steps, implemented as Model Context Protocol tools
-│   ├── services/llm/       # Providers (Ollama, Gemini, Grok) with key pools & fallback wrappers
-│   ├── shared/             # Heuristics (ELA, DCT, EXIF, OCR optional fallback)
-│   ├── tools/              # Step 1 (Insights) to Step 5 (Learnings)
-│   └── server.py           # In-process MCP tool registration
-├── tests/                  # Integration and unit tests
-├── .env.example            # Environment template
-├── .gitignore
-├── README.md
-└── requirements.txt
-```
+- [Key Features](#key-features)
+- [Quick Start](#quick-start)
+  - [Option A: Install and use (no code)](#option-a-install-and-use-no-code)
+  - [Option B: Run from source (developers)](#option-b-run-from-source-developers)
+- [How It Works: The 5-Step Pipeline](#how-it-works-the-5-step-pipeline)
+- [AI Providers](#ai-providers)
+- [Configuration](#configuration)
+- [Browser Extension](#browser-extension)
+- [Web App and Dashboard](#web-app-and-dashboard)
+- [Language Support](#language-support)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Desktop Launcher and Packaging](#desktop-launcher-and-packaging)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## 2. Architecture Recap
+## Key Features
+
+| Feature | Description |
+| :--- | :--- |
+| **Local-first AI** | Runs 100% offline with Ollama. No API key required. |
+| **Multimodal analysis** | Text, images, video frames, and user-selected screen regions. |
+| **Digital image forensics** | ELA, DCT frequency analysis, and EXIF inspection estimate Real / Edited / AI-generated percentages. |
+| **Fact-checking with sources** | Cross-references claims against web search and your own reference documents (RAG). |
+| **Actionable guidance** | 3-5 concrete next steps tailored to the verdict. |
+| **Digital literacy** | Educational explanations with verified links from official domains. |
+| **Multilingual** | English, Taglish, Tagalog, Cebuano, Bisaya, Ilocano. |
+| **Hot-swappable AI** | Change models and API keys live from the dashboard, no restart. |
+| **Automatic fallback** | If Ollama is offline, falls back to any configured cloud key. |
+
+---
+
+## Quick Start
+
+### Option A: Install and use (no code)
+
+> Recommended for general users, reviewers, and evaluators. No Python required.
+
+1. **Download** `UsisAIn-windows-x64.zip` from [GitHub Releases](https://github.com/MansanasCatch/usisain-hackathon/releases) (or find it at `desktop/dist/UsisAIn-windows-x64.zip` in this repo).
+2. **Extract** the archive anywhere and double-click **`UsisAIn.exe`**. You can pin it to Start or the taskbar.
+3. **That's it.** The launcher will:
+   - detect your default browser,
+   - automatically preload the UsisAIn extension,
+   - open the dashboard at `http://localhost:8000/app/dashboard`.
+
+   Closing the launcher window (or clicking **Quit**) stops all background processes and frees port 8000.
+4. **Configure AI (one time)** in the dashboard under **AI Settings**:
+   - **Offline / local (Ollama):** If Ollama is running and the default model (`llama3.2:1b`) is missing, UsisAIn pulls it automatically with a live progress bar. If Ollama isn't installed, the dashboard shows a one-click install guide.
+   - **Cloud:** Paste a Gemini or Grok/Groq key, click **Update Key** (applies instantly), then **Test Key**. See [Configuration](#configuration) for where to get keys.
+
+> Your data, logs, and API keys are stored in `%LOCALAPPDATA%\UsisAIn\app`.
+
+### Option B: Run from source (developers)
+
+> Recommended if you're modifying the AI pipeline, backend, or extension.
+
+**Prerequisites**
+
+| Requirement | Notes |
+| :--- | :--- |
+| Python 3.12+ (64-bit) | https://www.python.org/downloads/ |
+| Git | |
+| Ollama *(optional)* | Default local AI. Skip if you only use cloud keys. https://ollama.com/download/windows |
+| Tesseract OCR *(optional)* | Only for OCR text extraction. [Installer](https://github.com/UB-Mannheim/tesseract/wiki) |
+
+**1. Clone and install**
+
+```powershell
+git clone https://github.com/MansanasCatch/usisain-hackathon.git
+cd usisain-hackathon
+
+py -m venv venv
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\venv\Scripts\activate
+
+pip install -r requirements.txt
+pip install -r desktop/requirements-build.txt   # only needed for desktop packaging
+copy .env.example .env
+python data\scripts\init_db.py
+```
+
+**2. (Optional) Pull the local models**
+
+```powershell
+ollama pull llama3.2:1b
+ollama pull moondream
+ollama pull nomic-embed-text
+```
+
+**3. Run**
+
+```powershell
+# Recommended: one command, auto-preloads the extension and opens the dashboard
+python run.py
+```
+
+<details>
+<summary>Other ways to run</summary>
+
+```powershell
+# Uvicorn directly (with hot reload)
+.\venv\Scripts\python -m uvicorn usisain_backend.main:app --host 0.0.0.0 --port 8000 --reload --app-dir backend-api\src
+
+# Batch script
+.\run.bat
+
+# Desktop launcher GUI
+$env:PYTHONPATH = "desktop;$env:PYTHONPATH"
+python -m usisain_launcher
+```
+
+</details>
+
+**Endpoints**
+
+| Service | URL |
+| :--- | :--- |
+| Analytics dashboard | http://localhost:8000/app/dashboard |
+| Web app | http://localhost:8000/app |
+| Interactive API docs | http://localhost:8000/docs |
+
+---
+
+## How It Works: The 5-Step Pipeline
+
+Every scan runs sequentially through five steps. Each step's results are streamed to the client in real time over SSE.
+
+```
+Input ─► 1. Insights ─► 2. Content Analyser ─► 3. Authenticity ─► 4. Actions ─► 5. Learnings
+         (summary)      (image/video forensics)  (fact-check)       (next steps)   (education)
+```
+
+### Step 1: AI Insights (first-pass review)
+
+Gives a neutral overview of the content and extracts text and context.
+
+- **Text:** the LLM summarizes claims and flags urgent language, emotional framing, and suspicious links.
+- **Images and video frames:** sent to a multimodal model (Gemini, Grok, or Ollama Vision). If Tesseract OCR is installed it extracts text overlays; otherwise the step falls back to visual LLM inference without errors.
+- **Snipping tool:** extracts text and images from a user-drawn region on any webpage.
+- **Video:** extracts keyframes with OpenCV.
+- **Output:** a concise summary passed to Steps 3, 4, and 5.
+- **Tech:** LLM, OpenCV, optional Tesseract.
+
+### Step 2: Content Analyser (digital image forensics)
+
+Analyzes images and video locally for manipulation or AI generation. *Skipped for text-only input.*
+
+| Technique | What it does |
+| :--- | :--- |
+| **Error Level Analysis (ELA)** | Re-saves the image at 95% quality and compares differences to find mismatched compression zones (spliced or pasted items). |
+| **Frequency-domain (DCT)** | Checks the high-to-low frequency ratio. Camera sensors add high-frequency noise; AI images tend to be unnaturally smooth or show periodic grid artifacts. |
+| **EXIF metadata** | Looks for camera model info and editing-software tags (Photoshop, GIMP, Canva, etc.). |
+| **Percentage breakdown** | Estimates Real % / Edited % / AI-Generated % and assigns a verdict: `likely_authentic`, `likely_edited`, `likely_ai_generated`, or `inconclusive`. |
+| **Forensic explanation** | A multimodal model explains the breakdown in plain language. |
+| **Video mode** | Samples frames with OpenCV, averages the image heuristics, and transcribes audio with Faster-Whisper. |
+
+- **Output:** percentage breakdown, explanation, and video transcript.
+- **Tech:** NumPy, SciPy, OpenCV, Pillow, Faster-Whisper, LLM.
+
+### Step 3: Authenticity (fact-check and source verification)
+
+Cross-references claims against fresh web results and your local reference documents.
+
+1. **Query generation:** a fast heuristic extracts key entities and URLs (`STEP3_FAST_QUERY_GEN=True`), with an LLM fallback.
+2. **RAG lookup:** searches the local vector store for cached investigations and official advisories (minimum score 0.45).
+3. **Web search:** Google Custom Search (DuckDuckGo as fallback), up to 3 results.
+4. **Scoring and dedup:** sources are scored by Domain Trust (60%) and Text Similarity (40%), deduplicated by URL and title, and the top 2 are kept.
+5. **Page scraping (optional):** with `STEP3_FETCH_FULL_PAGE=True`, fetches up to 1,500 characters from the top 2 sources in parallel (ThreadPoolExecutor + BeautifulSoup).
+6. **LLM synthesis:** weighs snippets, advisories, and the claim, then returns a verdict (`likely_true`, `inconclusive`, `flagged`) and a credibility score (0-100) with verified links.
+7. **Caching:** stores the query, verdict, score, and top source URL in the RAG store for instant future lookups.
+
+- **Output:** credibility score, verdict, and scored sources.
+- **Tech:** Google Custom Search API, RAG vector store, BeautifulSoup, LLM.
+
+### Step 4: Actionable Items (security recommendations)
+
+Produces 3-5 concrete next steps tailored to the verdict.
+
+| Verdict | Guidance |
+| :--- | :--- |
+| Likely true | Engage safely and check official links. |
+| Flagged / scam | Defensive measures: block, unfollow, report, warn others. |
+| Inconclusive | Stay cautious and verify manually. |
+
+**Privacy guard:** strict rules prevent the LLM from outputting usernames, handles, or private personal data.
+
+### Step 5: Learnings (digital literacy)
+
+Teaches users to recognize the threat pattern.
+
+- Builds an educational query and fetches resources from trusted domains (`site:gov.ph`, `site:edu.ph`, `wikipedia.org`, `factcheck.org`).
+- The LLM writes a 2-3 sentence overview of the pattern (emotional framing, clickbait, phishing, etc.).
+- **Anti-hallucination:** the LLM is prohibited from generating URLs. Verified links are appended programmatically by Python.
+- **Tech:** Google Custom Search API, LLM.
+
+---
+
+## AI Providers
+
+| Provider | Type | Default | Notes |
+| :--- | :--- | :---: | :--- |
+| **Ollama** | Local / offline | Yes | Runs entirely on your machine. No API key needed. |
+| **Google Gemini** | Cloud | No | Supports Gemini 3.5 Flash, 2.5 Flash/Pro, 2.0 Flash, and more. |
+| **xAI Grok / Groq** | Cloud | No | gpt-oss-120b (default), Grok 4.1 Fast, Grok 4.7, Grok 4.20 Reasoning, Grok Beta, and more. |
+
+**Runtime behavior**
+
+- **Ollama auto-detection:** when Ollama is online, the backend checks for `llama3.2:1b` and pulls it in the background if missing, with live progress on the dashboard.
+- **Automatic fallback:** if Ollama is offline or not installed, UsisAIn uses whichever cloud key (`GROK_API_KEY` or `GEMINI_API_KEY`) is configured. No manual switching needed.
+- **Zero-restart updates:** change models or keys from **AI Settings**. Keys reload into memory instantly and are saved to `.env`.
+- **Key pools:** Gemini and Grok accept comma-separated keys (`key1,key2`) with round-robin load distribution.
+
+---
+
+## Configuration
+
+Set these in `.env` (copied from `.env.example`) or through the dashboard.
+
+| Key | Required? | Where to get it |
+| :--- | :--- | :--- |
+| `GOOGLE_API_KEY` | **Required for fact-check** | [Google Cloud Credentials](https://console.cloud.google.com/apis/credentials) (enable *Custom Search API*) |
+| `GOOGLE_CSE_ID` | **Required for fact-check** | [Programmable Search Engine](https://programmablesearchengine.google.com/) (your search engine ID) |
+| `GEMINI_API_KEY` | Optional (recommended) | [Google AI Studio](https://aistudio.google.com/apikey) (free tier) |
+| `GROK_API_KEY` | Optional | [xAI Console](https://console.x.ai/) or [Groq Console](https://console.groq.com/keys) |
+
+### Getting a free Gemini key
+
+1. Open [Google AI Studio](https://aistudio.google.com/apikey) and sign in.
+2. Click **Create API key** and pick (or create) a Google Cloud project.
+3. Copy the key (starts with `AIzaSy...`).
+4. In the dashboard, open **AI Settings**, paste it into the **Google Gemini** card, click **Update Key**, then **Test Key**.
+
+### Getting a Grok or Groq key
+
+UsisAIn supports both and routes automatically by key prefix.
+
+<details>
+<summary><strong>xAI Grok</strong> (key starts with <code>xai-</code>)</summary>
+
+1. Sign in at the [xAI Console](https://console.x.ai/).
+2. Go to **API Keys** and click **Create API Key**.
+3. Paste it into **AI Settings** under the Grok card and click **Update Key**.
+
+</details>
+
+<details>
+<summary><strong>Groq Cloud</strong> (key starts with <code>gsk_</code>)</summary>
+
+1. Sign in at the [Groq Console](https://console.groq.com/keys) (free with Google or GitHub).
+2. Click **Create API Key**, name it, and copy it.
+3. Paste it into **AI Settings** under the Grok card and click **Update Key**.
+4. UsisAIn detects the `gsk_` prefix and routes inference to Groq's `llama-3.3-70b-versatile`.
+
+</details>
+
+---
+
+## Browser Extension
+
+One shared codebase supports Chromium (MV3), Firefox (Gecko MV3), and Safari, using a compatibility shim (`compat.js`) and cross-browser manifest generators.
+
+### Extension features
+
+- **Right-click menu:** verify text, images, and video directly from any page.
+- **Snipping tool:** draw a box over any screen area for combined text and image analysis.
+- **Provider and model switcher:** switch between Ollama, Gemini, and Grok from the popup.
+- **Text-to-speech:** listen to audio summaries of verdicts.
+
+### Installation
+
+**Easiest: via the desktop launcher.** Run `UsisAIn.exe` (or `python -m usisain_launcher`). It detects your browser, shows a native prompt, opens the extensions page, and copies the extension folder path to your clipboard.
+
+**Manual installation**
+
+<details>
+<summary><strong>Chrome, Edge, Brave, Opera (Chromium MV3)</strong></summary>
+
+1. Open your browser's extensions page:
+
+   | Browser | URL |
+   | :--- | :--- |
+   | Chrome | `chrome://extensions` |
+   | Edge | `edge://extensions` |
+   | Brave | `brave://extensions` |
+   | Opera | `opera://extensions` |
+
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select the `client/browser-extension/` folder from your clone (or `desktop\dist\UsisAIn\_internal\payload\extension\chromium` in a built package).
+4. Pinned extension ID: `dndlahijonngmpkomafkmiainhmkplnp`.
+
+</details>
+
+<details>
+<summary><strong>Mozilla Firefox (Gecko MV3)</strong></summary>
+
+1. Go to `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on...**.
+3. Select `desktop\build\extension\firefox\manifest.json` (generate it with `python desktop\tools\build_extension.py`).
+4. Extension ID: `usisain@usisain.app`.
+
+</details>
+
+<details>
+<summary><strong>Apple Safari (Safari Web Extension)</strong></summary>
+
+1. On macOS with Xcode installed, run `./desktop/build_macos.sh` to wrap the extension as `UsisAIn Extension.app`.
+2. Open Safari, then **Settings**, then **Extensions**, enable **UsisAIn**, and choose **Always Allow on Every Website**.
+
+</details>
+
+---
+
+## Web App and Dashboard
+
+With the backend running, open **http://localhost:8000/app/dashboard**.
+
+| Tab | What you get |
+| :--- | :--- |
+| **Overview** | Total scans plus Credible, Inconclusive, and Flagged counts. A 30-day scan trend chart by client channel, a verdict distribution chart, and an audit history table with filtering, search, and full JSON inspection. |
+| **Reference Documents** | Upload official advisories and ground-truth documents. They are vectorized locally with `nomic-embed-text` for semantic matching in Step 3. |
+| **AI Settings** | Default provider selector with instant switching. Ollama card (live status, install guide, auto-pull with progress). Gemini and Grok cards (update key, toggle visibility, switch model, **Test Key**). Tesseract card (active vs. vision-fallback mode). |
+| **Error Log** | Real-time pipeline timeouts and warnings, with one-click cleanup. |
+| **Pipeline Info** | Interactive diagram of all 5 steps with live model badges and parameters. |
+
+---
+
+## Language Support
+
+Steps 1, 4, and 5 (the LLM-driven steps) support multilingual analysis.
+
+| Language | Supported on |
+| :--- | :--- |
+| English | Ollama, Gemini, Grok |
+| Taglish | Gemini, Grok |
+| Tagalog / Filipino | Gemini, Grok |
+| Cebuano | Gemini, Grok |
+| Bisaya | Gemini, Grok |
+| Ilocano | Gemini, Grok |
+
+---
+
+## Architecture
 
 ```
 client/browser-extension ──┐
                            ├──► backend-api (FastAPI :8000) ──► mcp_server (5-step pipeline)
 client/web-app ────────────┘         │                                    │
                                      ▼                                    ▼
-                               SQLite (data/app.db)          Default: Ollama (Local)
-                                                             Optional: Gemini / Grok (Cloud)
-                                                             Fallback: Ollama (Automatic)
-                                                             Search: Google Custom Search
-                                                             Vector DB: Local RAG cache
+                               SQLite (data/app.db)          Default:  Ollama (local)
+                                                             Optional: Gemini / Grok (cloud)
+                                                             Fallback: Ollama (automatic)
+                                                             Search:   Google Custom Search
+                                                             Vector:   local RAG cache
 ```
 
-- **`backend-api/`** — API gateway and orchestration layer (`usisain_backend/`).
-  - `api/`: Domain-specific routers (`analyze`, `stream`, `scans`, `settings`, `reference_docs`, `errors`, `tts`).
-  - `services/`: Encapsulated business logic services consumed via FastAPI `Depends`.
-  - `orchestration/`: Pipeline decomposition (`step_runner`, `event_formatter`, `aggregator`, `pipeline`).
-  - `data/repositories/`: Context-managed SQLite repositories for scans, reference documents, and error logs.
-  - `core/`: Pydantic `BaseSettings` centralized configuration and system enums.
-  - Streams step-by-step results in real time over SSE (`/api/analyze/stream`).
-  - Returns aggregated JSON results for non-streaming callers (`/api/analyze`).
-  - Generates speech from verified summaries (`/api/tts`).
-  - Exposes runtime AI settings management (`/api/settings/ai`, `/api/settings/test-key`).
-  - Directly serves the web application and dashboard at `/app` and `/app/dashboard`.
-- **`mcp_server/`** — Modular 5-step pipeline registered as MCP tools and executed in-process inside the backend.
-  - `steps/`: Typed dataclass inputs and outputs for Steps 1 through 5.
-  - `prompts/`: Isolated LLM prompt definitions.
-  - `services/llm/`: Standardized provider hierarchy (`BaseLLMProvider`, `OllamaProvider`, `GeminiProvider`, `GrokProvider`, `FallbackProvider`, `KeyPool`).
-  - `constants.py`: Centralized scoring weights, thresholds, and forensic parameters.
-- **`client/browser-extension/`** — Desktop browser extension. Right-click text, images, or video, or use the interactive **Usisain Snipping Tool** to crop any webpage region. Includes active LLM provider and model switcher in the popup.
-- **`client/web-app/`** — Zero-build vanilla HTML5/CSS3/JavaScript ES modules client. Includes interactive verification modal, 30-day analytics, error logs, reference document RAG manager, and a dedicated **AI Settings** control center.
+**`backend-api/`**: API gateway and orchestration (`usisain_backend/`)
+
+- `api/`: routers for `analyze`, `stream`, `scans`, `settings`, `reference_docs`, `errors`, `tts`
+- `services/`: business logic injected via FastAPI `Depends`
+- `orchestration/`: pipeline decomposition (`step_runner`, `event_formatter`, `aggregator`, `pipeline`)
+- `data/repositories/`: context-managed SQLite repositories for scans, reference docs, and error logs
+- `core/`: Pydantic `BaseSettings` configuration and system enums
+
+**Key endpoints**
+
+| Endpoint | Purpose |
+| :--- | :--- |
+| `/api/analyze/stream` | Step-by-step results over SSE |
+| `/api/analyze` | Aggregated JSON for non-streaming callers |
+| `/api/tts` | Speech from verified summaries |
+| `/api/settings/ai`, `/api/settings/test-key` | Runtime AI settings management |
+| `/app`, `/app/dashboard` | Static web app and dashboard |
+
+**`mcp_server/`**: the 5 pipeline steps as Model Context Protocol tools, executed in-process
+
+- `steps/`: typed dataclass inputs and outputs for Steps 1-5
+- `prompts/`: isolated LLM prompt definitions
+- `services/llm/`: provider hierarchy (`BaseLLMProvider`, `OllamaProvider`, `GeminiProvider`, `GrokProvider`, `FallbackProvider`, `KeyPool`)
+- `constants.py`: scoring weights, thresholds, and forensic parameters
+
+**`client/`**
+
+- `browser-extension/`: Chromium MV3 and Firefox Gecko extension
+- `web-app/`: zero-build vanilla HTML5/CSS3/JS (ES modules) PWA and dashboard
 
 ---
 
-## 3. The 5-Step Analysis Pipeline
+## Project Structure
 
-Every scan runs sequentially through a 5-step verification pipeline:
-
-### Step 1: AI Insights (First-Pass Content Review)
-* **Goal**: Provide an initial neutral overview and extract text/context.
-* **How it works**:
-  * **Text-only**: The LLM summarizes claims and flags urgent language, emotional framing, and suspicious links.
-  * **Images & Video Frames**: Passed directly to multimodal vision models (**Gemini**, **Grok**, or **Ollama Vision**). If optical character recognition is desired, **Tesseract OCR** extracts text overlays; if Tesseract is not installed, the step gracefully falls back directly to visual LLM inference without errors.
-  * **Usisain Snipping**: Extracts text and images within a user-drawn selection box on any webpage for unified analysis.
-  * **Video**: Extracts keyframes using **OpenCV** to run visual analysis.
-* **Outputs**: A concise summary of the content (passed to Steps 3, 4, and 5).
-* **Tech**: LLM (Ollama / Gemini / Grok), OpenCV, Optional Tesseract OCR.
-
-### Step 2: Content Analyser (Digital Image Forensics)
-* **Goal**: Analyze images and videos locally for manipulation, edits, or AI generation signals. (Skipped for text-only inputs).
-* **How it works**:
-  * **Error Level Analysis (ELA)**: Re-saves the image at a known quality level (95%) and checks differences to find mismatched compression zones (e.g., spliced or pasted items).
-  * **Frequency-Domain Analysis**: Runs a Discrete Cosine Transform (DCT) to check the ratio of high-to-low frequencies. Real camera sensors add high-frequency noise, while AI-generated images are unnaturally smooth or show periodic grid artifacts.
-  * **EXIF Metadata**: Inspects headers for camera model information and editing software tags (Photoshop, GIMP, Canva, etc.).
-  * **Percentage Breakdown**: Computes an estimated breakdown (Real% / Edited% / AI-Generated%) and assigns a verdict (`likely_authentic`, `likely_edited`, `likely_ai_generated`, or `inconclusive`).
-  * **Forensic Explanation**: Multimodal models examine visual forensic signals and write a clear, user-friendly explanation of the breakdown percentages.
-  * **Video Mode**: Samples frames via OpenCV, runs image heuristics on each frame, and averages results. Also transcribes audio (if present) using **Faster-Whisper**.
-* **Outputs**: Percentage breakdown, forensic explanation, and video transcript.
-* **Tech**: NumPy + SciPy (DCT), OpenCV, Pillow, Faster-Whisper, LLM.
-
-### Step 3: Authenticity (Fact-Check & Source Verification)
-* **Goal**: Cross-reference claims against fresh web search results and local reference documents.
-* **How it works**:
-  * **Search Query Generation**: Uses a fast heuristic query generator (`STEP3_FAST_QUERY_GEN=True`) to extract key entities and URLs from the claim text, with an LLM fallback.
-  * **RAG Lookup**: Queries the local vector database for cached prior investigations and official advisories (reference documents) with a minimum score threshold of 0.45.
-  * **Google Search**: Sends the query to the Google Custom Search API (with DuckDuckGo as fallback), retrieving up to 3 results.
-  * **Source Scoring & Deduplication**: Scores results based on `Domain Trust (60%)` and `Text Similarity (40%)`. Deduplicates by URL and Title, selecting the top 2 sources.
-  * **Page Scraping (Optional)**: If `STEP3_FETCH_FULL_PAGE=True`, fetches the webpage text of the top 2 sources in parallel using **ThreadPoolExecutor** and **BeautifulSoup** (up to 1,500 chars).
-  * **LLM Synthesis**: The LLM evaluates search snippets, RAG advisories, and the claim. Assigns a verdict (`likely_true`, `inconclusive`, or `flagged`) and credibility score (0–100) with verified links.
-  * **Cache Storage**: Caches the query, verdict, score, and top source URL into the RAG vector store for instant future lookups.
-* **Outputs**: Credibility score (0–100), verdict, and scored sources.
-* **Tech**: Google Custom Search API, RAG Vector Store, BeautifulSoup, LLM.
-
-### Step 4: Actionable Items (Personalized Security Recommendations)
-* **Goal**: Provide 3–5 concrete next-step recommendations tailored to the verdict.
-* **How it works**:
-  * **Likely True**: Promotes safe engagement and official link checking.
-  * **Flagged / Scam**: Recommends defensive measures (block account, unfollow, report, warn others).
-  * **Inconclusive**: Advises caution and further manual verification.
-  * **Privacy Guard**: Strict rules prevent the LLM from outputting usernames, handles, or private personal data.
-* **Outputs**: A numbered list of 3–5 concrete action items.
-* **Tech**: LLM.
-
-### Step 5: Learnings (Educational Resources & Digital Literacy)
-* **Goal**: Educate the user on threat patterns and provide credible digital literacy links.
-* **How it works**:
-  * Generates an educational search query and fetches verified educational resources from official domains (`site:gov.ph`, `site:edu.ph`, `wikipedia.org`, `factcheck.org`).
-  * The LLM writes a 2–3 sentence educational overview explaining the threat pattern (e.g. emotional framing, clickbait, phishing).
-  * To prevent hallucination, the LLM is prohibited from generating URLs — verified educational links are programmatically appended by Python.
-* **Outputs**: 2–3 sentence educational synthesis and clickable official learning links.
-* **Tech**: Google Custom Search API, LLM.
+```
+usisain/
+├── backend-api/              # FastAPI gateway, orchestration, static web app server
+│   └── src/usisain_backend/
+│       ├── api/              # Stream, analyze, scans, tts, reference docs, settings, errors
+│       ├── core/             # Configuration, logging
+│       ├── data/             # SQLite database layer (app.db)
+│       ├── extraction/       # Input normalization (text, image, video, post)
+│       ├── orchestration/    # Sequential 5-step pipeline execution
+│       └── services/         # MCP client integration
+├── client/
+│   ├── browser-extension/    # Cross-browser extension (Chromium MV3 and Firefox Gecko)
+│   └── web-app/              # PWA web app and analytics dashboard
+├── data/                     # Runtime state (gitignored except structure)
+│   ├── models/               # Cached local models (whisper, etc.)
+│   ├── reference_images/     # Verified documents for RAG comparison
+│   ├── scripts/              # Ops scripts (init_db.py)
+│   ├── uploads/              # Temporary upload staging
+│   └── vector_index/         # Local RAG cache (Step 3)
+├── desktop/                  # Standalone launcher and cross-platform packaging
+│   ├── assets/               # Master icons (.ico, .icns, PNGs)
+│   ├── tools/                # make_icons.py, build_extension.py
+│   ├── usisain_launcher/     # Native launcher (detection, dialogs, runtime sync)
+│   ├── build_windows.ps1     # Windows bundle builder (.exe and zip)
+│   ├── build_macos.sh        # macOS builder (.app and .dmg)
+│   ├── usisain.spec          # PyInstaller one-folder spec
+│   └── requirements-build.txt
+├── docs/                     # Documentation and architecture records
+├── mcp_server/               # The 5 pipeline steps as MCP tools
+│   ├── services/llm/         # Ollama, Gemini, Grok providers, key pools, fallback
+│   ├── shared/               # Heuristics (ELA, DCT, EXIF, optional OCR)
+│   ├── tools/                # Step 1 (Insights) to Step 5 (Learnings)
+│   └── server.py             # In-process MCP tool registration
+├── tests/                    # Integration, unit, and launcher tests
+├── .env.example
+├── requirements.txt
+└── README.md
+```
 
 ---
 
-## 4. AI Providers & Runtime Architecture
+## Desktop Launcher and Packaging
 
-UsisAIn supports three LLM backends:
+The desktop launcher packages UsisAIn as a standalone executable with custom icons. On launch it detects your browser and offers to install the extension.
 
-| Provider | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| **Ollama** | **Local / Offline** | **Yes (Default)** | Default engine. Runs 100% locally on your machine with zero API key required. |
-| **Google Gemini** | **Cloud API** | *Optional* | Cloud alternative supporting Gemini 3.5 Flash, 2.5 Flash/Pro, 2.0 Flash, etc. |
-| **xAI Grok** | **Cloud API** | *Optional* | Cloud alternative supporting gpt-oss-120b (default), Grok 4.1 Fast, Grok 4.7, Grok 4.20 Reasoning, Grok Beta, etc. |
-
-### Smooth Runtime Transition & Automatic Fallback
-- **Ollama as Default & Auto-Detection on Failure**: Ollama is the default offline engine. If Ollama is not installed, not running, or fails on run, the system automatically inspects `.env` for configured cloud API keys (`GROK_API_KEY` or `GEMINI_API_KEY`) and auto-selects that provider (e.g. Grok `gpt-oss-120b`) as the active default AI and model with zero manual intervention.
-- **Zero-Restart Key & Model Updates**: Change active models or update API keys in real time via the Web App Dashboard (**⚙️ AI Settings** tab). Keys are reloaded into memory instantly and saved to `.env`.
-- **Multi-Key Pool & Rotation**: Both Gemini and Grok support comma-separated keys (`key1,key2`) with automatic round-robin load distribution.
-
----
-
-## 5. Prerequisites (Windows)
-
-1. **Python 3.12+ (64-bit)**
-   - Download from https://www.python.org/downloads/
-2. **Ollama (Default Local AI — Optional if using Cloud AI)**
-   - Recommended for 100% offline, privacy-first local analysis. If Ollama is uninstalled or unreachable, the system automatically uses whichever cloud AI key (`GROK_API_KEY` or `GEMINI_API_KEY`) is set in your `.env`.
-   - Download from https://ollama.com/download/windows
-   - Pull the recommended models:
-     ```powershell
-     ollama pull llama3.2:1b
-     ollama pull moondream
-     ollama pull nomic-embed-text
-     ```
-3. **Tesseract OCR (Optional)**
-   - Purely optional. When uninstalled or disabled, image and video visual verification runs directly through multimodal vision models (Gemini, Grok, or Ollama Vision) without warnings or errors.
-   - If desired for OCR text extraction: installer available at https://github.com/UB-Mannheim/tesseract/wiki.
-
----
-
-## 6. API Keys (Search & Optional Cloud AI)
-
-| Key | Required? | Where to get it |
-| :--- | :--- | :--- |
-| `GOOGLE_API_KEY` | **Required for Fact-Check** | https://console.cloud.google.com/apis/credentials (Enable "Custom Search API") |
-| `GOOGLE_CSE_ID` | **Required for Fact-Check** | https://programmablesearchengine.google.com/ (Search engine ID) |
-| `GEMINI_API_KEY` | *Optional* | https://aistudio.google.com/apikey (or configure via Dashboard AI Settings) |
-| `GROK_API_KEY` | *Optional* | https://console.x.ai/ (or configure via Dashboard AI Settings) |
-
----
-
-## 7. Setup & Installation
+### Build
 
 ```powershell
-# 1. Clone repository and enter directory
-cd usisain-hackathon
-
-# 2. Create and activate virtual environment
-py -m venv venv
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Copy environment configuration
-copy .env.example .env
-
-# 5. Initialize the database
-python data\scripts\init_db.py
+# Windows: .exe and release zip
+.\desktop\build_windows.ps1
 ```
 
----
-
-## 8. Running the Application
-
-Start the backend API server and static web app:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\run.bat
+```bash
+# macOS: .app and .dmg
+chmod +x desktop/build_macos.sh
+./desktop/build_macos.sh
 ```
 
-Alternatively, run directly with Uvicorn:
-```powershell
-.\venv\Scripts\python -m uvicorn usisain_backend.main:app --host 0.0.0.0 --port 8000 --reload --app-dir backend-api\src
-```
+| Platform | Output |
+| :--- | :--- |
+| Windows | `desktop/dist/UsisAIn/UsisAIn.exe` and `desktop/dist/UsisAIn-windows-x64.zip` |
+| macOS | `desktop/dist/UsisAIn.app` and `desktop/dist/UsisAIn-macOS.dmg` |
 
-- **Backend API & Docs**: http://localhost:8000/docs
-- **Web App**: http://localhost:8000/app
-- **Admin & Analytics Dashboard**: http://localhost:8000/app/dashboard
+### Browser detection and extension install flow
 
----
+1. **Detection:** checks running browser processes (`chrome.exe`, `msedge.exe`, `brave.exe`, `opera.exe`, `firefox.exe`, `Safari`). If several are running, shows a picker with your default preselected. If none are running, reads the system default (Windows Registry `UserChoice\ProgId` or macOS LaunchServices).
+2. **Prompt:** offers **Add**, **Not now**, or **Don't ask again** (saved in `%LOCALAPPDATA%\UsisAIn\config.json` or `~/Library/Application Support/UsisAIn/config.json`). Skipped automatically if the extension is already installed.
+3. **Install:**
+   - **Chromium:** opens the extensions page with a one-click "Copy folder path" for Load unpacked.
+   - **Firefox:** opens `about:debugging#/runtime/this-firefox` and provides the Gecko manifest path.
+   - **Safari:** opens the bundled Safari Web Extension wrapper.
 
-## 9. Browser Extension Setup (Desktop)
+### Data isolation and updates
 
-1. Open your browser and navigate to `chrome://extensions` (Chrome) or `edge://extensions` (Edge).
-2. Enable **Developer mode** (toggle in top right).
-3. Click **Load unpacked** and select the directory:
-   `c:\Projects\Usisain\usisain-hackathon\client\browser-extension\`
-4. Keep the backend running on port 8000.
-5. **Usage**:
-   - Right-click selected text, an image, or a video on any website to verify.
-   - Click the extension icon and use the **Usisain Snipping Tool** to draw a box around any part of a page.
-   - Switch active LLM providers (Ollama, Gemini, Grok) or specific models right from the extension popup.
+Databases, uploaded scans, and `.env` credentials live in `%LOCALAPPDATA%\UsisAIn\app` (Windows) or `~/Library/Application Support/UsisAIn/app` (macOS). Rebuilding the launcher updates the bundled code while preserving your database, vector store, and API keys.
 
 ---
 
-## 10. Web App & Dashboard Features
+## Troubleshooting
 
-With the backend running, open **`http://localhost:8000/app/dashboard`**:
-
-1. **Overview Tab**:
-   - Total Scans, Credible/Safe, Inconclusive, and Flagged counts.
-   - 30-day interactive scan trends chart by client channel.
-   - Visual verdict distribution doughnut chart.
-   - Audit scan history table with filtering, search, and full JSON inspection.
-2. **Reference Documents Tab**:
-   - Upload official advisories, government notices, and ground-truth documents.
-   - Automatically vectorized locally via `nomic-embed-text` for semantic matching in Step 3.
-3. **⚙️ AI Settings Tab**:
-   - **Default Provider Selector**: Choose between Ollama, Gemini, and Grok with instant live switching.
-   - **Ollama Card**: View local host connection, active text model, active vision model, and refresh available models.
-   - **Google Gemini Card**: Add/update API keys, toggle key visibility, switch active Gemini models, and run a **⚡ Test Key** connection check.
-   - **xAI Grok Card**: Add/update API keys, toggle key visibility, switch active Grok models, and run a **⚡ Test Key** connection check.
-   - **Tesseract OCR Engine Card**: Live status indicator displaying whether Tesseract is active or operating in automatic multimodal vision fallback mode.
-4. **Error Log Tab**:
-   - Real-time logging of pipeline step timeouts or warnings with one-click cleanup.
-5. **Pipeline Info Tab**:
-   - Visual diagram and technical breakdown of all 5 steps with live model badges.
-
----
-
-## 11. Localization & Multilingual Support
-
-The system supports multilingual analysis across all LLM-driven steps (Steps 1, 4, and 5):
-- **English** (Supported across Ollama, Gemini, and Grok)
-- **Taglish** (Gemini & Grok)
-- **Tagalog / Filipino** (Gemini & Grok)
-- **Cebuano** (Gemini & Grok)
-- **Bisaya** (Gemini & Grok)
-- **Ilocano** (Gemini & Grok)
-
----
-
-## 12. Troubleshooting
-
-- **Connection Error in Extension / Web App**: Ensure backend is running on `http://localhost:8000`.
-- **Ollama Offline**: Ensure `ollama serve` is active in the background. Verify model availability with `ollama list`.
-- **Search API Errors (Step 3)**: Verify `GOOGLE_API_KEY` and `GOOGLE_CSE_ID` in `.env`.
-- **Cloud Key Test Fails**: Open the **⚙️ AI Settings** tab in the Dashboard, re-enter your API key, and click **⚡ Test Key** to see the diagnostic response.
-- **Tesseract Not Found Warning**: Tesseract is strictly optional. The pipeline will automatically route image verification to multimodal vision models.
+| Problem | Fix |
+| :--- | :--- |
+| **Connection error in extension or web app** | Make sure the backend is running on `http://localhost:8000`. |
+| **Ollama offline** | Run `ollama serve` and check models with `ollama list`. |
+| **Search errors in Step 3** | Verify `GOOGLE_API_KEY` and `GOOGLE_CSE_ID` in `.env`. |
+| **Cloud key test fails** | Re-enter the key in **AI Settings** and click **Test Key** for a diagnostic response. |
+| **"Tesseract not found" warning** | Tesseract is optional. Image verification automatically uses multimodal vision models instead. |

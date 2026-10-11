@@ -1,5 +1,10 @@
-export async function loadErrors(openModalFn = window.openModal, apiClient = window.ApiClient) {
-  const errors = await apiClient.getErrors(100);
+export async function loadErrors(openModalFn = window.openModal, apiClient) {
+  const client = apiClient || window.ApiClient || (typeof ApiClient !== "undefined" ? ApiClient : null);
+  if (!client || typeof client.getErrors !== "function") {
+    setTimeout(() => loadErrors(openModalFn, apiClient), 150);
+    return;
+  }
+  const errors = await client.getErrors(100);
   const tbody = document.querySelector("#errors-table tbody");
   if (!tbody) return;
   tbody.innerHTML = "";

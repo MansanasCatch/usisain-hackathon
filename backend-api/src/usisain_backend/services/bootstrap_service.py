@@ -12,7 +12,7 @@ def ensure_ollama_model(model_name: str) -> bool:
     probe_url = f"{host.rstrip('/')}/api/tags"
     try:
         req = urllib.request.Request(probe_url, method="GET")
-        with urllib.request.urlopen(req, timeout=1.0):
+        with urllib.request.urlopen(req, timeout=0.3):
             pass
     except Exception:
         logger.warning("[Ollama] Daemon at %s is not reachable or not installed", host)

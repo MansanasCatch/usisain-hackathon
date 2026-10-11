@@ -49,9 +49,16 @@ class OllamaProvider(LLMProvider):
     name = "ollama"
 
     def __init__(self, model: str | None = None, host: str | None = None):
-        self.text_model = model or OLLAMA_MODEL
-        self.vision_model = OLLAMA_VISION_MODEL
+        self._model = model
         self.client = _get_ollama_client(host)
+
+    @property
+    def text_model(self) -> str:
+        return self._model or os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
+
+    @property
+    def vision_model(self) -> str:
+        return os.environ.get("OLLAMA_VISION_MODEL", "moondream")
 
     async def complete(
         self, system: str, user: str, image_path: str | None = None, max_tokens: int | None = None

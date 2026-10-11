@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     grok_api_key: str = ""
     gemini_rpm_limit: int = 15
-    tts_enabled: bool = False
+    tts_enabled: bool = True
     pipeline_step_timeout_seconds: float = 120.0
     step3_fast_query_gen: bool = True
     step3_fetch_full_page: bool = False
@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     def persist_env_var(self, key: str, val: str) -> None:
         clean_val = val.strip()
         os.environ[key] = clean_val
+        attr = key.lower()
+        if hasattr(self, attr):
+            setattr(self, attr, clean_val)
         try:
             if ENV_FILE.exists():
                 lines = ENV_FILE.read_text(encoding="utf-8").splitlines()

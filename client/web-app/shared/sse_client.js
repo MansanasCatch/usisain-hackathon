@@ -38,3 +38,7 @@ async function streamAnalyze(formData, onEvent, backendUrl = "") {
     }
   }
 }
+
+if (typeof window !== "undefined") {
+  window.streamAnalyze = streamAnalyze;
+}

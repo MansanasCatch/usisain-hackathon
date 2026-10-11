@@ -28,16 +28,19 @@ class FallbackWrapper(LLMProvider):
                 exc,
             )
             if is_ollama_available():
-                return await self.fallback.complete(
-                    system, user, image_path=image_path, max_tokens=max_tokens
-                )
+                try:
+                    return await self.fallback.complete(
+                        system, user, image_path=image_path, max_tokens=max_tokens
+                    )
+                except Exception as ollama_err:
+                    logger.warning("Ollama fallback failed: %s", ollama_err)
             from .gemini_client import KEY_POOL as GEMINI_POOL
             from .gemini_client import GeminiProvider
             from .grok_client import KEY_POOL as GROK_POOL
             from .grok_client import GrokProvider
 
             if self.primary_name != "grok" and GROK_POOL.has_keys():
-                logger.info("Ollama is unavailable — smoothly falling back to Grok.")
+                logger.info("Falling back to Grok.")
                 try:
                     return await GrokProvider().complete(
                         system, user, image_path=image_path, max_tokens=max_tokens
@@ -45,16 +48,26 @@ class FallbackWrapper(LLMProvider):
                 except Exception as grok_err:
                     logger.warning("Grok fallback also failed: %s", grok_err)
             elif self.primary_name != "gemini" and GEMINI_POOL.has_keys():
-                logger.info("Ollama is unavailable — smoothly falling back to Gemini.")
+                logger.info("Falling back to Gemini.")
                 try:
                     return await GeminiProvider().complete(
                         system, user, image_path=image_path, max_tokens=max_tokens
                     )
                 except Exception as gem_err:
                     logger.warning("Gemini fallback also failed: %s", gem_err)
-            return await self.fallback.complete(
-                system, user, image_path=image_path, max_tokens=max_tokens
-            )
+
+            err_details = [f"{self.primary_name.title()} error: {exc}"]
+            if not is_ollama_available():
+                err_details.append("Ollama is offline/not running (http://localhost:11434 unreachable)")
+            if self.primary_name != "gemini" and not GEMINI_POOL.has_keys():
+                err_details.append("Gemini API key is empty")
+            if self.primary_name != "grok" and not GROK_POOL.has_keys():
+                err_details.append("Grok API key is empty")
+
+            raise RuntimeError(
+                f"All AI connection attempts failed. ({'; '.join(err_details)}). "
+                "Please configure a valid API key (Gemini/Grok) in Dashboard → AI Settings, or start Ollama."
+            ) from exc
 
 
 FallbackProvider = FallbackWrapper

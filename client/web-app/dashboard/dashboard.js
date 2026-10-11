@@ -1,4 +1,4 @@
-import { centerTextPlugin, renderTrendChart, renderVerdictChart } from "./modules/charts.js";
+import { centerTextPlugin, renderTrendChart, renderVerdictChart, trendChartInstance, verdictChartInstance } from "./modules/charts.js";
 import { loadRefDocs, onRefDocFileSelected, bindRefDocsEvents } from "./modules/ref_docs.js";
 import { loadErrors, bindErrorLogEvents } from "./modules/error_log.js";
 import { loadStepInfo } from "./modules/step_info.js";
@@ -26,7 +26,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     if (btn.dataset.tab === "stepinfo") {
       loadStepInfo();
     } else if (btn.dataset.tab === "aisettings") {
-      loadAISettingsTab();
+      loadAISettingsTab({ apiClient: window.ApiClient, loadSettingsFn: loadSettings });
     }
   });
 });
@@ -35,7 +35,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 let pipelineTimeoutSeconds = 120;
 let maxReferenceDocSizeMb = 10;
 let supportedLanguages = {
-  ollama: ["english"],
+  ollama: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
   gemini: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
   grok: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
 };
@@ -70,18 +70,29 @@ async function loadSettings() {
       activeProvider = settings.default_llm_provider;
       const modalProv = document.getElementById("llm-provider");
       if (modalProv) modalProv.value = activeProvider;
+      const settingDefault = document.getElementById("setting-default-provider");
+      if (settingDefault) settingDefault.value = activeProvider;
       if (window.updateLlmSelectorUI) {
         window.updateLlmSelectorUI();
       }
     }
     if (settings?.gemini_model) {
       activeGeminiModel = settings.gemini_model;
+      const gemSel = document.getElementById("setting-gemini-model");
+      if (gemSel) gemSel.value = activeGeminiModel;
     }
     if (settings?.grok_model) {
       activeGrokModel = settings.grok_model;
+      const grokSel = document.getElementById("setting-grok-model");
+      if (grokSel) grokSel.value = activeGrokModel;
     }
     if (settings?.ollama_model) {
       activeOllamaModel = settings.ollama_model;
+      const ollamaSel = document.getElementById("setting-ollama-model");
+      if (ollamaSel) ollamaSel.value = activeOllamaModel;
+    }
+    if (window.updateActiveModelUI) {
+      window.updateActiveModelUI();
     }
     if (settings?.tts_enabled !== undefined) {
       document.getElementById("tts-toggle").checked = settings.tts_enabled;
@@ -968,15 +979,27 @@ populateVoiceDropdown();
 loadSettings();
 loadOverview();
 loadScans();
-loadRefDocs();
-loadErrors();
+
+// Bind tab event handlers
+if (typeof bindAISettingsEvents === "function") {
+  bindAISettingsEvents({ apiClient: window.ApiClient, loadSettingsFn: loadSettings });
+}
+if (typeof bindRefDocsEvents === "function") {
+  bindRefDocsEvents({ apiClient: window.ApiClient });
+}
+if (typeof bindErrorLogEvents === "function") {
+  bindErrorLogEvents(undefined, window.ApiClient);
+}
+
+loadRefDocs(window.ApiClient);
+loadErrors(undefined, window.ApiClient);
 initModelSelector();
 initPWAServiceWorker();
 
 function initPWAServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/app/sw.js')
+      navigator.serviceWorker.register('/app/sw.js?v=3')
         .then(reg => {
           console.log('[PWA] Service Worker registered with scope:', reg.scope);
         })
@@ -991,19 +1014,23 @@ window.addEventListener('resize', () => {
   const isMobile = window.innerWidth < 550;
   const isTablet = window.innerWidth < 650;
   
-  if (trendChartInstance) {
-    trendChartInstance.options.plugins.legend.labels.font.size = isMobile ? 9 : 11;
-    trendChartInstance.options.scales.x.ticks.font.size = isMobile ? 8 : 10;
-    trendChartInstance.options.scales.y.ticks.font.size = isMobile ? 8 : 10;
-    trendChartInstance.update('none');
-  }
+  try {
+    if (typeof trendChartInstance !== 'undefined' && trendChartInstance) {
+      trendChartInstance.options.plugins.legend.labels.font.size = isMobile ? 9 : 11;
+      trendChartInstance.options.scales.x.ticks.font.size = isMobile ? 8 : 10;
+      trendChartInstance.options.scales.y.ticks.font.size = isMobile ? 8 : 10;
+      trendChartInstance.update('none');
+    }
+  } catch (e) {}
   
-  if (verdictChartInstance) {
-    verdictChartInstance.options.plugins.legend.position = isTablet ? 'bottom' : 'right';
-    verdictChartInstance.options.plugins.legend.labels.font.size = isMobile ? 9 : 10;
-    verdictChartInstance.options.plugins.legend.labels.padding = isMobile ? 6 : 10;
-    verdictChartInstance.update('none');
-  }
+  try {
+    if (typeof verdictChartInstance !== 'undefined' && verdictChartInstance) {
+      verdictChartInstance.options.plugins.legend.position = isTablet ? 'bottom' : 'right';
+      verdictChartInstance.options.plugins.legend.labels.font.size = isMobile ? 9 : 10;
+      verdictChartInstance.options.plugins.legend.labels.padding = isMobile ? 6 : 10;
+      verdictChartInstance.update('none');
+    }
+  } catch (e) {}
 });
 
 let allOllamaModels = [];
@@ -1111,40 +1138,53 @@ async function initModelSelector() {
         llmTrigger.setAttribute("aria-expanded", "false");
 
         if (newProvider === activeProvider) return;
-
-        if (overlay) {
-          overlay.querySelector(".loading-text").textContent = `Switching to ${newProvider.toUpperCase()}...`;
-          overlay.classList.add("show");
-        }
-
-        try {
-          const res = await ApiClient.switchProvider(newProvider);
-          if (res && res.status === "ok") {
-            activeProvider = newProvider;
-            showToast(`Switched active provider to <strong>${newProvider.toUpperCase()}</strong>`);
-            
-            const modalLlm = document.getElementById("llm-provider");
-            if (modalLlm) {
-              modalLlm.value = newProvider;
-              modalLlm.dispatchEvent(new Event("change"));
-            }
-            
-            updateLlmSelectorUI();
-            
-            await loadSettings();
-            await fetchAndRenderModels();
-          } else {
-            showToast("Failed to switch active provider", true);
-          }
-        } catch (err) {
-          console.error("Error switching provider:", err);
-          showToast("Network error switching active provider", true);
-        } finally {
-          if (overlay) overlay.classList.remove("show");
-        }
+        await switchActiveProvider(newProvider);
       });
     });
   }
+
+  async function switchActiveProvider(newProvider) {
+    if (!newProvider) return;
+    if (newProvider === activeProvider) return;
+
+    if (overlay) {
+      overlay.querySelector(".loading-text").textContent = `Switching to ${newProvider.toUpperCase()}...`;
+      overlay.classList.add("show");
+    }
+
+    try {
+      const res = await ApiClient.switchProvider(newProvider);
+      if (res && res.status === "ok") {
+        activeProvider = newProvider;
+        showToast(`Switched active provider to <strong>${newProvider.toUpperCase()}</strong>`);
+        
+        const modalLlm = document.getElementById("llm-provider");
+        if (modalLlm) {
+          modalLlm.value = newProvider;
+          modalLlm.dispatchEvent(new Event("change"));
+        }
+        
+        const settingDefault = document.getElementById("setting-default-provider");
+        if (settingDefault) {
+          settingDefault.value = newProvider;
+        }
+
+        updateLlmSelectorUI();
+        
+        await loadSettings();
+        await fetchAndRenderModels();
+      } else {
+        showToast("Failed to switch active provider", true);
+      }
+    } catch (err) {
+      console.error("Error switching provider:", err);
+      showToast("Network error switching active provider", true);
+    } finally {
+      if (overlay) overlay.classList.remove("show");
+    }
+  }
+
+  window.switchActiveProvider = switchActiveProvider;
 
   function updateLlmSelectorUI() {
     if (activeLlmName) {
@@ -1157,6 +1197,14 @@ async function initModelSelector() {
       } else {
         activeLlmName.textContent = activeProvider.toUpperCase();
       }
+    }
+    const settingDefault = document.getElementById("setting-default-provider");
+    if (settingDefault && activeProvider) {
+      settingDefault.value = activeProvider;
+    }
+    const modalProv = document.getElementById("llm-provider");
+    if (modalProv && activeProvider) {
+      modalProv.value = activeProvider;
     }
     const llmItems = llmList?.querySelectorAll(".model-item");
     if (llmItems) {
@@ -1275,27 +1323,37 @@ async function initModelSelector() {
   function updateActiveModelUI() {
     if (!activeNameSpan) return;
     
+    let currentActive = "";
     if (activeProvider === "ollama") {
-      if (activeOllamaModel) {
-        activeNameSpan.textContent = cleanModelName(activeOllamaModel);
-      } else {
-        activeNameSpan.textContent = "Select Model";
-      }
+      currentActive = activeOllamaModel;
     } else if (activeProvider === "gemini") {
-      if (activeGeminiModel) {
-        activeNameSpan.textContent = cleanModelName(activeGeminiModel);
-      } else {
-        activeNameSpan.textContent = "Select Model";
-      }
+      currentActive = activeGeminiModel;
     } else if (activeProvider === "grok") {
-      if (activeGrokModel) {
-        activeNameSpan.textContent = cleanModelName(activeGrokModel);
-      } else {
-        activeNameSpan.textContent = "Select Model";
+      currentActive = activeGrokModel;
+    }
+
+    const triggerBadge = document.getElementById("active-model-badge");
+    if (currentActive) {
+      const sVis = isVisionModel(currentActive, activeProvider);
+      activeNameSpan.textContent = cleanModelName(currentActive);
+      activeNameSpan.title = `${cleanModelName(currentActive)} (${sVis ? '👁️ Vision + Text' : '📝 Text Only'})`;
+      if (triggerBadge) {
+        triggerBadge.textContent = sVis ? "👁️ Vision" : "📝 Text";
+        triggerBadge.className = `trigger-mode-badge ${sVis ? 'mode-vision' : 'mode-text'}`;
+        triggerBadge.title = sVis ? "Supports Text + Images" : "Text Only (No images)";
+      }
+    } else {
+      activeNameSpan.textContent = "Select Model";
+      if (triggerBadge) {
+        triggerBadge.textContent = "";
+        triggerBadge.className = "trigger-mode-badge";
       }
     }
     renderModelList("");
   }
+
+  window.updateActiveModelUI = updateActiveModelUI;
+  window.fetchAndRenderModels = fetchAndRenderModels;
 
   function cleanModelName(rawName) {
     if (!rawName) return "Unknown";
@@ -1312,7 +1370,10 @@ async function initModelSelector() {
       return name;
     }
 
-    if (name === "gpt-oss-120b") return "GPT OSS 120B";
+    if (name === "gpt-oss-120b" || name === "openai/gpt-oss-120b" || name.endsWith("gpt-oss-120b")) return "GPT OSS 120B";
+    if (name === "gpt-oss-20b" || name === "openai/gpt-oss-20b" || name.endsWith("gpt-oss-20b")) return "GPT OSS 20B";
+    if (name.includes("qwen3.8-27b")) return "Qwen 3.8 27B";
+    if (name.includes("allam-2-7b")) return "Allam 2 7B";
 
     if (name.startsWith("grok-")) {
       if (name === "grok-4.1-fast") return "Grok 4.1 Fast";
@@ -1376,6 +1437,15 @@ async function initModelSelector() {
     }
   }
 
+  function isVisionModel(name, provider) {
+    if (!name) return false;
+    const p = (provider || activeProvider || "").toLowerCase();
+    if (p === "gemini") return true;
+    const lower = name.toLowerCase();
+    const visionKeywords = ["vision", "moondream", "llava", "bakllava", "minicpm-v", "scout", "multimodal", "-vl", "vl-", "_vl"];
+    return visionKeywords.some(kw => lower.includes(kw));
+  }
+
   function renderModelList(query) {
     listContainer.innerHTML = "";
     const filter = query.toLowerCase().trim();
@@ -1383,7 +1453,11 @@ async function initModelSelector() {
     const modelsToRender = activeProvider === "ollama"
       ? allOllamaModels
       : (activeProvider === "gemini" ? allGeminiModels : allGrokModels);
-    const filtered = modelsToRender.filter(m => m.name.toLowerCase().includes(filter));
+    const filtered = modelsToRender.filter(m => {
+      const sVis = (typeof m.supports_vision === "boolean") ? m.supports_vision : isVisionModel(m.name, activeProvider);
+      const capKeywords = sVis ? "vision image multimodal text" : "text only";
+      return m.name.toLowerCase().includes(filter) || capKeywords.includes(filter);
+    });
 
     if (filtered.length === 0) {
       if (modelsToRender.length === 0) {
@@ -1406,6 +1480,9 @@ async function initModelSelector() {
         : (activeProvider === "gemini" ? activeGeminiModel : activeGrokModel);
       const isTxtActive = model.name === activeModelName || model.name.split(":")[0] === activeModelName.split(":")[0];
       const isActive = isTxtActive;
+      const supportsVision = (typeof model.supports_vision === "boolean")
+        ? model.supports_vision
+        : isVisionModel(model.name, activeProvider);
 
       const item = document.createElement("div");
       item.className = `model-item ${isActive ? 'active-model' : ''}`;
@@ -1416,12 +1493,19 @@ async function initModelSelector() {
         <div class="model-item-info">
           <div class="model-item-header">
             <span class="model-item-name" title="${model.name}">${cleanModelName(model.name)}</span>
+            <span class="model-mode-badge ${supportsVision ? 'mode-vision' : 'mode-text'}">
+              ${supportsVision ? '👁️ Image+Text' : '📝 Text Only'}
+            </span>
             <span class="model-item-status-badge ${isActive ? 'status-active' : 'status-available'}">
               ${isActive ? 'Active' : 'Available'}
             </span>
           </div>
           <div class="model-item-details">
             ${model.size_bytes ? `<span class="model-item-size">${formatSize(model.size_bytes)}</span>` : '<span class="model-item-size">API Cloud</span>'}
+            <span class="model-item-divider">•</span>
+            <span class="model-capability-badge ${supportsVision ? 'cap-vision' : 'cap-text'}" title="${supportsVision ? 'Supports multimodal visual inspection & text' : 'Pure text model'}">
+              ${supportsVision ? '👁️ Vision + Text' : '📝 Text Only'}
+            </span>
             ${relativeTime ? `<span class="model-item-divider">•</span> <span class="model-item-modified">Modified ${relativeTime}</span>` : ''}
           </div>
         </div>
@@ -1460,12 +1544,18 @@ async function initModelSelector() {
           if (res && res.status === "ok") {
             if (activeProvider === "ollama") {
               activeOllamaModel = model.name;
+              const sel = document.getElementById("setting-ollama-model");
+              if (sel) sel.value = model.name;
               showToast(`Switched active Ollama model to <strong>${cleanModelName(model.name)}</strong>`);
             } else if (activeProvider === "gemini") {
               activeGeminiModel = model.name;
+              const sel = document.getElementById("setting-gemini-model");
+              if (sel) sel.value = model.name;
               showToast(`Switched active Gemini model to <strong>${cleanModelName(model.name)}</strong>`);
             } else if (activeProvider === "grok") {
               activeGrokModel = model.name;
+              const sel = document.getElementById("setting-grok-model");
+              if (sel) sel.value = model.name;
               showToast(`Switched active Grok model to <strong>${cleanModelName(model.name)}</strong>`);
             }
             loadSettings();

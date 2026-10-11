@@ -31,8 +31,10 @@ class Step2ContentAnalyser(BaseStep):
     ) -> str:
         llm = get_provider(provider)
         system_prompt = SYSTEM_PROMPT
-        if language in LANGUAGE_INSTRUCTIONS:
-            system_prompt = f"{SYSTEM_PROMPT} {LANGUAGE_INSTRUCTIONS[language]}"
+        lang_key = (language or "english").strip().lower()
+        lang_inst = LANGUAGE_INSTRUCTIONS.get(lang_key, LANGUAGE_INSTRUCTIONS.get("english", ""))
+        if lang_inst:
+            system_prompt = f"{SYSTEM_PROMPT} {lang_inst}"
         system_prompt = f"{system_prompt} {SECURITY_GUARDRAIL}"
         ela = signals.get("ela_suspicion", 0)
         freq = signals.get("frequency", {})

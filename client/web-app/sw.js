@@ -1,4 +1,4 @@
-const CACHE_NAME = "usisain-cache-v1";
+const CACHE_NAME = "usisain-cache-v3";
 
 const PRECACHE_ASSETS = [
   "/app/",
@@ -26,7 +26,6 @@ self.addEventListener("install", (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log("[Service Worker] Precaching static resources");
-        
         return cache.addAll(PRECACHE_ASSETS);
       })
       .then(() => self.skipWaiting())
@@ -51,14 +50,12 @@ self.addEventListener("activate", (event) => {
 
 
 self.addEventListener("fetch", (event) => {
-  
   if (!event.request.url.startsWith("http")) return;
 
   const url = new URL(event.request.url);
 
-  
+  // Network-only for API requests
   if (url.pathname.includes("/api/")) {
-    
     if (event.request.method !== "GET") {
       event.respondWith(fetch(event.request));
       return;
@@ -83,24 +80,21 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  
+  // Network-first for application scripts, modules and styles so changes are always fresh
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse.status === 200 && event.request.method === "GET") {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch((err) => {
-          console.log("[Service Worker] Network fetch failed in stale-while-revalidate:", err);
-        });
-
-      return cachedResponse || fetchPromise;
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse.status === 200 && event.request.method === "GET") {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request);
+      })
   );
 });
+

@@ -50,7 +50,7 @@ const STEP_START_MESSAGES = {
 
 
 let supportedLanguages = {
-  ollama: ["english"],
+  ollama: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
   gemini: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
   grok: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
 };

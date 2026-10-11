@@ -1,5 +1,10 @@
-export async function loadStepInfo(apiClient = window.ApiClient) {
-  const settings = await apiClient.getSettings();
+export async function loadStepInfo(apiClient) {
+  const client = apiClient || window.ApiClient || (typeof ApiClient !== "undefined" ? ApiClient : null);
+  if (!client || typeof client.getSettings !== "function") {
+    setTimeout(() => loadStepInfo(apiClient), 150);
+    return;
+  }
+  const settings = await client.getSettings();
 
   const provider = settings.default_llm_provider || "ollama";
   const bannerBadge = document.getElementById("banner-provider-badge");

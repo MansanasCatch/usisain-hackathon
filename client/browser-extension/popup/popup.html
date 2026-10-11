@@ -76,6 +76,7 @@
       <button class="model-selector-trigger" id="model-trigger" aria-haspopup="listbox" aria-expanded="false">
         <span class="model-status-indicator"></span>
         <span class="model-name-text" id="active-model-name">Loading...</span>
+        <span class="trigger-mode-badge" id="active-model-badge"></span>
         <span class="chevron">▼</span>
       </button>
       <div class="model-selector-dropdown" id="model-dropdown">
@@ -124,7 +125,10 @@
       </div>
     </div>
     <div class="control-row popup-control-row-toggle">
-      <span class="control-label">Use Tesseract-OCR</span>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span class="control-label">Use Tesseract-OCR</span>
+        <span class="ocr-status-badge" id="ocr-status-badge">Checking...</span>
+      </div>
       <input type="checkbox" id="ocr-toggle" class="popup-checkbox" checked>
     </div>
   </div>

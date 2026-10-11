@@ -173,7 +173,13 @@ class GrokProvider(LLMProvider):
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
-        if image_path and os.path.exists(image_path):
+        is_groq = api_key.startswith("gsk_")
+        target_url = "https://api.groq.com/openai/v1/chat/completions" if is_groq else GROK_API_URL
+
+        from mcp_server.shared.model_utils import model_supports_vision
+        model_has_vision = model_supports_vision("grok", self.model)
+
+        if image_path and os.path.exists(image_path) and model_has_vision:
             img_b64 = _encode_image_b64(image_path)
             if img_b64:
                 messages.append(
@@ -189,14 +195,26 @@ class GrokProvider(LLMProvider):
                 messages.append({"role": "user", "content": user or ""})
         else:
             messages.append({"role": "user", "content": user or ""})
-        payload = {"model": self.model, "messages": messages, "temperature": 0.2}
+
+        # Determine appropriate model for endpoint
+        model_name = self.model
+        if is_groq:
+            if model_name in ("gpt-oss-120b", "openai/gpt-oss-120b"):
+                model_name = "openai/gpt-oss-120b"
+            elif model_name in ("gpt-oss-20b", "openai/gpt-oss-20b"):
+                model_name = "openai/gpt-oss-20b"
+            elif model_name.startswith("grok-"):
+                model_name = "openai/gpt-oss-120b"
+
+        payload = {"model": model_name, "messages": messages, "temperature": 0.2}
         if max_tokens:
             payload["max_tokens"] = max_tokens
         resp = requests.post(
-            GROK_API_URL, headers=headers, json=payload, timeout=GROK_REQUEST_TIMEOUT
+            target_url, headers=headers, json=payload, timeout=GROK_REQUEST_TIMEOUT
         )
         if resp.status_code != 200:
-            err_msg = f"Grok API returned HTTP {resp.status_code}: {resp.text}"
+            provider_label = "Groq" if is_groq else "xAI Grok"
+            err_msg = f"{provider_label} API returned HTTP {resp.status_code}: {resp.text}"
             exc = RuntimeError(err_msg)
             setattr(exc, "status_code", resp.status_code)
             raise exc
@@ -230,17 +248,58 @@ class GrokProvider(LLMProvider):
 
 
 def list_models(api_key: str | None = None) -> list[str]:
-    key = (api_key or "").strip() or KEY_POOL.next_key()
+    key = (api_key or "").strip() or (KEY_POOL.next_key() if KEY_POOL.has_keys() else "")
     if not key:
-        raise RuntimeError("GROK_API_KEY is not set")
+        return [DEFAULT_GROK_MODEL]
     headers = {"Authorization": f"Bearer {key}"}
-    resp = requests.get(GROK_MODELS_URL, headers=headers, timeout=10.0)
-    if resp.status_code != 200:
-        raise RuntimeError(f"Failed to fetch Grok models: HTTP {resp.status_code} {resp.text}")
-    data = resp.json()
-    items = data.get("data", [])
-    model_ids = [m["id"] for m in items if isinstance(m, dict) and "id" in m]
-    return sorted(model_ids) if model_ids else [DEFAULT_GROK_MODEL]
+    if key.startswith("gsk_"):
+        url = "https://api.groq.com/openai/v1/models"
+        try:
+            resp = requests.get(url, headers=headers, timeout=10.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get("data", [])
+                model_ids = [
+                    m["id"]
+                    for m in items
+                    if isinstance(m, dict)
+                    and "id" in m
+                    and not m["id"].startswith("whisper")
+                    and "guard" not in m["id"]
+                ]
+                if model_ids:
+                    return sorted(model_ids)
+        except Exception as e:
+            logger.warning("Could not fetch Groq models: %s", e)
+        return [
+            "openai/gpt-oss-120b",
+            "llama-3.2-11b-vision-preview",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b",
+            "allam-2-7b",
+        ]
+    else:
+        try:
+            resp = requests.get(GROK_MODELS_URL, headers=headers, timeout=10.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get("data", [])
+                model_ids = [m["id"] for m in items if isinstance(m, dict) and "id" in m]
+                if model_ids:
+                    return sorted(model_ids)
+        except Exception as e:
+            logger.warning("Could not fetch xAI Grok models: %s", e)
+        return [
+            "gpt-oss-120b",
+            "grok-4.1-fast",
+            "grok-4.7",
+            "grok-4.6",
+            "grok-4.5",
+            "grok-4.3",
+            "grok-4.20-reasoning",
+            "grok-beta",
+            "grok-2-vision-1212",
+        ]
 
 
 list_grok_models = list_models
