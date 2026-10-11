@@ -618,13 +618,6 @@
     </div>
   </div>
 
-  <style>
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
-
   <!-- Model switch feedback toast -->
   <div id="model-switch-toast" class="model-switch-toast">
     <span class="toast-icon"></span>
@@ -634,7 +627,7 @@
   <script src="../shared/api_client.js"></script>
   <script src="../shared/sse_client.js"></script>
   <script src="../shared/tts_player.js"></script>
-  <script src="dashboard.js"></script>
+  <script type="module" src="dashboard.js"></script>
 </body>
 </html>
 
