@@ -4,7 +4,7 @@ for fast dashboard queries."""
 
 import sqlite3
 import json
-from ..core.config import settings
+from usisain_backend.core.config import settings
 
 
 def get_connection() -> sqlite3.Connection:
@@ -16,7 +16,7 @@ def get_connection() -> sqlite3.Connection:
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS scans (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    channel         TEXT NOT NULL DEFAULT 'extension',  -- 'extension' | 'messenger' | 'webapp'
+    channel         TEXT NOT NULL DEFAULT 'extension',  -- 'extension' | 'webapp'
     content_type    TEXT,                                -- 'text' | 'image' | 'video' | 'post'
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     source_url      TEXT,

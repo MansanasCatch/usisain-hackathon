@@ -1,8 +1,7 @@
 """step4_actionable_items.py — turns findings from steps 1-3 into
 concrete, specific next steps. Kept short and focused so the LLM
 returns quickly with a tight list the user can act on immediately."""
-
-from services.llm.gemini_client import get_provider
+from mcp_server.services.llm import get_provider
 
 SYSTEM_PROMPT = (
     "You are a security and digital safety advisor. Based on the findings of Step 1 (AI Insights), "

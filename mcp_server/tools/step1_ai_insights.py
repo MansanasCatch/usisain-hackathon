@@ -1,6 +1,6 @@
 import os
 import cv2
-from services.llm.gemini_client import get_provider
+from mcp_server.services.llm import get_provider
 
 SYSTEM_PROMPT = (
     "You are an objective AI assistant providing a neutral, factual overview of user-submitted text or media. "
@@ -47,7 +47,7 @@ async def generate_insight(content_summary: str, file_path: str = None, content_
     if file_path and os.path.exists(file_path):
         # Only extract OCR text if use_ocr is enabled
         if use_ocr:
-            from shared.ocr_utils import extract_text as ocr_extract
+            from mcp_server.shared.ocr_utils import extract_text as ocr_extract
             from PIL import Image
             try:
                 if content_type == "image":

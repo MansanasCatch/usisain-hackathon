@@ -4,10 +4,10 @@ import cv2
 import requests
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-from services.search import google_search
-from services.rag import retriever
-from services.llm.gemini_client import get_provider
-from shared.text_utils import domain_trust, text_similarity, truncate
+from mcp_server.services.search import google_search
+from mcp_server.services.rag import retriever
+from mcp_server.services.llm import get_provider
+from mcp_server.shared.text_utils import domain_trust, text_similarity, truncate
 
 QUERY_GEN_PROMPT = (
     "You are a fact-checking query generator. Given a claim, write a single search query of exactly 3 to 4 words "

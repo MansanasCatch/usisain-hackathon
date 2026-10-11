@@ -27,13 +27,10 @@ class Settings:
     ollama_model: str = os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
     ollama_vision_model: str = os.environ.get("OLLAMA_VISION_MODEL", "moondream")
 
+    grok_model: str = os.environ.get("GROK_MODEL", "gpt-oss-120b")
+
     # Text-to-speech
     tts_enabled: bool = os.environ.get("TTS_ENABLED", "False").lower() in ("true", "1", "yes")
-
-    # Messenger bot (only needed if you run client/messenger_bot/)
-    meta_verify_token: str | None = os.environ.get("META_VERIFY_TOKEN")
-    meta_page_access_token: str | None = os.environ.get("META_PAGE_ACCESS_TOKEN")
-    meta_app_secret: str | None = os.environ.get("META_APP_SECRET")
 
     # Pipeline timeout (seconds)
     pipeline_step_timeout_seconds: float = float(os.environ.get("PIPELINE_STEP_TIMEOUT_SECONDS", "120.0"))

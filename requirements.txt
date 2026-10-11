@@ -1,7 +1,7 @@
-# Everything needed to run backend/, mcp_server/, and messenger_bot/.
+# Everything needed to run backend/ and mcp_server/.
 # One environment for the whole project — simpler for a project this size.
 
-# --- web frameworks / servers (backend + messenger_bot) ---
+# --- web frameworks / servers (backend) ---
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 python-multipart==0.0.9
@@ -12,7 +12,7 @@ beautifulsoup4==4.15.0
 # --- MCP (backend <-> mcp_server) ---
 mcp==1.7.1
 
-# --- LLM providers (mcp_server) ---
+# --- LLM providers (mcp_server: Ollama, Gemini, Grok) ---
 ollama==0.4.4
 google-generativeai==0.8.3
 
@@ -26,7 +26,5 @@ scikit-learn>=1.5.2
 
 # --- text-to-speech (backend) ---
 gTTS>=2.5.1
-pygame>=2.5.2
+pygame-ce>=2.5.2
 playsound==1.2.2
-
-

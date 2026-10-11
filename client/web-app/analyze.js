@@ -52,6 +52,7 @@ const STEP_START_MESSAGES = {
 let supportedLanguages = {
   ollama: ["english"],
   gemini: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
+  grok: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
 };
 
 const modeSelect = document.getElementById("content-mode");
@@ -66,8 +67,8 @@ const resultsHeader = document.getElementById("results-header");
 
 // ─── Filter languages based on selected provider ───
 function updateLanguageOptions() {
-  const provider = providerSelect.value || "gemini";
-  const allowed = supportedLanguages[provider] || supportedLanguages.gemini;
+  const provider = providerSelect.value || "ollama";
+  const allowed = supportedLanguages[provider] || supportedLanguages.ollama || ["english"];
   const currentValue = languageSelect.value;
 
   languageSelect.innerHTML = "";

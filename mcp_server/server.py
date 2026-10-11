@@ -16,13 +16,20 @@ sys.path.insert(0, str(Path(__file__).parent))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
+try:
+    import pydantic._internal._typing_extra as _te
+    if not hasattr(_te, "eval_type_backport"):
+        _te.eval_type_backport = getattr(_te, "eval_type_lenient", getattr(_te, "eval_type", None))
+except Exception:
+    pass
+
 from mcp.server.fastmcp import FastMCP
 
-from tools.step1_ai_insights import generate_insight
-from tools.step2_content_analyser import analyze_content
-from tools.step3_legit_or_fake import check_claim
-from tools.step4_actionable_items import generate_actions
-from tools.step5_learnings import generate_learnings
+from mcp_server.tools.step1_ai_insights import generate_insight
+from mcp_server.tools.step2_content_analyser import analyze_content
+from mcp_server.tools.step3_legit_or_fake import check_claim
+from mcp_server.tools.step4_actionable_items import generate_actions
+from mcp_server.tools.step5_learnings import generate_learnings
 
 mcp = FastMCP("usisain-pipeline")
 
@@ -35,7 +42,7 @@ def step1_ai_insights(content_summary: str, file_path: str = None, content_type:
         content_summary: Text description of the content (claim, caption, or OCR'd text).
         file_path: Optional path to the image/video file on disk.
         content_type: 'text', 'image', or 'video'.
-        provider: 'ollama' (local, default) or 'gemini' (cloud).
+        provider: 'ollama' (local, default), 'gemini' (cloud), or 'grok' (cloud).
         language: 'english' (default), 'taglish', 'tagalog', 'cebuano', 'ilocano', or 'bisaya'.
         use_ocr: Whether to run OCR on the image/video content (default True).
     """
@@ -49,7 +56,7 @@ def step2_content_analyser(file_path: str, content_type: str, provider: str = "o
     Args:
         file_path: Absolute path to the image or video file on disk.
         content_type: 'image' or 'video'.
-        provider: 'ollama' (local, default) or 'gemini' (cloud).
+        provider: 'ollama' (local, default), 'gemini' (cloud), or 'grok' (cloud).
         language: 'english' (default), 'taglish', 'tagalog', 'cebuano', 'ilocano', or 'bisaya'.
         step1_result: Optional result from Step 1 containing AI insights.
     """
@@ -65,7 +72,7 @@ def step3_legit_or_fake(claim: str, file_path: str = None, content_type: str = "
         claim: The text claim to verify.
         file_path: Optional path to the image/video file.
         content_type: 'text', 'image', or 'video'.
-        provider: 'ollama' (local, default) or 'gemini' (cloud).
+        provider: 'ollama' (local, default), 'gemini' (cloud), or 'grok' (cloud).
         language: 'english' (default), 'taglish', 'tagalog', 'cebuano', 'ilocano', or 'bisaya'.
         step1_result: Optional dict output from step 1.
         step2_result: Optional dict output from step 2.

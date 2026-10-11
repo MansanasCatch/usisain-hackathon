@@ -83,4 +83,36 @@ const ApiClient = {
       body: JSON.stringify({ model: modelName }),
     }).then(r => r.json());
   },
+
+  async switchGrokModel(modelName) {
+    return fetch(`${API}/api/settings/switch-grok-model`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelName }),
+    }).then(r => r.json());
+  },
+
+  async getGrokModels() {
+    return fetch(`${API}/api/grok/models`).then(r => r.json());
+  },
+
+  async getAISettings() {
+    return fetch(`${API}/api/settings/ai`).then(r => r.json());
+  },
+
+  async updateAISettings(data) {
+    return fetch(`${API}/api/settings/ai`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then(r => r.json());
+  },
+
+  async testApiKey(provider, apiKey = "") {
+    return fetch(`${API}/api/settings/test-key`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, api_key: apiKey }),
+    }).then(r => r.json());
+  },
 };

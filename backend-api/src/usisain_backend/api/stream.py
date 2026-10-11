@@ -8,10 +8,10 @@ import traceback
 from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 
-from ..extraction.extraction import extract_text, extract_image, extract_video, extract_post, cleanup_file
-from ..orchestration.pipeline import run_pipeline
-from ..data import db
-from ..core.config import settings
+from usisain_backend.extraction.extraction import extract_text, extract_image, extract_video, extract_post, cleanup_file
+from usisain_backend.orchestration.pipeline import run_pipeline
+from usisain_backend.data import db
+from usisain_backend.core.config import settings
 
 router = APIRouter(prefix="/api/analyze", tags=["analyze"])
 
@@ -56,7 +56,7 @@ async def analyze_stream(
 ):
     default_provider = os.environ.get("DEFAULT_LLM_PROVIDER", "ollama").strip().lower()
     provider = (provider or default_provider).strip().lower()
-    if provider not in ("ollama", "gemini"):
+    if provider not in ("ollama", "gemini", "grok"):
         provider = default_provider
     # Ollama only supports English — enforce server-side
     if provider == "ollama" and language.strip().lower() != "english":

@@ -1,6 +1,6 @@
 import re
-from services.llm.gemini_client import get_provider
-from services.search import google_search
+from mcp_server.services.llm import get_provider
+from mcp_server.services.search import google_search
 
 LEARNING_QUERY_GEN_PROMPT = (
     "You are an educator specialized in digital literacy and fraud prevention. "
@@ -209,7 +209,7 @@ async def generate_learnings(step1_result: dict, step2_result: dict, step3_resul
     except Exception:
         pass
 
-    from shared.text_utils import domain_trust
+    from mcp_server.shared.text_utils import domain_trust
     scored_sources = []
     
     def process_and_score_results(results_list: list[dict]):

@@ -6,7 +6,6 @@ import queue
 import threading
 from gtts import gTTS
 import pygame
-from playsound import playsound
 
 class TTSPlayer:
     def __init__(self):
@@ -197,6 +196,7 @@ class TTSPlayer:
 
                 try:
                     if not self._abort_current:
+                        from playsound import playsound
                         playsound(temp_path)
                 finally:
                     # Attempt to remove the temporary file immediately

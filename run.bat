@@ -4,12 +4,19 @@ echo ===================================================
 echo             UsisAIn Startup Script
 echo ===================================================
 
-:: 1. Check if Ollama is running
+:: 1. Check if Ollama is running or installed
 echo [1/3] Checking Ollama service...
+where ollama >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [Ollama] Ollama is not installed.
+    echo [AI System] Backend will auto-detect AI models with API keys in .env.
+    goto continue_startup
+)
+
 ollama list >nul 2>&1
 if %errorlevel% equ 0 goto ollama_ok
 
-echo [Ollama] Ollama is not running. Starting Ollama serve...
+echo [Ollama] Ollama is installed but not running. Attempting to start 'ollama serve'...
 start "" ollama serve
 echo [Ollama] Waiting for Ollama to initialize...
 
@@ -19,9 +26,10 @@ timeout /t 2 >nul
 ollama list >nul 2>&1
 if %errorlevel% equ 0 goto ollama_ok
 set /a count+=2
-if %count% lss 10 goto wait_ollama
+if %count% lss 6 goto wait_ollama
 
-echo [Ollama] WARNING: Ollama took too long to start. Please make sure it is running manually.
+echo [Ollama] Ollama did not respond in time.
+echo [AI System] Backend will automatically fall back to available cloud AI models from .env.
 goto continue_startup
 
 :ollama_ok

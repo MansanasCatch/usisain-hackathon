@@ -1,0 +1,31 @@
+{
+  "include": [
+    "backend-api",
+    "mcp_server"
+  ],
+  "extraPaths": [
+    "backend-api/src",
+    "mcp_server",
+    "."
+  ],
+  "executionEnvironments": [
+    {
+      "root": "backend-api/src",
+      "extraPaths": [
+        "backend-api/src",
+        "mcp_server",
+        "."
+      ]
+    },
+    {
+      "root": "mcp_server",
+      "extraPaths": [
+        "mcp_server",
+        "backend-api/src",
+        "."
+      ]
+    }
+  ],
+  "venvPath": ".",
+  "venv": "venv"
+}

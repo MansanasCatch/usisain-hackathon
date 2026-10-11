@@ -12,9 +12,9 @@ category — a segment-level view of the whole clip, not one opaque score.
 import os
 from PIL import Image
 
-from shared.visual_signals import classify_frame, normalize_pct
-from shared.video_utils import sample_frames, transcribe_audio
-from services.llm.gemini_client import get_provider
+from mcp_server.shared.visual_signals import classify_frame, normalize_pct
+from mcp_server.shared.video_utils import sample_frames, transcribe_audio
+from mcp_server.services.llm import get_provider
 
 SYSTEM_PROMPT = (
     "You are a forensic content analyst. Given a piece of visual content and a set of computer vision heuristic signals, "
@@ -95,7 +95,7 @@ async def generate_detailed_explanation(real: float, edited: float, ai_gen: floa
     image_to_pass = image_path
     
     if provider == "ollama" and image_path and os.path.exists(image_path):
-        from shared.ocr_utils import extract_text as ocr_extract
+        from mcp_server.shared.ocr_utils import extract_text as ocr_extract
         from PIL import Image
         try:
             with Image.open(image_path) as img:

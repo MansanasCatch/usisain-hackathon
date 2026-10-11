@@ -12,8 +12,9 @@ import uuid
 import tempfile
 import wave
 from pathlib import Path
-from .tts_player import tts_player
 from gtts import gTTS
+
+from usisain_backend.services.tts.tts_player import tts_player
 
 def synthesize(text: str, language: str = "english", voice: str = None) -> str:
     """Plays the speech audio immediately through speakers and returns a temporary silence WAV path."""

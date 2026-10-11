@@ -11,8 +11,8 @@ import sys
 import asyncio
 import threading
 
-from ...core.config import settings
-from ...core.request_context import REQUEST_ID
+from usisain_backend.core.config import settings
+from usisain_backend.core.request_context import REQUEST_ID
 
 # Make sure the mcp_server package is importable.
 # settings.project_root is always an absolute, resolved Path.
@@ -20,11 +20,11 @@ _mcp_server_root = settings.project_root / "mcp_server"
 if str(_mcp_server_root) not in sys.path:
     sys.path.insert(0, str(_mcp_server_root))
 
-from tools.step1_ai_insights import generate_insight          # noqa: E402
-from tools.step2_content_analyser import analyze_content      # noqa: E402
-from tools.step3_legit_or_fake import check_claim             # noqa: E402
-from tools.step4_actionable_items import generate_actions     # noqa: E402
-from tools.step5_learnings import generate_learnings          # noqa: E402
+from mcp_server.tools.step1_ai_insights import generate_insight
+from mcp_server.tools.step2_content_analyser import analyze_content
+from mcp_server.tools.step3_legit_or_fake import check_claim
+from mcp_server.tools.step4_actionable_items import generate_actions
+from mcp_server.tools.step5_learnings import generate_learnings
 
 _TOOL_MAP = {
     "step1_ai_insights": generate_insight,

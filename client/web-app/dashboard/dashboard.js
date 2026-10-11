@@ -60,6 +60,8 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     
     if (btn.dataset.tab === "stepinfo") {
       loadStepInfo();
+    } else if (btn.dataset.tab === "aisettings") {
+      loadAISettingsTab();
     }
   });
 });
@@ -70,10 +72,12 @@ let maxReferenceDocSizeMb = 10;
 let supportedLanguages = {
   ollama: ["english"],
   gemini: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
+  grok: ["english", "taglish", "tagalog", "cebuano", "bisaya", "ilocano"],
 };
 let activeProvider = "ollama";
 let activeOllamaModel = "";
 let activeGeminiModel = "";
+let activeGrokModel = "gpt-oss-120b";
 
 async function loadSettings() {
   try {
@@ -99,13 +103,17 @@ async function loadSettings() {
     }
     if (settings?.default_llm_provider) {
       activeProvider = settings.default_llm_provider;
-      document.getElementById("llm-provider").value = activeProvider;
+      const modalProv = document.getElementById("llm-provider");
+      if (modalProv) modalProv.value = activeProvider;
       if (window.updateLlmSelectorUI) {
         window.updateLlmSelectorUI();
       }
     }
     if (settings?.gemini_model) {
       activeGeminiModel = settings.gemini_model;
+    }
+    if (settings?.grok_model) {
+      activeGrokModel = settings.grok_model;
     }
     if (settings?.ollama_model) {
       activeOllamaModel = settings.ollama_model;
@@ -177,11 +185,11 @@ async function loadOverview() {
     const channels = [...new Set(trend.map(t => t.channel))];
     
     // Core visual palette
-    const colors = { extension: "#6366f1", messenger: "#10b981", webapp: "#f59e0b" };
+    const colors = { extension: "#6366f1", webapp: "#f59e0b", api: "#10b981" };
     const chartColorsGlow = {
       extension: "rgba(99, 102, 241, 0.15)",
-      messenger: "rgba(16, 185, 129, 0.15)",
-      webapp: "rgba(245, 158, 11, 0.15)"
+      webapp: "rgba(245, 158, 11, 0.15)",
+      api: "rgba(16, 185, 129, 0.15)"
     };
 
     if (typeof Chart === "undefined") {
@@ -556,7 +564,7 @@ async function loadStepInfo() {
   const provider = settings.default_llm_provider || "ollama";
   const bannerBadge = document.getElementById("banner-provider-badge");
   bannerBadge.textContent = provider.toUpperCase();
-  bannerBadge.className = `badge ${provider === "gemini" ? "likely_true" : "inconclusive"}`;
+  bannerBadge.className = `badge ${provider === "gemini" ? "likely_true" : (provider === "grok" ? "likely_true" : "inconclusive")}`;
 
   const stepinfoCards = document.getElementById("stepinfo-cards");
   stepinfoCards.innerHTML = "";
@@ -568,14 +576,18 @@ async function loadStepInfo() {
       desc: `This step provides the initial rapid assessment of the submitted content. It adapts its analysis based on what the user submits:`,
       substeps: [
         `<strong>Text-only input:</strong> The LLM reads the raw text (e.g. a social media caption, forwarded message, or news headline) and summarizes what it says while flagging urgency language, emotional framing, unusual formatting, or unofficial/suspicious links.`,
-        `<strong>Image input:</strong> When using Gemini, the multimodal LLM directly examines the image. Under the local Ollama provider, Tesseract OCR extracts the text overlays, and the text LLM analyzes the text content and OCR text.`,
+        `<strong>Image input:</strong> When using Gemini or Grok, the cloud multimodal LLM directly examines the image. Under the local Ollama provider, visual input is examined by the vision model or optional Tesseract OCR.`,
         `<strong>Usisain Snipping:</strong> The user can drag a selection box over any part of a webpage to snip text and/or images. The extracted text and cropped images are sent together for a unified analysis.`,
-        `<strong>Video input:</strong> The first frame of the video is extracted using OpenCV and analyzed. (For Gemini, the frame is passed directly; for Ollama, OCR text is extracted from the frame and analyzed).`,
+        `<strong>Video input:</strong> The first frame of the video is extracted using OpenCV and analyzed directly or via OCR.`,
       ],
       output: "A concise 2-4 sentence overview/summary that is passed to Steps 3, 4, and 5 as foundational context.",
-      tech: ["LLM (text or vision)", "Tesseract OCR", "OpenCV (video frame extraction)"],
+      tech: ["LLM (text or vision)", "Optional Tesseract OCR", "OpenCV (video frame extraction)"],
       timeout: `${settings.pipeline_step_timeout_seconds || 120} seconds`,
-      get_model: (s) => s.default_llm_provider === "gemini" ? s.gemini_model : `${s.ollama_model} (text) / ${s.ollama_vision_model} (vision)`
+      get_model: (s) => {
+        if (s.default_llm_provider === "gemini") return s.gemini_model;
+        if (s.default_llm_provider === "grok") return s.grok_model;
+        return `${s.ollama_model} (text) / ${s.ollama_vision_model} (vision)`;
+      }
     },
     {
       num: 2,
@@ -586,13 +598,17 @@ async function loadStepInfo() {
         `<strong>Frequency-Domain Noise Ratio:</strong> A DCT (Discrete Cosine Transform) frequency analysis measures the ratio of high-frequency to low-frequency components. Real camera sensors produce natural high-frequency noise; AI-generated images tend to be unnaturally smooth or show regular patterns. Produces a numeric ratio.`,
         `<strong>EXIF Metadata Inspection:</strong> The file's embedded metadata is scanned for camera make/model info (authentic photos usually have it, AI images never do) and for flagged editing software (Photoshop, GIMP, etc.).`,
         `<strong>Percentage Breakdown:</strong> The three signals above are combined into a weighted Real% / Edited% / AI-Generated% estimate, and a verdict is assigned (likely_authentic, likely_edited, likely_ai_generated, or inconclusive).`,
-        `<strong>LLM Forensic Explanation:</strong> Under Gemini, the vision LLM receives both the image and the heuristic signals. Under Ollama, the text LLM receives the OCR text and heuristic signals. In both cases, the model writes a user-friendly, detailed explanation of the breakdown percentages.`,
+        `<strong>LLM Forensic Explanation:</strong> Under Gemini or Grok, the vision LLM receives both the image and the heuristic signals. Under Ollama, the text LLM receives the visual text and heuristic signals. In all cases, the model writes a user-friendly, detailed explanation of the breakdown percentages.`,
         `<strong>Video Mode:</strong> For video files, up to 24 frames are sampled evenly across the clip. Each frame is classified independently, and the final percentages represent the proportion of frames in each category. Audio is transcribed using Faster-Whisper. The first frame is analyzed for the written explanation.`,
       ],
       output: "Real/Edited/AI-Generated percentage breakdown, verdict, ELA + frequency + metadata signals, and a detailed forensic explanation. Passed to Steps 3, 4, and 5.",
       tech: ["PIL/Pillow", "NumPy + SciPy (DCT)", "OpenCV (video sampling)", "Faster-Whisper (audio transcription)", "LLM (explanation)"],
       timeout: `${settings.pipeline_step_timeout_seconds || 120} seconds`,
-      get_model: (s) => s.default_llm_provider === "gemini" ? s.gemini_model : s.ollama_vision_model
+      get_model: (s) => {
+        if (s.default_llm_provider === "gemini") return s.gemini_model;
+        if (s.default_llm_provider === "grok") return s.grok_model;
+        return s.ollama_vision_model;
+      }
     },
     {
       num: 3,
@@ -610,7 +626,11 @@ async function loadStepInfo() {
       output: "Credibility score (0-100), verdict (likely_true / inconclusive / flagged), explanation with clickable source links, and scored source list. Passed to Steps 4 and 5.",
       tech: ["Google Custom Search API", "RAG Vector Store", "BeautifulSoup & ThreadPoolExecutor (optional scraping)", "LLM (synthesis)"],
       timeout: `${settings.pipeline_step_timeout_seconds || 120} seconds`,
-      get_model: (s) => s.default_llm_provider === "gemini" ? s.gemini_model : s.ollama_model
+      get_model: (s) => {
+        if (s.default_llm_provider === "gemini") return s.gemini_model;
+        if (s.default_llm_provider === "grok") return s.grok_model;
+        return s.ollama_model;
+      }
     },
     {
       num: 4,
@@ -624,7 +644,11 @@ async function loadStepInfo() {
       output: "A numbered list of 3-5 concrete, specific action items that the user can immediately follow.",
       tech: ["LLM (text only)"],
       timeout: `${settings.pipeline_step_timeout_seconds || 120} seconds`,
-      get_model: (s) => s.default_llm_provider === "gemini" ? s.gemini_model : s.ollama_model
+      get_model: (s) => {
+        if (s.default_llm_provider === "gemini") return s.gemini_model;
+        if (s.default_llm_provider === "grok") return s.grok_model;
+        return s.ollama_model;
+      }
     },
     {
       num: 5,
@@ -639,7 +663,11 @@ async function loadStepInfo() {
       output: "A 2-3 sentence educational explanation of the threat pattern, plus programmatically appended clickable links to official educational resources.",
       tech: ["Google Custom Search API", "LLM (synthesis)"],
       timeout: `${settings.pipeline_step_timeout_seconds || 120} seconds`,
-      get_model: (s) => s.default_llm_provider === "gemini" ? s.gemini_model : s.ollama_model
+      get_model: (s) => {
+        if (s.default_llm_provider === "gemini") return s.gemini_model;
+        if (s.default_llm_provider === "grok") return s.grok_model;
+        return s.ollama_model;
+      }
     }
   ];
 
@@ -1472,12 +1500,24 @@ window.addEventListener('resize', () => {
 // ---------- Generalized Model Selector Logic ----------
 let allOllamaModels = [];
 const allGeminiModels = [
+  { name: "gemini-3.5-flash", size_bytes: null, modified_at: null },
   { name: "gemini-2.5-flash", size_bytes: null, modified_at: null },
   { name: "gemini-2.5-pro", size_bytes: null, modified_at: null },
   { name: "gemini-2.0-flash", size_bytes: null, modified_at: null },
   { name: "gemini-2.0-pro-exp-02-05", size_bytes: null, modified_at: null },
   { name: "gemini-1.5-flash", size_bytes: null, modified_at: null },
   { name: "gemini-1.5-pro", size_bytes: null, modified_at: null }
+];
+let allGrokModels = [
+  { name: "gpt-oss-120b", size_bytes: null, modified_at: null },
+  { name: "grok-4.1-fast", size_bytes: null, modified_at: null },
+  { name: "grok-4.7", size_bytes: null, modified_at: null },
+  { name: "grok-4.6", size_bytes: null, modified_at: null },
+  { name: "grok-4.5", size_bytes: null, modified_at: null },
+  { name: "grok-4.3", size_bytes: null, modified_at: null },
+  { name: "grok-4.20-reasoning", size_bytes: null, modified_at: null },
+  { name: "grok-beta", size_bytes: null, modified_at: null },
+  { name: "grok-2-vision-1212", size_bytes: null, modified_at: null }
 ];
 let activeVisionModel = "";
 
@@ -1610,7 +1650,15 @@ async function initModelSelector() {
 
   function updateLlmSelectorUI() {
     if (activeLlmName) {
-      activeLlmName.textContent = activeProvider === "ollama" ? "Ollama (Local)" : "Gemini (Cloud)";
+      if (activeProvider === "ollama") {
+        activeLlmName.textContent = "Ollama (Local)";
+      } else if (activeProvider === "gemini") {
+        activeLlmName.textContent = "Gemini (Cloud)";
+      } else if (activeProvider === "grok") {
+        activeLlmName.textContent = "Grok (xAI)";
+      } else {
+        activeLlmName.textContent = activeProvider.toUpperCase();
+      }
     }
     const llmItems = llmList?.querySelectorAll(".model-item");
     if (llmItems) {
@@ -1620,12 +1668,14 @@ async function initModelSelector() {
         const badge = item.querySelector(".model-item-status-badge");
         if (val === activeProvider) {
           item.classList.add("active-model");
+          if (check) check.style.display = "";
           if (badge) {
             badge.className = "model-item-status-badge status-active";
             badge.textContent = "Active";
           }
         } else {
           item.classList.remove("active-model");
+          if (check) check.style.display = "none";
           if (badge) {
             badge.className = "model-item-status-badge status-available";
             badge.textContent = val === "ollama" ? "Local Host" : "Cloud API";
@@ -1635,8 +1685,14 @@ async function initModelSelector() {
     }
     const badge = document.querySelector(".llm-provider-badge");
     if (badge) {
-      badge.classList.toggle("llm-ollama", activeProvider === "ollama");
-      badge.classList.toggle("llm-gemini", activeProvider !== "ollama");
+      badge.className = "llm-provider-badge";
+      if (activeProvider === "ollama") {
+        badge.classList.add("llm-ollama");
+      } else if (activeProvider === "gemini") {
+        badge.classList.add("llm-gemini");
+      } else if (activeProvider === "grok") {
+        badge.classList.add("llm-grok");
+      }
     }
   }
 
@@ -1696,9 +1752,27 @@ async function initModelSelector() {
         }
         console.error("Failed to load Ollama models:", err);
       }
-    } else {
+    } else if (activeProvider === "gemini") {
       // Gemini provider
       if (trigger) trigger.disabled = false;
+      if (statusIndicator) {
+        statusIndicator.style.backgroundColor = "var(--good)";
+        statusIndicator.style.boxShadow = "0 0 8px var(--good)";
+      }
+    } else if (activeProvider === "grok") {
+      // Grok provider
+      if (trigger) trigger.disabled = false;
+      try {
+        const grokData = await ApiClient.getGrokModels();
+        if (grokData?.models && grokData.models.length > 0) {
+          allGrokModels = grokData.models;
+        }
+        if (grokData?.active_model) {
+          activeGrokModel = grokData.active_model;
+        }
+      } catch (err) {
+        console.warn("Using default grok models list:", err);
+      }
       if (statusIndicator) {
         statusIndicator.style.backgroundColor = "var(--good)";
         statusIndicator.style.boxShadow = "0 0 8px var(--good)";
@@ -1716,10 +1790,15 @@ async function initModelSelector() {
       } else {
         activeNameSpan.textContent = "Select Model";
       }
-    } else {
-      // Gemini
+    } else if (activeProvider === "gemini") {
       if (activeGeminiModel) {
         activeNameSpan.textContent = cleanModelName(activeGeminiModel);
+      } else {
+        activeNameSpan.textContent = "Select Model";
+      }
+    } else if (activeProvider === "grok") {
+      if (activeGrokModel) {
+        activeNameSpan.textContent = cleanModelName(activeGrokModel);
       } else {
         activeNameSpan.textContent = "Select Model";
       }
@@ -1732,6 +1811,7 @@ async function initModelSelector() {
     let name = rawName;
     
     if (name.startsWith("gemini-")) {
+      if (name.includes("3.5-flash")) return "Gemini 3.5 Flash";
       if (name.includes("2.5-flash")) return "Gemini 2.5 Flash";
       if (name.includes("2.5-pro")) return "Gemini 2.5 Pro";
       if (name.includes("2.0-flash")) return "Gemini 2.0 Flash";
@@ -1739,6 +1819,20 @@ async function initModelSelector() {
       if (name.includes("1.5-flash")) return "Gemini 1.5 Flash";
       if (name.includes("1.5-pro")) return "Gemini 1.5 Pro";
       return name;
+    }
+
+    if (name === "gpt-oss-120b") return "GPT OSS 120B";
+
+    if (name.startsWith("grok-")) {
+      if (name === "grok-4.1-fast") return "Grok 4.1 Fast";
+      if (name === "grok-4.7") return "Grok 4.7";
+      if (name === "grok-4.6") return "Grok 4.6";
+      if (name === "grok-4.5") return "Grok 4.5";
+      if (name === "grok-4.3") return "Grok 4.3";
+      if (name === "grok-4.20-reasoning") return "Grok 4.20 Reasoning";
+      if (name === "grok-beta") return "Grok Beta";
+      if (name === "grok-2-vision-1212") return "Grok 2 Vision";
+      return name.replace(/^grok-/, "Grok ").replace(/-/g, " ");
     }
 
     if (name.includes(":")) {
@@ -1795,15 +1889,19 @@ async function initModelSelector() {
     listContainer.innerHTML = "";
     const filter = query.toLowerCase().trim();
     
-    const modelsToRender = activeProvider === "ollama" ? allOllamaModels : allGeminiModels;
+    const modelsToRender = activeProvider === "ollama"
+      ? allOllamaModels
+      : (activeProvider === "gemini" ? allGeminiModels : allGrokModels);
     const filtered = modelsToRender.filter(m => m.name.toLowerCase().includes(filter));
 
     if (filtered.length === 0) {
       if (modelsToRender.length === 0) {
         if (activeProvider === "ollama") {
           renderEmptyState("No local Ollama models found. Pull models with `ollama pull`.");
-        } else {
+        } else if (activeProvider === "gemini") {
           renderEmptyState("No Gemini models configured.");
+        } else {
+          renderEmptyState("No Grok models configured.");
         }
       } else {
         renderEmptyState("No matching models found.");
@@ -1812,14 +1910,15 @@ async function initModelSelector() {
     }
 
     filtered.forEach(model => {
-      const activeModelName = activeProvider === "ollama" ? activeOllamaModel : activeGeminiModel;
+      const activeModelName = activeProvider === "ollama" 
+        ? activeOllamaModel 
+        : (activeProvider === "gemini" ? activeGeminiModel : activeGrokModel);
       const isTxtActive = model.name === activeModelName || model.name.split(":")[0] === activeModelName.split(":")[0];
       const isActive = isTxtActive;
 
       const item = document.createElement("div");
       item.className = `model-item ${isActive ? 'active-model' : ''}`;
       
-      const isVision = model.name.includes("vision") || model.name.includes("moondream") || model.name.includes("minicpm") || model.name.includes("llava");
       const relativeTime = formatRelativeTime(model.modified_at);
 
       item.innerHTML = `
@@ -1857,8 +1956,10 @@ async function initModelSelector() {
           let res;
           if (activeProvider === "ollama") {
             res = await ApiClient.switchOllamaModel(model.name);
-          } else {
+          } else if (activeProvider === "gemini") {
             res = await ApiClient.switchGeminiModel(model.name);
+          } else if (activeProvider === "grok") {
+            res = await ApiClient.switchGrokModel(model.name);
           }
           
           if (overlay) overlay.classList.remove("show");
@@ -1870,9 +1971,12 @@ async function initModelSelector() {
             if (activeProvider === "ollama") {
               activeOllamaModel = model.name;
               showToast(`Switched active Ollama model to <strong>${cleanModelName(model.name)}</strong>`);
-            } else {
+            } else if (activeProvider === "gemini") {
               activeGeminiModel = model.name;
               showToast(`Switched active Gemini model to <strong>${cleanModelName(model.name)}</strong>`);
+            } else if (activeProvider === "grok") {
+              activeGrokModel = model.name;
+              showToast(`Switched active Grok model to <strong>${cleanModelName(model.name)}</strong>`);
             }
             loadSettings(); // refresh setting bindings
           } else {
@@ -1922,5 +2026,419 @@ async function initModelSelector() {
     setTimeout(() => {
       toast.classList.remove("show");
     }, 4000);
+  }
+}
+
+// ---------- AI Settings Tab Controller ----------
+let aiSettingsEventsBound = false;
+
+async function loadAISettingsTab() {
+  try {
+    const [aiData, generalData] = await Promise.all([
+      ApiClient.getAISettings().catch(() => null),
+      ApiClient.getSettings().catch(() => null)
+    ]);
+
+    if (!aiData) return;
+
+    // 1. Default Provider Select
+    const selectDefault = document.getElementById("select-default-provider");
+    if (selectDefault && aiData.default_provider) {
+      selectDefault.value = aiData.default_provider;
+    }
+
+    // 2. Ollama Card
+    if (aiData.ollama) {
+      const hostInput = document.getElementById("setting-ollama-host");
+      const modelSelect = document.getElementById("setting-ollama-model");
+      const visionInput = document.getElementById("setting-ollama-vision-model");
+      
+      if (hostInput) hostInput.value = aiData.ollama.host || "http://localhost:11434";
+      if (visionInput) visionInput.value = aiData.ollama.vision_model || "moondream";
+
+      // Populate Ollama models in select if models are available
+      if (modelSelect) {
+        const currentModel = aiData.ollama.model || "llama3.2:1b";
+        // If allOllamaModels is populated, fill options
+        if (allOllamaModels && allOllamaModels.length > 0) {
+          modelSelect.innerHTML = "";
+          allOllamaModels.forEach(m => {
+            const opt = document.createElement("option");
+            opt.value = m.name;
+            opt.textContent = m.name;
+            if (m.name === currentModel) opt.selected = true;
+            modelSelect.appendChild(opt);
+          });
+        } else {
+          // Default option
+          if (!modelSelect.querySelector(`option[value="${currentModel}"]`)) {
+            const opt = document.createElement("option");
+            opt.value = currentModel;
+            opt.textContent = currentModel;
+            opt.selected = true;
+            modelSelect.appendChild(opt);
+          } else {
+            modelSelect.value = currentModel;
+          }
+        }
+      }
+    }
+
+    // Check Ollama status
+    const ollamaBadge = document.getElementById("ollama-status-badge");
+    if (ollamaBadge) {
+      try {
+        const oModels = await ApiClient.getOllamaModels();
+        if (oModels && !oModels.error) {
+          ollamaBadge.className = "badge likely_true";
+          ollamaBadge.textContent = "ONLINE (DEFAULT)";
+        } else {
+          ollamaBadge.className = "badge flagged";
+          ollamaBadge.textContent = "OFFLINE";
+        }
+      } catch (e) {
+        ollamaBadge.className = "badge flagged";
+        ollamaBadge.textContent = "OFFLINE";
+      }
+    }
+
+    // 3. Gemini Card
+    if (aiData.gemini) {
+      const gemBadge = document.getElementById("gemini-key-status-badge");
+      if (gemBadge) {
+        if (aiData.gemini.has_key) {
+          gemBadge.className = "badge likely_true";
+          gemBadge.textContent = "ACTIVE KEY";
+        } else {
+          gemBadge.className = "badge inconclusive";
+          gemBadge.textContent = "NO KEY";
+        }
+      }
+
+      const gemHint = document.getElementById("gemini-current-key-hint");
+      if (gemHint) {
+        gemHint.textContent = aiData.gemini.key_masked 
+          ? `Current: ${aiData.gemini.key_masked}` 
+          : "No key configured";
+      }
+
+      const gemModelSelect = document.getElementById("setting-gemini-model");
+      if (gemModelSelect && aiData.gemini.model) {
+        gemModelSelect.value = aiData.gemini.model;
+      }
+    }
+
+    // 4. Grok Card
+    if (aiData.grok) {
+      const grokBadge = document.getElementById("grok-key-status-badge");
+      if (grokBadge) {
+        if (aiData.grok.has_key) {
+          grokBadge.className = "badge likely_true";
+          grokBadge.textContent = "ACTIVE KEY";
+        } else {
+          grokBadge.className = "badge inconclusive";
+          grokBadge.textContent = "NO KEY";
+        }
+      }
+
+      const grokHint = document.getElementById("grok-current-key-hint");
+      if (grokHint) {
+        grokHint.textContent = aiData.grok.key_masked 
+          ? `Current: ${aiData.grok.key_masked}` 
+          : "No key configured";
+      }
+
+      const grokModelSelect = document.getElementById("setting-grok-model");
+      if (grokModelSelect && aiData.grok.model) {
+        grokModelSelect.value = aiData.grok.model;
+      }
+    }
+
+    // 5. OCR Status
+    const ocrBadge = document.getElementById("ocr-availability-badge");
+    const ocrSummary = document.getElementById("ocr-status-summary");
+    const isOcrReady = Boolean(generalData?.ocr_available);
+    if (ocrBadge) {
+      ocrBadge.className = isOcrReady ? "badge likely_true" : "badge inconclusive";
+      ocrBadge.textContent = isOcrReady ? "AVAILABLE" : "OPTIONAL (VISION FALLBACK)";
+    }
+    if (ocrSummary) {
+      ocrSummary.textContent = isOcrReady
+        ? "Tesseract OCR engine is detected and ready. Used for optical character recognition when applicable."
+        : "Tesseract OCR is not installed. Multimodal vision models (Gemini, Grok, or Ollama Vision) handle visual verification smoothly without errors.";
+    }
+
+    // Bind action events once
+    if (!aiSettingsEventsBound) {
+      aiSettingsEventsBound = true;
+      bindAISettingsEvents();
+    }
+  } catch (err) {
+    console.error("Failed to load AI settings tab:", err);
+  }
+}
+
+function bindAISettingsEvents() {
+  const toastFeedback = (msg, isErr = false) => {
+    const toast = document.getElementById("model-switch-toast");
+    const toastMsg = document.getElementById("model-switch-toast-message");
+    const toastIcon = toast?.querySelector(".toast-icon");
+    if (!toast || !toastMsg) return;
+    toastMsg.innerHTML = msg;
+    toast.style.borderColor = isErr ? "var(--bad-border)" : "var(--good-border)";
+    if (toastIcon) toastIcon.textContent = isErr ? "❌" : "✅";
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 4000);
+  };
+
+  // Toggle key visibility buttons
+  const btnToggleGeminiVis = document.getElementById("btn-toggle-gemini-key-vis");
+  const inputGeminiKey = document.getElementById("setting-gemini-key");
+  if (btnToggleGeminiVis && inputGeminiKey) {
+    btnToggleGeminiVis.addEventListener("click", () => {
+      inputGeminiKey.type = inputGeminiKey.type === "password" ? "text" : "password";
+      btnToggleGeminiVis.textContent = inputGeminiKey.type === "password" ? "👁️" : "🙈";
+    });
+  }
+
+  const btnToggleGrokVis = document.getElementById("btn-toggle-grok-key-vis");
+  const inputGrokKey = document.getElementById("setting-grok-key");
+  if (btnToggleGrokVis && inputGrokKey) {
+    btnToggleGrokVis.addEventListener("click", () => {
+      inputGrokKey.type = inputGrokKey.type === "password" ? "text" : "password";
+      btnToggleGrokVis.textContent = inputGrokKey.type === "password" ? "👁️" : "🙈";
+    });
+  }
+
+  // 1. Save Default Provider
+  const btnSaveDefault = document.getElementById("btn-save-default-provider");
+  if (btnSaveDefault) {
+    btnSaveDefault.addEventListener("click", async () => {
+      const select = document.getElementById("select-default-provider");
+      const provider = select?.value;
+      if (!provider) return;
+
+      btnSaveDefault.disabled = true;
+      btnSaveDefault.textContent = "Saving...";
+      try {
+        const res = await ApiClient.updateAISettings({ default_provider: provider });
+        if (res?.status === "ok") {
+          activeProvider = provider;
+          if (window.updateLlmSelectorUI) window.updateLlmSelectorUI();
+          toastFeedback(`Default AI provider set to <strong>${provider.toUpperCase()}</strong>`);
+          await loadSettings();
+        } else {
+          toastFeedback("Failed to update default provider", true);
+        }
+      } catch (err) {
+        toastFeedback("Error updating default provider", true);
+      } finally {
+        btnSaveDefault.disabled = false;
+        btnSaveDefault.textContent = "Save Default";
+      }
+    });
+  }
+
+  // 2. Save Ollama Settings
+  const btnSaveOllama = document.getElementById("btn-save-ollama");
+  if (btnSaveOllama) {
+    btnSaveOllama.addEventListener("click", async () => {
+      const model = document.getElementById("setting-ollama-model")?.value;
+      const visionModel = document.getElementById("setting-ollama-vision-model")?.value;
+
+      btnSaveOllama.disabled = true;
+      btnSaveOllama.textContent = "Saving...";
+      try {
+        const res = await ApiClient.updateAISettings({
+          ollama_model: model || undefined,
+          ollama_vision_model: visionModel || undefined
+        });
+        if (res?.status === "ok") {
+          activeOllamaModel = model;
+          toastFeedback("Ollama configuration updated successfully");
+          await loadAISettingsTab();
+          await loadSettings();
+        } else {
+          toastFeedback("Failed to update Ollama settings", true);
+        }
+      } catch (err) {
+        toastFeedback("Error saving Ollama configuration", true);
+      } finally {
+        btnSaveOllama.disabled = false;
+        btnSaveOllama.textContent = "Save Ollama";
+      }
+    });
+  }
+
+  // Refresh Ollama models
+  const btnRefreshOllama = document.getElementById("btn-refresh-ollama");
+  if (btnRefreshOllama) {
+    btnRefreshOllama.addEventListener("click", async () => {
+      btnRefreshOllama.disabled = true;
+      btnRefreshOllama.textContent = "Refreshing...";
+      try {
+        const data = await ApiClient.getOllamaModels();
+        if (data?.models) {
+          allOllamaModels = data.models;
+          toastFeedback(`Loaded <strong>${data.models.length}</strong> local Ollama models`);
+        }
+        await loadAISettingsTab();
+      } catch (err) {
+        toastFeedback("Failed to reach Ollama", true);
+      } finally {
+        btnRefreshOllama.disabled = false;
+        btnRefreshOllama.textContent = "🔄 Refresh Models";
+      }
+    });
+  }
+
+  // 3. Gemini Actions
+  const btnSaveGemini = document.getElementById("btn-save-gemini");
+  if (btnSaveGemini) {
+    btnSaveGemini.addEventListener("click", async () => {
+      const key = document.getElementById("setting-gemini-key")?.value?.trim();
+      const model = document.getElementById("setting-gemini-model")?.value;
+
+      btnSaveGemini.disabled = true;
+      btnSaveGemini.textContent = "Updating...";
+      try {
+        const payload = { gemini_model: model };
+        if (key) payload.gemini_api_key = key;
+
+        const res = await ApiClient.updateAISettings(payload);
+        if (res?.status === "ok") {
+          toastFeedback("Gemini settings updated successfully");
+          if (key) document.getElementById("setting-gemini-key").value = "";
+          await loadAISettingsTab();
+          await loadSettings();
+        } else {
+          toastFeedback("Failed to update Gemini settings", true);
+        }
+      } catch (err) {
+        toastFeedback("Error saving Gemini settings", true);
+      } finally {
+        btnSaveGemini.disabled = false;
+        btnSaveGemini.textContent = "Update Gemini";
+      }
+    });
+  }
+
+  const btnTestGemini = document.getElementById("btn-test-gemini");
+  const gemTestBox = document.getElementById("gemini-test-result");
+  if (btnTestGemini) {
+    btnTestGemini.addEventListener("click", async () => {
+      const key = document.getElementById("setting-gemini-key")?.value?.trim();
+      btnTestGemini.disabled = true;
+      btnTestGemini.textContent = "Testing...";
+      if (gemTestBox) {
+        gemTestBox.classList.remove("hidden");
+        gemTestBox.style.background = "rgba(99,102,241,0.1)";
+        gemTestBox.style.color = "var(--text)";
+        gemTestBox.style.border = "1px solid var(--border)";
+        gemTestBox.textContent = "Sending test ping to Gemini API...";
+      }
+
+      try {
+        const res = await ApiClient.testApiKey("gemini", key || "");
+        if (gemTestBox) {
+          if (res?.status === "ok") {
+            gemTestBox.style.background = "rgba(46,125,50,0.15)";
+            gemTestBox.style.color = "var(--good)";
+            gemTestBox.style.border = "1px solid var(--good)";
+            gemTestBox.textContent = `✅ ${res.message}`;
+          } else {
+            gemTestBox.style.background = "rgba(230,88,79,0.15)";
+            gemTestBox.style.color = "var(--bad)";
+            gemTestBox.style.border = "1px solid var(--bad)";
+            gemTestBox.textContent = `❌ ${res?.message || "Verification failed"}`;
+          }
+        }
+      } catch (err) {
+        if (gemTestBox) {
+          gemTestBox.style.background = "rgba(230,88,79,0.15)";
+          gemTestBox.style.color = "var(--bad)";
+          gemTestBox.style.border = "1px solid var(--bad)";
+          gemTestBox.textContent = `❌ Network error: ${err.message}`;
+        }
+      } finally {
+        btnTestGemini.disabled = false;
+        btnTestGemini.textContent = "⚡ Test Key";
+      }
+    });
+  }
+
+  // 4. Grok Actions
+  const btnSaveGrok = document.getElementById("btn-save-grok");
+  if (btnSaveGrok) {
+    btnSaveGrok.addEventListener("click", async () => {
+      const key = document.getElementById("setting-grok-key")?.value?.trim();
+      const model = document.getElementById("setting-grok-model")?.value;
+
+      btnSaveGrok.disabled = true;
+      btnSaveGrok.textContent = "Updating...";
+      try {
+        const payload = { grok_model: model };
+        if (key) payload.grok_api_key = key;
+
+        const res = await ApiClient.updateAISettings(payload);
+        if (res?.status === "ok") {
+          toastFeedback("Grok settings updated successfully");
+          if (key) document.getElementById("setting-grok-key").value = "";
+          await loadAISettingsTab();
+          await loadSettings();
+        } else {
+          toastFeedback("Failed to update Grok settings", true);
+        }
+      } catch (err) {
+        toastFeedback("Error saving Grok settings", true);
+      } finally {
+        btnSaveGrok.disabled = false;
+        btnSaveGrok.textContent = "Update Grok";
+      }
+    });
+  }
+
+  const btnTestGrok = document.getElementById("btn-test-grok");
+  const grokTestBox = document.getElementById("grok-test-result");
+  if (btnTestGrok) {
+    btnTestGrok.addEventListener("click", async () => {
+      const key = document.getElementById("setting-grok-key")?.value?.trim();
+      btnTestGrok.disabled = true;
+      btnTestGrok.textContent = "Testing...";
+      if (grokTestBox) {
+        grokTestBox.classList.remove("hidden");
+        grokTestBox.style.background = "rgba(99,102,241,0.1)";
+        grokTestBox.style.color = "var(--text)";
+        grokTestBox.style.border = "1px solid var(--border)";
+        grokTestBox.textContent = "Sending test ping to xAI Grok API...";
+      }
+
+      try {
+        const res = await ApiClient.testApiKey("grok", key || "");
+        if (grokTestBox) {
+          if (res?.status === "ok") {
+            grokTestBox.style.background = "rgba(46,125,50,0.15)";
+            grokTestBox.style.color = "var(--good)";
+            grokTestBox.style.border = "1px solid var(--good)";
+            grokTestBox.textContent = `✅ ${res.message}`;
+          } else {
+            grokTestBox.style.background = "rgba(230,88,79,0.15)";
+            grokTestBox.style.color = "var(--bad)";
+            grokTestBox.style.border = "1px solid var(--bad)";
+            grokTestBox.textContent = `❌ ${res?.message || "Verification failed"}`;
+          }
+        }
+      } catch (err) {
+        if (grokTestBox) {
+          grokTestBox.style.background = "rgba(230,88,79,0.15)";
+          grokTestBox.style.color = "var(--bad)";
+          grokTestBox.style.border = "1px solid var(--bad)";
+          grokTestBox.textContent = `❌ Network error: ${err.message}`;
+        }
+      } finally {
+        btnTestGrok.disabled = false;
+        btnTestGrok.textContent = "⚡ Test Key";
+      }
+    });
   }
 }

@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from ..data import db
-from ..core.config import settings
+from usisain_backend.data import db
+from usisain_backend.core.config import settings
 
 router = APIRouter(prefix="/api/reference-documents", tags=["reference-documents"])
 
@@ -36,7 +36,7 @@ async def upload_reference_document(
     
     # Index reference document into local RAG vector store for instant semantic checking
     try:
-        from services.rag import retriever
+        from mcp_server.services.rag import retriever
         retriever.add(f"Official advisory: {name}. Detail: {notes or ''}", {
             "name": name,
             "category": "reference",

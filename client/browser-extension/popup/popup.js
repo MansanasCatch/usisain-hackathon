@@ -13,6 +13,14 @@ const LANGUAGE_MAP = {
     { value: "bisaya", label: "Bisaya" },
     { value: "ilocano", label: "Ilocano" },
   ],
+  grok: [
+    { value: "english", label: "English" },
+    { value: "taglish", label: "Taglish" },
+    { value: "tagalog", label: "Tagalog" },
+    { value: "cebuano", label: "Cebuano" },
+    { value: "bisaya", label: "Bisaya" },
+    { value: "ilocano", label: "Ilocano" },
+  ],
 };
 
 // ─── DOM references ───
@@ -174,14 +182,27 @@ function populateLanguages(provider) {
 let activeProvider = "ollama";
 let activeOllamaModel = "";
 let activeGeminiModel = "";
+let activeGrokModel = "gpt-oss-120b";
 let allOllamaModels = [];
 const allGeminiModels = [
+  { name: "gemini-3.5-flash", size_bytes: null, modified_at: null },
   { name: "gemini-2.5-flash", size_bytes: null, modified_at: null },
   { name: "gemini-2.5-pro", size_bytes: null, modified_at: null },
   { name: "gemini-2.0-flash", size_bytes: null, modified_at: null },
   { name: "gemini-2.0-pro-exp-02-05", size_bytes: null, modified_at: null },
   { name: "gemini-1.5-flash", size_bytes: null, modified_at: null },
   { name: "gemini-1.5-pro", size_bytes: null, modified_at: null }
+];
+let allGrokModels = [
+  { name: "gpt-oss-120b", size_bytes: null, modified_at: null },
+  { name: "grok-4.1-fast", size_bytes: null, modified_at: null },
+  { name: "grok-4.7", size_bytes: null, modified_at: null },
+  { name: "grok-4.6", size_bytes: null, modified_at: null },
+  { name: "grok-4.5", size_bytes: null, modified_at: null },
+  { name: "grok-4.3", size_bytes: null, modified_at: null },
+  { name: "grok-4.20-reasoning", size_bytes: null, modified_at: null },
+  { name: "grok-beta", size_bytes: null, modified_at: null },
+  { name: "grok-2-vision-1212", size_bytes: null, modified_at: null }
 ];
 
 async function loadSettings() {
@@ -201,6 +222,9 @@ async function loadSettings() {
     }
     if (settings?.gemini_model) {
       activeGeminiModel = settings.gemini_model;
+    }
+    if (settings?.grok_model) {
+      activeGrokModel = settings.grok_model;
     }
     if (settings?.ollama_model) {
       activeOllamaModel = settings.ollama_model;
@@ -413,21 +437,32 @@ async function initModelSelector() {
 
   function updateLlmSelectorUI() {
     if (activeLlmName) {
-      activeLlmName.textContent = activeProvider === "ollama" ? "Ollama (Local)" : "Gemini (Cloud)";
+      if (activeProvider === "ollama") {
+        activeLlmName.textContent = "Ollama (Local)";
+      } else if (activeProvider === "gemini") {
+        activeLlmName.textContent = "Gemini (Cloud)";
+      } else if (activeProvider === "grok") {
+        activeLlmName.textContent = "Grok (xAI)";
+      } else {
+        activeLlmName.textContent = activeProvider.toUpperCase();
+      }
     }
     const llmItems = llmList?.querySelectorAll(".model-item");
     if (llmItems) {
       llmItems.forEach(item => {
         const val = item.getAttribute("data-value");
         const badge = item.querySelector(".model-item-status-badge");
+        const check = item.querySelector(".model-item-check");
         if (val === activeProvider) {
           item.classList.add("active-model");
+          if (check) check.style.display = "";
           if (badge) {
             badge.className = "model-item-status-badge status-active";
             badge.textContent = "Active";
           }
         } else {
           item.classList.remove("active-model");
+          if (check) check.style.display = "none";
           if (badge) {
             badge.className = "model-item-status-badge status-available";
             badge.textContent = val === "ollama" ? "Local Host" : "Cloud API";
@@ -440,9 +475,12 @@ async function initModelSelector() {
       if (activeProvider === "ollama") {
         badge.style.backgroundColor = "var(--accent-indigo)";
         badge.style.boxShadow = "0 0 8px var(--accent-indigo)";
-      } else {
+      } else if (activeProvider === "gemini") {
         badge.style.backgroundColor = "var(--verdict-safe)";
         badge.style.boxShadow = "0 0 8px var(--verdict-safe)";
+      } else if (activeProvider === "grok") {
+        badge.style.backgroundColor = "#10b981";
+        badge.style.boxShadow = "0 0 8px rgba(16, 185, 129, 0.4)";
       }
     }
   }
@@ -484,8 +522,25 @@ async function initModelSelector() {
           statusIndicator.style.boxShadow = "0 0 8px var(--verdict-dangerous)";
         }
       }
-    } else {
+    } else if (activeProvider === "gemini") {
       if (trigger) trigger.disabled = false;
+      if (statusIndicator) {
+        statusIndicator.style.backgroundColor = "var(--verdict-safe)";
+        statusIndicator.style.boxShadow = "0 0 8px var(--verdict-safe)";
+      }
+    } else if (activeProvider === "grok") {
+      if (trigger) trigger.disabled = false;
+      try {
+        const grokData = await fetch(`${BACKEND}/api/grok/models`).then(r => r.json());
+        if (grokData?.models && grokData.models.length > 0) {
+          allGrokModels = grokData.models;
+        }
+        if (grokData?.active_model) {
+          activeGrokModel = grokData.active_model;
+        }
+      } catch (err) {
+        console.warn("Using default grok models in popup:", err);
+      }
       if (statusIndicator) {
         statusIndicator.style.backgroundColor = "var(--verdict-safe)";
         statusIndicator.style.boxShadow = "0 0 8px var(--verdict-safe)";
@@ -503,9 +558,15 @@ async function initModelSelector() {
       } else {
         activeNameSpan.textContent = "Select Model";
       }
-    } else {
+    } else if (activeProvider === "gemini") {
       if (activeGeminiModel) {
         activeNameSpan.textContent = cleanModelName(activeGeminiModel);
+      } else {
+        activeNameSpan.textContent = "Select Model";
+      }
+    } else if (activeProvider === "grok") {
+      if (activeGrokModel) {
+        activeNameSpan.textContent = cleanModelName(activeGrokModel);
       } else {
         activeNameSpan.textContent = "Select Model";
       }
@@ -518,6 +579,7 @@ async function initModelSelector() {
     let name = rawName;
     
     if (name.startsWith("gemini-")) {
+      if (name.includes("3.5-flash")) return "Gemini 3.5 Flash";
       if (name.includes("2.5-flash")) return "Gemini 2.5 Flash";
       if (name.includes("2.5-pro")) return "Gemini 2.5 Pro";
       if (name.includes("2.0-flash")) return "Gemini 2.0 Flash";
@@ -525,6 +587,20 @@ async function initModelSelector() {
       if (name.includes("1.5-flash")) return "Gemini 1.5 Flash";
       if (name.includes("1.5-pro")) return "Gemini 1.5 Pro";
       return name;
+    }
+
+    if (name === "gpt-oss-120b") return "GPT OSS 120B";
+
+    if (name.startsWith("grok-")) {
+      if (name === "grok-4.1-fast") return "Grok 4.1 Fast";
+      if (name === "grok-4.7") return "Grok 4.7";
+      if (name === "grok-4.6") return "Grok 4.6";
+      if (name === "grok-4.5") return "Grok 4.5";
+      if (name === "grok-4.3") return "Grok 4.3";
+      if (name === "grok-4.20-reasoning") return "Grok 4.20 Reasoning";
+      if (name === "grok-beta") return "Grok Beta";
+      if (name === "grok-2-vision-1212") return "Grok 2 Vision";
+      return name.replace(/^grok-/, "Grok ").replace(/-/g, " ");
     }
 
     if (name.includes(":")) {
@@ -573,15 +649,19 @@ async function initModelSelector() {
     listContainer.innerHTML = "";
     const filter = query.toLowerCase().trim();
     
-    const modelsToRender = activeProvider === "ollama" ? allOllamaModels : allGeminiModels;
+    const modelsToRender = activeProvider === "ollama" 
+      ? allOllamaModels 
+      : (activeProvider === "gemini" ? allGeminiModels : allGrokModels);
     const filtered = modelsToRender.filter(m => m.name.toLowerCase().includes(filter));
 
     if (filtered.length === 0) {
       if (modelsToRender.length === 0) {
         if (activeProvider === "ollama") {
           renderEmptyState("No local Ollama models found.");
-        } else {
+        } else if (activeProvider === "gemini") {
           renderEmptyState("No Gemini models configured.");
+        } else {
+          renderEmptyState("No Grok models configured.");
         }
       } else {
         renderEmptyState("No matching models found.");
@@ -590,7 +670,9 @@ async function initModelSelector() {
     }
 
     filtered.forEach(model => {
-      const activeModelName = activeProvider === "ollama" ? activeOllamaModel : activeGeminiModel;
+      const activeModelName = activeProvider === "ollama" 
+        ? activeOllamaModel 
+        : (activeProvider === "gemini" ? activeGeminiModel : activeGrokModel);
       const isTxtActive = model.name === activeModelName || model.name.split(":")[0] === activeModelName.split(":")[0];
       const isActive = isTxtActive;
 
@@ -637,8 +719,14 @@ async function initModelSelector() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ model: model.name })
             }).then(r => r.json());
-          } else {
+          } else if (activeProvider === "gemini") {
             res = await fetch(`${BACKEND}/api/settings/switch-gemini-model`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ model: model.name })
+            }).then(r => r.json());
+          } else if (activeProvider === "grok") {
+            res = await fetch(`${BACKEND}/api/settings/switch-grok-model`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ model: model.name })
@@ -652,8 +740,10 @@ async function initModelSelector() {
           if (res && res.status === "ok") {
             if (activeProvider === "ollama") {
               activeOllamaModel = model.name;
-            } else {
+            } else if (activeProvider === "gemini") {
               activeGeminiModel = model.name;
+            } else if (activeProvider === "grok") {
+              activeGrokModel = model.name;
             }
             await loadSettings();
           }

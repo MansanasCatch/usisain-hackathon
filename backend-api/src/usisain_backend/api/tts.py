@@ -2,8 +2,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from ..services.tts.speech_synthesizer import synthesize, stop_playback, generate_audio
-from ..core.config import settings
+from usisain_backend.services.tts.speech_synthesizer import synthesize, stop_playback, generate_audio
+from usisain_backend.core.config import settings
 
 router = APIRouter(prefix="/api/tts", tags=["tts"])
 

@@ -11,12 +11,11 @@ import uuid
 from typing import AsyncGenerator
 from fastapi import Request
 
-from ..core.config import settings
-from ..core.request_context import REQUEST_ID
-
-from .events import STEP_NAMES, StepEvent
-from ..services.mcp_client.client import call_tool
-from ..data import db
+from usisain_backend.core.config import settings
+from usisain_backend.core.request_context import REQUEST_ID
+from usisain_backend.orchestration.events import STEP_NAMES, StepEvent
+from usisain_backend.services.mcp_client.client import call_tool
+from usisain_backend.data import db
 
 logger = logging.getLogger(__name__)
 
@@ -241,8 +240,7 @@ async def run_pipeline(content: dict, language: str = "english", provider: str =
 
 async def run_pipeline_blocking(content: dict, language: str = "english", provider: str = "ollama", use_ocr: bool = True) -> dict:
     """Collects every event and returns one aggregated dict — used by
-    channels that can't consume a stream (e.g. the Messenger bot replies
-    with a sequence of chat messages instead of live UI updates)."""
+    clients that consume a complete response instead of streaming live UI updates."""
     results: dict[str, dict] = {}
     async for event in run_pipeline(content, language, provider, use_ocr=use_ocr):
         if event.status in ("completed", "error"):

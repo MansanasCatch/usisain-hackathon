@@ -39,7 +39,21 @@ def _get_ollama_client(host: str | None = None):
     return _OLLAMA_CLIENT
 
 
+def is_ollama_available(timeout: float = 1.0) -> bool:
+    """Quick non-blocking check whether Ollama service is reachable."""
+    try:
+        import urllib.request
+        host = (os.environ.get("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
+        req = urllib.request.Request(f"{host}/api/tags", headers={"User-Agent": "UsisAIn-Check"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
 class OllamaProvider(LLMProvider):
+    name = "ollama"
+
     def __init__(self, model: str | None = None, host: str | None = None):
         self.text_model = model or OLLAMA_MODEL
         self.vision_model = OLLAMA_VISION_MODEL

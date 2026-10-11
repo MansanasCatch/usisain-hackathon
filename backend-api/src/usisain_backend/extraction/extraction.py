@@ -44,8 +44,7 @@ def extract_video(file_bytes: bytes, filename: str, caption: str | None = None) 
 
 
 def extract_post(caption: str | None, file_bytes: bytes | None, filename: str | None) -> dict:
-    """Combined caption + image/video, e.g. from the browser extension's
-    'Analyze this post' action or a forwarded Messenger post."""
+    """Combined caption + image/video, e.g. from the browser extension or web app."""
     if file_bytes and filename:
         ext = Path(filename).suffix.lower()
         content_type = "video" if ext in (".mp4", ".mov", ".webm", ".avi") else "image"
