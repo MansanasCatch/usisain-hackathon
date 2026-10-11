@@ -61,6 +61,9 @@ class FallbackWrapper(LLMProvider):
             return await self.fallback.complete(system, user, image_path=image_path, max_tokens=max_tokens)
 
 
+FallbackProvider = FallbackWrapper
+
+
 def get_provider(preference: str | None = None) -> LLMProvider:
     """Return the requested LLM provider with automatic fallback.
 

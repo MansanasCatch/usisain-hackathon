@@ -1,0 +1,100 @@
+import os
+import cv2
+from mcp_server.prompts.step3_prompts import (
+    SYNTHESIS_PROMPT_TEMPLATE,
+    LANGUAGE_INSTRUCTIONS,
+    SECURITY_GUARDRAIL,
+)
+from mcp_server.services.llm import get_provider
+
+
+async def synthesize_explanation(
+    verdict: str,
+    score: float,
+    claim: str,
+    search_query: str,
+    top_sources: list[dict],
+    scored_sources: list[dict],
+    cached: list[dict],
+    advisories: list[dict],
+    source_context: str,
+    sources_rule: str,
+    note: str,
+    file_path: str | None = None,
+    content_type: str = "text",
+    provider: str = "ollama",
+    language: str = "english",
+) -> str:
+    advisory_lines = []
+    for a in advisories:
+        advisory_name = a.get("metadata", {}).get("name", "Unknown Source")
+        advisory_lines.append(f"- {a['text']} [Source: {advisory_name}]")
+    advisory_context = "\n".join(advisory_lines) or "None"
+
+    context = (
+        f"System Verdict: {verdict.upper()} (based on credibility score of {score}/100)\n"
+        f"Claim/Context: {claim or '(no text claim provided, checking the image)'}\n\n"
+        f"Search query: {search_query}\n\n"
+        f"Official Advisories & Reference Documents:\n"
+        f"{advisory_context}\n\n"
+        f"Cached prior investigations:\n"
+        f"{chr(10).join(c['text'][:150] for c in cached) or 'None'}\n\n"
+        f"Web search results:\n{source_context}"
+        f"{note}"
+    )
+
+    temp_frame_path = None
+    image_to_pass = None
+
+    if file_path and os.path.exists(file_path) and provider != "ollama":
+        if content_type == "image":
+            image_to_pass = file_path
+        elif content_type == "video":
+            try:
+                cap = cv2.VideoCapture(file_path)
+                ok, frame = cap.read()
+                if ok:
+                    temp_dir = os.path.dirname(file_path)
+                    temp_frame_path = os.path.join(
+                        temp_dir, "_temp_video_factcheck_frame.jpg"
+                    )
+                    cv2.imwrite(temp_frame_path, frame)
+                    image_to_pass = temp_frame_path
+                cap.release()
+            except Exception:
+                pass
+
+    system_prompt = SYNTHESIS_PROMPT_TEMPLATE.format(sources_rule=sources_rule)
+    if language in LANGUAGE_INSTRUCTIONS:
+        system_prompt = f"{system_prompt} {LANGUAGE_INSTRUCTIONS[language]}"
+    system_prompt = f"{system_prompt} {SECURITY_GUARDRAIL}"
+
+    llm = get_provider(provider)
+    try:
+        explanation = await llm.complete(
+            system_prompt, context, image_path=image_to_pass, max_tokens=512
+        )
+        if not top_sources and explanation:
+            lines = []
+            for line in explanation.splitlines():
+                if "[" in line and "](" in line:
+                    continue
+                if line.strip().lower().startswith(
+                    ("sources:", "source:", "- source", "* source", "sources")
+                ):
+                    continue
+                lines.append(line)
+            explanation = "\n".join(lines).strip()
+    except Exception as e:
+        explanation = (
+            f"Found {len(scored_sources)} source(s) with average credibility "
+            f"score {score}/100. (LLM explanation unavailable: {e})"
+        )
+    finally:
+        if temp_frame_path and os.path.exists(temp_frame_path):
+            try:
+                os.remove(temp_frame_path)
+            except Exception:
+                pass
+
+    return explanation
