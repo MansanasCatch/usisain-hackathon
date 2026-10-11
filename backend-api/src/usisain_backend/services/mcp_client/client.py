@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import sys
 import threading
 
@@ -37,7 +38,7 @@ async def call_tool(tool_name: str, arguments: dict) -> dict:
         _EXEC_CTX.request_id = req_id
     except Exception:
         pass
-    if asyncio.iscoroutinefunction(fn):
+    if inspect.iscoroutinefunction(fn):
         result = await fn(**arguments)
     else:
 

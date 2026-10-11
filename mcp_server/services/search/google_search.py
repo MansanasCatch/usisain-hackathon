@@ -36,7 +36,7 @@ def _ddg_search(query: str, max_results: int) -> list[dict]:
         results = []
         for link in soup.select("a.result-link")[:max_results]:
             raw_url = link.get("href")
-            url = str(raw_url) if raw_url and isinstance(raw_url, str) else ""
+            url = raw_url if isinstance(raw_url, str) else ""
             title = link.get_text(" ", strip=True)
             snippet = ""
             tr = link.find_parent("tr")
@@ -92,7 +92,7 @@ def _yahoo_search(query: str, max_results: int) -> list[dict]:
         snippet_el = item.select_one(".compText") or item.select_one(".fc-falcon")
         title = title_el.get_text(" ", strip=True) if title_el else ""
         raw_url = link_el.get("href") if link_el else ""
-        url = str(raw_url) if raw_url and isinstance(raw_url, str) else ""
+        url = raw_url if isinstance(raw_url, str) else ""
         snippet = snippet_el.get_text(" ", strip=True) if snippet_el else ""
         if url:
             parsed = urlparse(url)

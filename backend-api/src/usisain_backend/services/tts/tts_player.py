@@ -21,7 +21,7 @@ class TTSPlayer:
         self.worker_thread.start()
 
     def set_enabled(self, val: bool):
-        self.enabled = bool(val)
+        self.enabled = val
         if not self.enabled:
             self.stop()
 
