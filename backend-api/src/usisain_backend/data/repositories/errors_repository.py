@@ -18,7 +18,7 @@ class ErrorsRepository:
                    VALUES (?, ?, ?, ?, ?)""",
                 (step, step_name, error_type, error_msg, details),
             )
-            return int(cur.lastrowid)
+            return int(cur.lastrowid or 0)
 
     def list_all(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         with get_db_connection() as conn:

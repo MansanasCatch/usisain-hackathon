@@ -29,14 +29,14 @@ class AnalysisService:
     async def prepare_content(
         self, text: str | None, file: UploadFile | None, caption: str | None
     ) -> dict[str, Any]:
-        file_bytes = await file.read() if file else None
-        if file_bytes and caption is not None:
-            return extract_post(caption, file_bytes, file.filename)
-        elif file_bytes:
-            ext = (file.filename or "").lower()
+        if file and (file_bytes := await file.read()):
+            filename = file.filename or "upload"
+            if caption is not None:
+                return extract_post(caption, file_bytes, filename)
+            ext = filename.lower()
             if ext.endswith((".mp4", ".mov", ".webm")):
-                return extract_video(file_bytes, file.filename, caption)
-            return extract_image(file_bytes, file.filename, caption)
+                return extract_video(file_bytes, filename, caption)
+            return extract_image(file_bytes, filename, caption)
         return extract_text(text or "")
 
     def record_scan(

@@ -31,11 +31,14 @@ def ensure_ollama_model(model_name: str) -> bool:
     elif isinstance(models, dict) and "models" in models:
         available = [m.get("model", m.get("name", "")) for m in models["models"]]
     elif isinstance(models, list):
-        available = [m.model if hasattr(m, "model") else m.get("model", "") for m in models]
+        available = [
+            getattr(m, "model", m.get("model", "") if isinstance(m, dict) else str(m))
+            for m in models
+        ]
     else:
         available = [getattr(m, "model", str(m)) for m in getattr(models, "models", [])]
     for name in available:
-        name_clean = name.strip()
+        name_clean = str(name).strip()
         if model_name == name_clean or model_name.split(":")[0] == name_clean.split(":")[0]:
             logger.info("[Ollama] Model '%s' is ready", model_name)
             return True

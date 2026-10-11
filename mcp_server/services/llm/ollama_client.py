@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Any
 
 import ollama
 
@@ -53,7 +54,7 @@ class OllamaProvider(LLMProvider):
         self.client = _get_ollama_client(host)
 
     async def complete(
-        self, system: str, user: str, image_path: str = None, max_tokens: int | None = None
+        self, system: str, user: str, image_path: str | None = None, max_tokens: int | None = None
     ) -> str:
         needs_vision = image_path and os.path.exists(image_path)
         active_model = self.vision_model if needs_vision else self.text_model
@@ -67,7 +68,7 @@ class OllamaProvider(LLMProvider):
                 safe_print("--- OLLAMA ATTACHED IMAGE ---", prefix="INFO:     ")
                 safe_print(image_path)
             safe_print("-----------------------------", prefix="INFO:     ", suffix="\n")
-        message = {"role": "user", "content": user}
+        message: dict[str, Any] = {"role": "user", "content": user}
         if needs_vision:
             message["images"] = [image_path]
         options = {"temperature": 0.2, "top_p": 0.9}
@@ -80,4 +81,5 @@ class OllamaProvider(LLMProvider):
             messages=[{"role": "system", "content": system}, message],
             options=options,
         )
-        return response.message.content.strip()
+        content = response.message.content
+        return (content or "").strip()

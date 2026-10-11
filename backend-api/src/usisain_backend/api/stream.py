@@ -1,5 +1,6 @@
 import json
 import traceback
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -28,13 +29,13 @@ async def _sse_stream(
     use_ocr: bool,
     service: AnalysisService,
 ):
-    results: dict[str, dict] = {}
+    results: dict[str, Any] = {}
     try:
         async for event in run_pipeline(
             content, language=language, provider=provider, use_ocr=use_ocr, request=request
         ):
             if event.status in ("completed", "error"):
-                results[f"step{event.step}"] = event.result
+                results[f"step{event.step}"] = event.result or {}
             yield f"data: {json.dumps(event.to_dict())}\n\n"
         scan_id = service.record_scan(
             channel=channel,
@@ -73,7 +74,7 @@ async def analyze_stream(
 ):
     provider, language = service.resolve_provider_and_language(provider, language)
     content = await service.prepare_content(text, file, caption)
-    input_summary = (text or caption or (file.filename if file else ""))[:200]
+    input_summary = (text or caption or (file.filename if file and file.filename else ""))[:200]
     return StreamingResponse(
         _sse_stream(
             request=request,

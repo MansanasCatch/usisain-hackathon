@@ -15,7 +15,7 @@ class FallbackWrapper(LLMProvider):
         self.fallback = OllamaProvider()
 
     async def complete(
-        self, system: str, user: str, image_path: str = None, max_tokens: int | None = None
+        self, system: str, user: str, image_path: str | None = None, max_tokens: int | None = None
     ) -> str:
         try:
             return await self.primary.complete(

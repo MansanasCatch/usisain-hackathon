@@ -1,12 +1,12 @@
 from typing import Any
 
-from usisain_backend.orchestration.events import STEP_NAMES, StepEvent
+from usisain_backend.orchestration.events import STEP_NAMES, Status, StepEvent
 
 
 def format_step_event(
     step: int,
     name: str | None = None,
-    status: str = "completed",
+    status: Status = "completed",
     result: dict[str, Any] | None = None,
 ) -> StepEvent:
     step_name = name or STEP_NAMES.get(step, f"step{step}")

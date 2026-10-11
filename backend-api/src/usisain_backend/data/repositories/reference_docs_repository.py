@@ -11,7 +11,7 @@ class ReferenceDocsRepository:
                    VALUES (?, ?, ?, ?)""",
                 (name, category, image_path, notes),
             )
-            return int(cur.lastrowid)
+            return int(cur.lastrowid or 0)
 
     def list_all(self, category: str | None = None) -> list[dict[str, Any]]:
         query = "SELECT * FROM reference_documents"

@@ -104,7 +104,7 @@ class GrokProvider(LLMProvider):
             )
 
     async def complete(
-        self, system: str, user: str, image_path: str = None, max_tokens: int | None = None
+        self, system: str, user: str, image_path: str | None = None, max_tokens: int | None = None
     ) -> str:
         if self._explicit_key:
             try:
@@ -152,7 +152,7 @@ class GrokProvider(LLMProvider):
         system: str,
         user: str,
         api_key: str,
-        image_path: str = None,
+        image_path: str | None = None,
         max_tokens: int | None = None,
     ) -> str:
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}

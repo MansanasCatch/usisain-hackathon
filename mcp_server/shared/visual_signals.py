@@ -49,7 +49,7 @@ def normalize_pct(d: dict) -> dict:
     rounded = {k: round(v / total * 100, 1) for k, v in d.items()}
     diff = round(100 - sum(rounded.values()), 1)
     if abs(diff) >= 0.1:
-        max_key = max(rounded, key=rounded.get)
+        max_key = max(rounded, key=lambda k: rounded[k])
         rounded[max_key] = round(rounded[max_key] + diff, 1)
     return rounded
 
@@ -64,7 +64,7 @@ def classify_frame(image: Image.Image) -> dict:
     pct = normalize_pct(
         {"real": real_evidence, "edited": edited_evidence, "ai_generated": ai_evidence}
     )
-    dominant = max(pct, key=pct.get)
+    dominant = max(pct, key=lambda k: pct[k])
     return {
         "real_pct": pct["real"],
         "edited_pct": pct["edited"],

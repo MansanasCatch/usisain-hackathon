@@ -1,10 +1,12 @@
 import logging
 import os
+from typing import Any
 
 from PIL import Image
 
 logger = logging.getLogger(__name__)
 HAS_PYTESSERACT = False
+pytesseract: Any = None
 try:
     import pytesseract
 
@@ -24,7 +26,7 @@ _OCR_AVAILABLE = False
 
 def is_ocr_available() -> bool:
     global _OCR_CHECKED, _OCR_AVAILABLE
-    if not HAS_PYTESSERACT:
+    if not HAS_PYTESSERACT or pytesseract is None:
         return False
     if _OCR_CHECKED:
         return _OCR_AVAILABLE
@@ -39,7 +41,7 @@ def is_ocr_available() -> bool:
 
 
 def extract_text(image: Image.Image) -> str:
-    if not is_ocr_available():
+    if not is_ocr_available() or pytesseract is None:
         return ""
     try:
         gray = image.convert("L")

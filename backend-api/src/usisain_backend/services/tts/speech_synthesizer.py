@@ -10,7 +10,7 @@ from gtts import gTTS
 from usisain_backend.services.tts.tts_player import tts_player
 
 
-def synthesize(text: str, language: str = "english", voice: str = None) -> str:
+def synthesize(text: str, language: str = "english", voice: str | None = None) -> str:
     if voice:
         tts_player.selected_voice_name = voice
     tts_player.set_language(language)
@@ -28,7 +28,7 @@ def synthesize(text: str, language: str = "english", voice: str = None) -> str:
     return str(out_path)
 
 
-def generate_audio(text: str, language: str = "english", voice: str = None) -> io.BytesIO:
+def generate_audio(text: str, language: str = "english", voice: str | None = None) -> io.BytesIO:
     clean_text = tts_player.sanitize(text)
     if not clean_text:
         buf = io.BytesIO(b"\xff\xfb\x90\x00" + b"\x00" * 413)

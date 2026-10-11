@@ -30,7 +30,7 @@ async def analyze(
         results = await run_pipeline_blocking(
             content, language=language, provider=provider, use_ocr=use_ocr
         )
-        input_summary = (text or caption or (file.filename if file else ""))[:200]
+        input_summary = (text or caption or (file.filename if file and file.filename else ""))[:200]
         scan_id = service.record_scan(
             channel=channel,
             content_type=content.get("content_type"),

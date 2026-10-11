@@ -83,10 +83,8 @@ class Step2ContentAnalyser(BaseStep):
             from usisain_backend.core.config import settings
 
             max_frames = getattr(settings, "max_video_frames", 24)
-            frames, duration, pct, signals, transcript, frame_results = process_video_frames(
-                file_path, max_frames=max_frames
-            )
-            if not frames:
+            res = process_video_frames(file_path, max_frames=max_frames)
+            if not res[0] or res[2] is None or res[3] is None:
                 return Step2Output(
                     content_type="video",
                     score=0.0,
@@ -94,6 +92,7 @@ class Step2ContentAnalyser(BaseStep):
                     explanation="Could not read any frames from this video file.",
                     applicable=True,
                 )
+            frames, duration, pct, signals, transcript, frame_results = res
             real, edited, ai_gen = (pct["real"], pct["edited"], pct["ai_generated"])
             temp_frame_path = None
             try:

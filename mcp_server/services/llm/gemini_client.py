@@ -104,7 +104,7 @@ class GeminiProvider(LLMProvider):
             )
 
     async def complete(
-        self, system: str, user: str, image_path: str = None, max_tokens: int | None = None
+        self, system: str, user: str, image_path: str | None = None, max_tokens: int | None = None
     ) -> str:
         import google.generativeai as genai
 
@@ -154,7 +154,7 @@ class GeminiProvider(LLMProvider):
         raise last_exc or RuntimeError("Gemini request failed")
 
     async def _attempt(
-        self, genai, system: str, user: str, api_key: str, image_path: str = None
+        self, genai, system: str, user: str, api_key: str, image_path: str | None = None
     ) -> str:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel(self.model, system_instruction=system)

@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass
-from typing import Any, Literal
+from typing import Any
 
-Status = Literal["pending", "in_progress", "completed", "error"]
+Status = str
 STEP_NAMES = {
     1: "ai_insights",
     2: "content_analyser",
@@ -20,3 +20,8 @@ class StepEvent:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    def to_json(self) -> str:
+        import json
+
+        return json.dumps(self.to_dict())

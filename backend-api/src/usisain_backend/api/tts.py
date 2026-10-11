@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/tts", tags=["tts"])
 
 
 @router.post("")
-def text_to_speech(text: str, language: str = "english", voice: str = None):
+def text_to_speech(text: str, language: str = "english", voice: str | None = None):
     if not settings.tts_enabled:
         raise HTTPException(
             status_code=400, detail="Text-to-speech is disabled in configuration settings."
@@ -24,7 +24,7 @@ def text_to_speech(text: str, language: str = "english", voice: str = None):
 
 
 @router.post("/generate")
-def generate_speech(text: str, language: str = "english", voice: str = None):
+def generate_speech(text: str, language: str = "english", voice: str | None = None):
     if not settings.tts_enabled:
         raise HTTPException(
             status_code=400, detail="Text-to-speech is disabled in configuration settings."

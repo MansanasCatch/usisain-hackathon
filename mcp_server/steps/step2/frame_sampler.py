@@ -5,7 +5,7 @@ from mcp_server.shared.visual_signals import classify_frame, normalize_pct
 def process_video_frames(video_path: str, max_frames: int = 24):
     frames, duration = sample_frames(video_path, max_frames)
     if not frames:
-        return (None, duration, None, None, None)
+        return (None, duration, None, None, None, None)
     frame_results = [classify_frame(f) for f in frames]
     counts = {"real": 0, "edited": 0, "ai_generated": 0}
     for r in frame_results:
