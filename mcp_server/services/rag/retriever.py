@@ -1,16 +1,3 @@
-"""
-retriever.py — the local knowledge cache step 3 checks before hitting
-Google Search. Every fact-check result gets added here, so a claim
-that's already been investigated once (a recurring GCash scam text, for
-example) gets answered from cache instantly on repeat sightings, with a
-fresh search only for genuinely new claims.
-
-Storage: a single JSON file under data/vector_index/. This is a POC-scale
-store — fine for thousands of entries. If you outgrow it, swap this
-module for a real vector DB (Chroma, Qdrant) without touching callers,
-since they only see add() and search().
-"""
-
 import json
 import uuid
 from pathlib import Path

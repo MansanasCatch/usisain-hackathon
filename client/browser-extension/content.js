@@ -1,14 +1,9 @@
 
-
-
-
-
 let lastRightClickedEl = null;
 const extensionSpokenCompletes = {};
 document.addEventListener("contextmenu", (e) => { lastRightClickedEl = e.target; }, true);
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  
   if (message.action === "ping") {
     sendResponse({ pong: true });
     return;
@@ -56,7 +51,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     
     if (message.action === "fetch-and-resize") {
-      
       const { url, maxDim = 1024, quality = 0.75 } = message;
       (async () => {
         try {
@@ -109,7 +103,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 
-
 const STEP_LABELS = {
   1: "AI Insights", 2: "Content Analyser", 3: "Authenticity",
   4: "Actionable Items", 5: "Learnings",
@@ -119,7 +112,6 @@ const STEP_ICONS = { 1: "💡", 2: "🔬", 3: "✅", 4: "🎯", 5: "📚" };
 
 let pipelineTimeoutSeconds = 120;
 const activeTimers = {};
-
 
 function injectPanelStyles() {
   if (document.getElementById("usisain-panel-styles")) return;
@@ -479,7 +471,6 @@ function clearTimerForStep(step) {
   }
 }
 
-
 function showTemporaryBanner(text) {
   let banner = document.getElementById('usisain-temp-banner');
   if (!banner) {
@@ -515,7 +506,6 @@ async function resizeBlobToDataUrl(blob, maxDim = 1024, quality = 0.75) {
         if (maxSide > maxDim) scale = maxDim / maxSide;
         if (scale >= 1) {
           URL.revokeObjectURL(url);
-          
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result);
           reader.readAsDataURL(blob);
@@ -563,7 +553,6 @@ function showPanel(previewText, previewImageUrl) {
   injectPanelStyles();
   ttsPlayer.stop();
   document.getElementById("usisain-panel")?.remove();
-  
   for (let step = 1; step <= 5; step++) {
     clearTimerForStep(step);
   }
@@ -571,7 +560,6 @@ function showPanel(previewText, previewImageUrl) {
   const panel = document.createElement("div");
   panel.id = "usisain-panel";
 
-  
   const header = document.createElement("div");
   header.className = "usisain-header";
   header.innerHTML = `
@@ -623,7 +611,6 @@ function showPanel(previewText, previewImageUrl) {
   };
   panel.appendChild(header);
 
-  
   const ttsToggle = header.querySelector("#usisain-tts-toggle");
   const ttsVoice = header.querySelector("#usisain-tts-voice");
   const ttsReplay = header.querySelector("#usisain-tts-replay");
@@ -691,7 +678,6 @@ function showPanel(previewText, previewImageUrl) {
 
   panel.updateVoiceUI = updateDropdowns;
 
-  
   let isDragging = false;
   let startX = 0;
   let startY = 0;
@@ -748,7 +734,6 @@ function showPanel(previewText, previewImageUrl) {
     }
   }
 
-  
   if (previewImageUrl) {
     const previewContainer = document.createElement("div");
     previewContainer.className = "usisain-preview-box";
@@ -768,7 +753,6 @@ function showPanel(previewText, previewImageUrl) {
     panel.appendChild(previewContainer);
   }
 
-  
   const stepsContainer = document.createElement("div");
   stepsContainer.className = "usisain-steps-container";
 
@@ -827,7 +811,6 @@ function updatePanelStep(event) {
     let secondsLeft = pipelineTimeoutSeconds;
     body.textContent = `Analyzing… ${secondsLeft}s remaining`;
 
-    // Narrate step start
     const startMsgs = STEP_START_MESSAGES[ttsPlayer.currentLanguage] || STEP_START_MESSAGES.english;
     const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
     ttsPlayer.speak(startMsg);
@@ -852,14 +835,12 @@ function updatePanelStep(event) {
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
     markRemainingStepsFailed(event.step + 1);
 
-    // Narrate step failure
     ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
   } else if (event.status === "completed") {
     badge.textContent = "✓";
     row.dataset.status = "completed";
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
 
-    // Narrate step output
     let speechText = summarizeStep(event.step, event.result);
     if (event.step === 2 && event.result.applicable !== false) {
       speechText = `Visual analysis breakdown: ${event.result.real_pct}% real, ${event.result.edited_pct}% edited, and ${event.result.ai_generated_pct}% AI-generated. ${event.result.explanation}`;
@@ -894,14 +875,11 @@ function summarizeStep(step, result) {
 function showPanelError(error) {
   const panel = document.getElementById("usisain-panel");
   if (!panel) {
-    // If no panel exists yet, create one to show the error
     showPanel();
     return showPanelError(error);
   }
-  // Update the header subtitle
   const headerSub = panel.querySelector(".usisain-header-sub");
   if (headerSub) headerSub.textContent = "Error Encountered";
-  // Insert (or update) an error banner
   let banner = document.getElementById("usisain-error-banner");
   if (!banner) {
     banner = document.createElement("div");
@@ -916,11 +894,9 @@ function showPanelError(error) {
   banner.textContent = "⚠️ " + error;
 }
 
-//Snip Function
 function initializeSnippingTool(sendResponse) {
   if (document.getElementById("snip-overlay")) return;
 
-  // Append overlay CSS dynamically to Facebook page
   const style = document.createElement("style");
   style.id = "snip-styles";
   style.innerHTML = `
@@ -934,11 +910,11 @@ function initializeSnippingTool(sendResponse) {
     #snip-box {
       border: 2px dashed #3b82f6;
       background: rgba(59, 130, 246, 0.15);
-      position: absolute; /* Changed to absolute to anchor to page scroll */
+      position: absolute;
       pointer-events: none;
       display: none;
       box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
-      z-index: 999999999 !important; /* Above the overlay */
+      z-index: 999999999 !important;
     }
     .snip-popup-panel {
       position: fixed;
@@ -971,11 +947,9 @@ function initializeSnippingTool(sendResponse) {
   `;
   document.head.appendChild(style);
 
-  // Overlay covers viewport to catch mouse events
   const overlay = document.createElement("div");
   overlay.id = "snip-overlay";
   
-  // Snip box appended to body so it scrolls with the page
   const snipBox = document.createElement("div");
   snipBox.id = "snip-box";
   
@@ -987,11 +961,9 @@ function initializeSnippingTool(sendResponse) {
   let isDrawing = false;
   let autoScrollSpeed = 0;
 
-  // Redraws the box continuously, factoring in any page scrolling
   function updateBox() {
     if (!isDrawing) return;
     
-    // Calculate current global document coordinates
     const currentPageX = lastMouseX + window.scrollX;
     const currentPageY = lastMouseY + window.scrollY;
 
@@ -1004,7 +976,6 @@ function initializeSnippingTool(sendResponse) {
     snipBox.style.top = Math.min(currentPageY, startPageY) + "px";
   }
 
-  // Animation frame loop handling the auto-scrolling engine
   function scrollLoop() {
     if (!isDrawing) return;
 
@@ -1019,7 +990,6 @@ function initializeSnippingTool(sendResponse) {
   overlay.addEventListener("mousedown", (e) => {
     isDrawing = true;
     
-    // Anchor the start position to the page, not the screen
     startPageX = e.clientX + window.scrollX;
     startPageY = e.clientY + window.scrollY;
     
@@ -1032,7 +1002,6 @@ function initializeSnippingTool(sendResponse) {
     snipBox.style.height = "0px";
     snipBox.style.display = "block";
 
-    // Kick off the drawing and scrolling monitor
     requestAnimationFrame(scrollLoop);
   });
 
@@ -1042,13 +1011,10 @@ function initializeSnippingTool(sendResponse) {
     lastMouseX = e.clientX;
     lastMouseY = e.clientY;
 
-    // Detect if mouse is near the top or bottom of the screen (60px threshold)
     const edgeThreshold = 60;
     if (lastMouseY > window.innerHeight - edgeThreshold) {
-      // Scroll down based on how close to the edge you are
       autoScrollSpeed = 15;
     } else if (lastMouseY < edgeThreshold) {
-      // Scroll up
       autoScrollSpeed = -15;
     } else {
       autoScrollSpeed = 0;
@@ -1063,11 +1029,9 @@ function initializeSnippingTool(sendResponse) {
       const endPageX = e.clientX + window.scrollX;
       const endPageY = e.clientY + window.scrollY;
 
-      // Cleanup UI
       overlay.remove();
       snipBox.remove();
 
-      // Original scroll position
       const originalScrollX = window.scrollX;
       const originalScrollY = window.scrollY;
 
@@ -1078,13 +1042,9 @@ function initializeSnippingTool(sendResponse) {
 
       if (width < 10 || height < 10) return;
 
-      // Scroll the viewport to the top-left of the selection area to ensure capture has it fully visible
       window.scrollTo(minPageX, minPageY);
 
-      // Brief delay to allow browser repaint/rendering at the new scroll position
       setTimeout(() => {
-        // Calculate crop coordinates relative to the actual scroll position achieved by the browser
-        // (accounts for horizontal/vertical scroll limits on the page)
         const actualScrollX = window.scrollX;
         const actualScrollY = window.scrollY;
 
@@ -1099,7 +1059,7 @@ function initializeSnippingTool(sendResponse) {
 
         sendResponse({
           pageUrl: location.href,
-          selectedText: null, // No manual text scraping
+          selectedText: null,
           cropRect: captureCropRect,
           originalScrollX: originalScrollX,
           originalScrollY: originalScrollY
@@ -1206,7 +1166,6 @@ class TTSPlayer {
     this.voices = GTTS_VOICES;
     this.selectedVoiceName = "Google TTS - English (United States) (en-US)";
 
-    // Sequential playback queue (browser-side)
     this._queue = [];
     this._isPlaying = false;
     this._currentAudio = null;
@@ -1283,14 +1242,12 @@ class TTSPlayer {
   speak(text) {
     if (!this.enabled || !text) return;
 
-    // Add to sequential queue
     this._queue.push({
       text,
       lang: this.currentLanguage || "english",
       voice: this.selectedVoiceName || ""
     });
 
-    // Start processing if not already running
     if (!this._isPlaying) {
       this._processQueue();
     }
@@ -1370,15 +1327,13 @@ class TTSPlayer {
           URL.revokeObjectURL(this._currentAudio.src);
         }
       } catch (e) {
-        // ignore
       }
       this._currentAudio = null;
     }
 
     this._isPlaying = false;
 
-    // Also tell the backend to stop any server-side speaker playback
-    fetch("http:
+    fetch("http://localhost:8000/api/tts/stop", { method: "POST" }).catch(() => {});
   }
 }
 

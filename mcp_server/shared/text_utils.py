@@ -1,6 +1,3 @@
-"""text_utils.py — small text helpers shared across tools. Kept dependency-
-free (stdlib only) so it never blocks step 2 or step 1 from running."""
-
 import difflib
 
 TRUSTED_DOMAINS = {

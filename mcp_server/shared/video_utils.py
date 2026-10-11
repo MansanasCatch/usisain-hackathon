@@ -1,10 +1,3 @@
-"""
-video_utils.py — frame sampling and local audio transcription, shared by
-step 2 (content analyser) when the input is a video. Everything here runs
-on-device: OpenCV reads frames directly from the file, faster-whisper
-transcribes the audio track locally. Nothing is uploaded anywhere.
-"""
-
 import cv2
 from PIL import Image
 

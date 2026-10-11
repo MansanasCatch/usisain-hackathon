@@ -1,6 +1,3 @@
-"""events.py — the event shape every pipeline step emits. Small and
-consistent on purpose: the client never has to guess a step's state."""
-
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 

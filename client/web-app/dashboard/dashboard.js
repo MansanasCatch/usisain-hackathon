@@ -743,7 +743,6 @@ function updateStepRow(event) {
     let secondsLeft = pipelineTimeoutSeconds;
     body.textContent = `Analyzing… ${secondsLeft}s remaining`;
     
-    // Narrate step start
     const lang = languageSelect.value;
     const startMsgs = STEP_START_MESSAGES[lang] || STEP_START_MESSAGES.english;
     const startMsg = startMsgs[event.step] || `Starting step ${event.step}`;
@@ -772,7 +771,6 @@ function updateStepRow(event) {
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
     markFollowingStepsFailed(event.step + 1);
 
-    // Narrate step failure
     window.ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
   } else if (event.status === "completed") {
     if (indicator) {
@@ -783,7 +781,6 @@ function updateStepRow(event) {
     updatePipelineNode(event.step, "completed");
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
 
-    // Narrate step output
     const lang = languageSelect.value;
     window.ttsPlayer.setLanguage(lang);
     let speechText = summarizeStep(event.step, event.result);
@@ -819,7 +816,6 @@ function summarizeStep(step, result) {
   return "Done.";
 }
 
-// Resizing logic for Image uploads in client browser
 async function resizeImageFile(file, maxDim = 1024, quality = 0.75) {
   return new Promise((resolve, reject) => {
     try {
@@ -864,7 +860,6 @@ async function resizeImageFile(file, maxDim = 1024, quality = 0.75) {
   });
 }
 
-// Submit and streaming
 analyzeForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   submitBtn.disabled = true;
@@ -873,7 +868,6 @@ analyzeForm.addEventListener("submit", async (e) => {
   const mode = modeSelect.value;
   const language = languageSelect.value;
   
-  // Set language and stop previous speech
   window.ttsPlayer.setLanguage(language);
   window.ttsPlayer.stop();
 
@@ -920,7 +914,6 @@ analyzeForm.addEventListener("submit", async (e) => {
         if (successCheck) successCheck.classList.remove("hidden");
         doneBtn.classList.remove("hidden");
         
-        // Dynamic dashboard reload when done!
         loadOverview();
         loadScans();
         loadErrors();
@@ -937,7 +930,6 @@ analyzeForm.addEventListener("submit", async (e) => {
         
         doneBtn.classList.remove("hidden");
         
-        // Refresh dashboard on partial runs
         loadOverview();
         loadScans();
         loadErrors();
@@ -962,16 +954,13 @@ analyzeForm.addEventListener("submit", async (e) => {
   }
 });
 
-// Auto-trigger analyze modal if parameters are set (SPA integration)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("analyze") === "true") {
   openAnalyzeModal();
-  // Clear parameter from address bar
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
 
-// ---------- INITIALIZATION ----------
 if (window.ttsPlayer) {
   window.ttsPlayer.initVoices();
 }
@@ -984,7 +973,6 @@ loadErrors();
 initModelSelector();
 initPWAServiceWorker();
 
-// PWA Service Worker Registration
 function initPWAServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -999,7 +987,6 @@ function initPWAServiceWorker() {
   }
 }
 
-// Dynamic Window Resize Listener to adapt chart parameters instantly and smoothly
 window.addEventListener('resize', () => {
   const isMobile = window.innerWidth < 550;
   const isTablet = window.innerWidth < 650;
@@ -1008,7 +995,7 @@ window.addEventListener('resize', () => {
     trendChartInstance.options.plugins.legend.labels.font.size = isMobile ? 9 : 11;
     trendChartInstance.options.scales.x.ticks.font.size = isMobile ? 8 : 10;
     trendChartInstance.options.scales.y.ticks.font.size = isMobile ? 8 : 10;
-    trendChartInstance.update('none'); // Update without animation for responsive performance
+    trendChartInstance.update('none');
   }
   
   if (verdictChartInstance) {
@@ -1019,7 +1006,6 @@ window.addEventListener('resize', () => {
   }
 });
 
-// ---------- Generalized Model Selector Logic ----------
 let allOllamaModels = [];
 const allGeminiModels = [
   { name: "gemini-3.5-flash", size_bytes: null, modified_at: null },
@@ -1061,7 +1047,6 @@ async function initModelSelector() {
 
   if (!trigger || !dropdown || !searchInput || !listContainer) return;
 
-  // Toggle dropdown on click for model selector
   trigger.addEventListener("click", (e) => {
     e.stopPropagation();
     const isOpen = trigger.classList.toggle("open");
@@ -1071,7 +1056,6 @@ async function initModelSelector() {
       searchInput.focus();
       searchInput.value = "";
       renderModelList("");
-      // Close LLM selector dropdown if open
       if (llmTrigger) {
         llmTrigger.classList.remove("open");
         llmDropdown.classList.remove("visible");
@@ -1080,7 +1064,6 @@ async function initModelSelector() {
     }
   });
 
-  // Close dropdown on outside click for model selector
   document.addEventListener("click", (e) => {
     if (!container.contains(e.target)) {
       trigger.classList.remove("open");
@@ -1089,17 +1072,14 @@ async function initModelSelector() {
     }
   });
 
-  // Handle search filtering
   searchInput.addEventListener("input", (e) => {
     renderModelList(e.target.value);
   });
 
-  // Prevent dropdown closing when clicking inside search input
   searchInput.addEventListener("click", (e) => {
     e.stopPropagation();
   });
 
-  // Toggle dropdown on click for LLM selector
   if (llmTrigger && llmDropdown && llmList) {
     llmTrigger.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1107,7 +1087,6 @@ async function initModelSelector() {
       llmDropdown.classList.toggle("visible");
       llmTrigger.setAttribute("aria-expanded", isOpen);
       
-      // Close model selector dropdown if open
       trigger.classList.remove("open");
       dropdown.classList.remove("visible");
       trigger.setAttribute("aria-expanded", "false");
@@ -1121,7 +1100,6 @@ async function initModelSelector() {
       }
     });
 
-    // Handle clicks on items in LLM list
     const llmItems = llmList.querySelectorAll(".model-item");
     llmItems.forEach(item => {
       item.addEventListener("click", async (e) => {
@@ -1134,7 +1112,6 @@ async function initModelSelector() {
 
         if (newProvider === activeProvider) return;
 
-        // Show overlay loader inside dropdown
         if (overlay) {
           overlay.querySelector(".loading-text").textContent = `Switching to ${newProvider.toUpperCase()}...`;
           overlay.classList.add("show");
@@ -1146,7 +1123,6 @@ async function initModelSelector() {
             activeProvider = newProvider;
             showToast(`Switched active provider to <strong>${newProvider.toUpperCase()}</strong>`);
             
-            // Sync select in Analyze modal if present
             const modalLlm = document.getElementById("llm-provider");
             if (modalLlm) {
               modalLlm.value = newProvider;
@@ -1218,26 +1194,21 @@ async function initModelSelector() {
     }
   }
 
-  // Publish helper to window scope for sync access
   window.updateLlmSelectorUI = updateLlmSelectorUI;
 
-  // Initialize UI state
   updateLlmSelectorUI();
 
-  // Handle LLM Provider switch inside the Analyze modal to sync back to the header
   const modalLlm = document.getElementById("llm-provider");
   if (modalLlm) {
     modalLlm.addEventListener("change", (e) => {
       const newProvider = e.target.value;
       if (newProvider !== activeProvider) {
-        // Find corresponding model item and click it
         const targetItem = llmList?.querySelector(`.model-item[data-value="${newProvider}"]`);
         if (targetItem) targetItem.click();
       }
     });
   }
 
-  // Load models initially
   await fetchAndRenderModels();
 
   async function fetchAndRenderModels() {
@@ -1275,14 +1246,12 @@ async function initModelSelector() {
         console.error("Failed to load Ollama models:", err);
       }
     } else if (activeProvider === "gemini") {
-      // Gemini provider
       if (trigger) trigger.disabled = false;
       if (statusIndicator) {
         statusIndicator.style.backgroundColor = "var(--good)";
         statusIndicator.style.boxShadow = "0 0 8px var(--good)";
       }
     } else if (activeProvider === "grok") {
-      // Grok provider
       if (trigger) trigger.disabled = false;
       try {
         const grokData = await ApiClient.getGrokModels();
@@ -1468,7 +1437,6 @@ async function initModelSelector() {
           return;
         }
 
-        // Show overlay loader inside dropdown
         if (overlay) {
           overlay.querySelector(".loading-text").textContent = `Switching to ${cleanModelName(model.name)}...`;
           overlay.classList.add("show");
@@ -1500,7 +1468,7 @@ async function initModelSelector() {
               activeGrokModel = model.name;
               showToast(`Switched active Grok model to <strong>${cleanModelName(model.name)}</strong>`);
             }
-            loadSettings(); // refresh setting bindings
+            loadSettings();
           } else {
             showToast("Failed to switch active model", true);
           }

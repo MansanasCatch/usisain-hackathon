@@ -1,14 +1,3 @@
-"""
-visual_signals.py — the core, dependency-light signal extraction that
-step 2 (content analyser) is built on. No LLM, no network calls — pure
-local computer vision, which is why this is the fastest piece to get
-running end to end.
-
-Every frame (a still image, or one sampled frame from a video) is scored
-on three independent signals and combined into real / edited /
-AI-generated evidence percentages that sum to 100.
-"""
-
 import io
 
 import numpy as np

@@ -1,29 +1,3 @@
-"""gemini_client.py — optional cloud LLM provider (Google Gemini). Use this
-when you want stronger reasoning than a small local model can reliably give,
-at the cost of that content leaving the machine. Get a free API key at
-https://aistudio.google.com/apikey
-
-Runtime configuration
----------------------
-The API key(s) and model are read from the environment on every request, so
-changing them from the dashboard's AI Settings panel takes effect
-immediately — no restart needed.
-
-API Key Rotation & round-robin request usage
----------------------------------------------
-Set GEMINI_API_KEY to a comma-separated list of keys to enable automatic
-round-robin rotation across requests.
-
-    GEMINI_API_KEY=key1,key2,key3
-
-Behaviour on errors:
-    1. Each request starts on the next key in the pool.
-    2. Quota (429) / auth errors retry on the next key in the pool.
-    3. Any other error (network, timeout, invalid prompt) is raised
-       immediately — the provider factory (factory.py) then falls back to
-       the local Ollama provider so the pipeline never dead-ends.
-"""
-
 import asyncio
 import importlib
 import logging

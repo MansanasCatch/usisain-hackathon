@@ -280,7 +280,6 @@ function updateStepRow(event) {
     let secondsLeft = pipelineTimeoutSeconds;
     body.textContent = `Working… (${secondsLeft}s remaining)`;
     
-    // Narrate step start (ensure we only narrate it once)
     if (!spokenStarts[event.step]) {
       spokenStarts[event.step] = true;
       const lang = document.getElementById("language").value;
@@ -310,7 +309,6 @@ function updateStepRow(event) {
     body.innerHTML = formatContent(event.result?.error || "Something went wrong on this step.");
     markFollowingStepsFailed(event.step + 1);
 
-    // Narrate step failure
     if (!spokenCompletes[event.step]) {
       spokenCompletes[event.step] = true;
       window.ttsPlayer.speak(`Step ${event.step} failed. ${event.result?.error || ""}`);
@@ -323,7 +321,6 @@ function updateStepRow(event) {
     row.dataset.status = "completed";
     body.innerHTML = formatContent(summarizeStep(event.step, event.result));
 
-    // Narrate step output
     const lang = document.getElementById("language").value;
     window.ttsPlayer.setLanguage(lang);
     let speechText = summarizeStep(event.step, event.result);
@@ -335,7 +332,6 @@ function updateStepRow(event) {
       speechText = `Here are the actionable items: ${(event.result.actions || []).join(". ")}`;
     }
     
-    // Store speech text representation on the element for replay
     row.dataset.speechText = speechText;
     updateVoiceDropdownVisibility();
 
@@ -370,7 +366,6 @@ form.addEventListener("submit", async (e) => {
   const mode = modeSelect.value;
   const language = document.getElementById("language").value;
   
-  // Clear step spoken states on new submit session
   for (let i = 1; i <= 5; i++) {
     delete spokenStarts[i];
     delete spokenCompletes[i];
@@ -379,7 +374,6 @@ form.addEventListener("submit", async (e) => {
   }
   updateVoiceDropdownVisibility();
 
-  // Set language and stop previous speech
   window.ttsPlayer.setLanguage(language);
   window.ttsPlayer.stop();
 
@@ -401,11 +395,9 @@ form.addEventListener("submit", async (e) => {
         const resized = await resizeImageFile(file, 1024, 0.75);
         formData.append("file", resized, file.name);
       } catch (err) {
-        // If resizing fails for any reason, fall back to the original file
         formData.append("file", file);
       }
     } else {
-      // video or unknown — send as-is
       formData.append("file", file);
     }
   } else if (mode === "post") {
@@ -427,8 +419,6 @@ form.addEventListener("submit", async (e) => {
 
 
 
-// Resize an image File in the browser using a canvas and return a Blob.
-// Keeps images under `maxDim` px on the longest side and compresses to JPEG.
 async function resizeImageFile(file, maxDim = 1024, quality = 0.75) {
   return new Promise((resolve, reject) => {
     try {
@@ -479,7 +469,6 @@ async function resizeImageFile(file, maxDim = 1024, quality = 0.75) {
         return;
       }
       if (event.systemError) {
-        // Top-level error (e.g. Gemini quota exceeded, server crash)
         resultsHeader.textContent = "Error";
         let errDiv = document.getElementById("error-banner");
         if (!errDiv) {

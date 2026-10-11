@@ -1,27 +1,3 @@
-"""grok_client.py — optional cloud LLM provider (xAI Grok).
-
-Provides high-speed reasoning and vision analysis via xAI's OpenAI-compatible API.
-Get an API key at https://console.x.ai/
-
-Runtime configuration
----------------------
-The API key(s) and model are read from the environment on every request, so
-changing them from the dashboard's AI Settings panel takes effect
-immediately — no restart needed.
-
-API Key Rotation & round-robin request usage
----------------------------------------------
-Set GROK_API_KEY to a comma-separated list of keys to enable automatic
-round-robin rotation across requests:
-
-    GROK_API_KEY=key1,key2,key3
-
-Behaviour on errors:
-    1. Each request starts on the next key in the pool.
-    2. Quota (429) / auth errors retry on the next key in the pool.
-    3. Any unrecoverable error is raised so the factory falls back to Ollama.
-"""
-
 import asyncio
 import base64
 import importlib
@@ -265,3 +241,6 @@ def list_models(api_key: str | None = None) -> list[str]:
     items = data.get("data", [])
     model_ids = [m["id"] for m in items if isinstance(m, dict) and "id" in m]
     return sorted(model_ids) if model_ids else [DEFAULT_GROK_MODEL]
+
+
+list_grok_models = list_models

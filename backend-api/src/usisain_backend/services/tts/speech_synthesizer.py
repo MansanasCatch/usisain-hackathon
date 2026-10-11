@@ -1,11 +1,3 @@
-"""
-speech_synthesizer.py — local TTS on the final aggregated explanation.
-Uses Google Text-to-Speech (gTTS) for high-quality audio synthesis.
-Supports two modes:
-  1. Server-speaker playback (pygame) for local-machine usage
-  2. Audio byte generation for browser-side playback (mobile/remote)
-"""
-
 import io
 import re
 import tempfile

@@ -1,12 +1,3 @@
-"""client.py — calls MCP server tools directly in-process (no subprocess).
-
-On Windows, asyncio's ProactorEventLoop cannot spawn subprocesses from within
-a uvicorn worker thread, so the MCP stdio_client approach raises
-NotImplementedError. Instead we import the tool functions directly and call
-them in a thread-pool executor so sync Ollama/httpx calls don't block the
-event loop.
-"""
-
 import asyncio
 import sys
 import threading

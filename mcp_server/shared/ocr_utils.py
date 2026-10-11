@@ -1,11 +1,3 @@
-"""ocr_utils.py — optional OCR helper.
-
-Tesseract OCR is completely optional. If Tesseract is not installed or
-disabled via environment / settings, this helper returns an empty string
-without error. The pipeline will automatically rely on the multimodal vision
-model (Gemini, Grok, or Ollama's vision model) instead.
-"""
-
 import logging
 import os
 

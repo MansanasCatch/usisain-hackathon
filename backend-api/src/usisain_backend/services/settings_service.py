@@ -164,25 +164,27 @@ def list_ollama_models() -> dict[str, Any]:
 
 
 def list_grok_models() -> dict[str, Any]:
-    from mcp_server.services.llm.grok_client import list_grok_models as _list_grok
+    default_models = [
+        {
+            "name": "gpt-oss-120b",
+            "description": "High-capacity reasoning & open-weight architecture (Recommended)",
+        },
+        {"name": "grok-4.1-fast", "description": "High-speed, cost-efficient reasoning & chat"},
+        {"name": "grok-4.7", "description": "Flagship high-capability model"},
+        {"name": "grok-4.6", "description": "Advanced reasoning model"},
+        {"name": "grok-4.5", "description": "High-performance general model"},
+        {"name": "grok-4.3", "description": "Long-context reasoning"},
+        {"name": "grok-4.20-reasoning", "description": "Specialized deep reasoning model"},
+        {"name": "grok-beta", "description": "Public beta preview"},
+        {"name": "grok-2-vision-1212", "description": "Dedicated multimodal vision model"},
+    ]
+    from mcp_server.services.llm.grok_client import KEY_POOL, current_model, list_models
 
-    try:
-        models = _list_grok()
-        return {"status": "ok", "models": models}
-    except Exception as e:
-        return {
-            "status": "ok",
-            "models": [
-                "gpt-oss-120b",
-                "grok-4.1-fast",
-                "grok-4.7",
-                "grok-4.6",
-                "grok-4.5",
-                "grok-4.3",
-                "grok-4.20-reasoning",
-                "grok-beta",
-                "grok-2-vision-1212",
-            ],
-            "fallback": True,
-            "error": str(e),
-        }
+    if KEY_POOL.has_keys():
+        try:
+            live = list_models()
+            models_out = [{"name": m, "description": "xAI Model"} for m in live]
+            return {"models": models_out, "active_model": current_model()}
+        except Exception:
+            pass
+    return {"models": default_models, "active_model": current_model()}

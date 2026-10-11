@@ -1,13 +1,3 @@
-"""factory.py — unified LLM provider factory with smooth Ollama fallback.
-
-Guarantees:
-1. Ollama is always the default provider.
-2. Gemini and Grok are optional alternatives.
-3. If Gemini or Grok is requested but has no API key configured, or encounters
-   an error during execution (quota, network, invalid key, timeout), the system
-   smoothly falls back to Ollama so the analysis pipeline never dead-ends.
-"""
-
 import logging
 import os
 

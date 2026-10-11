@@ -1,9 +1,3 @@
-"""google_search.py — web search for step 3.
-
-Tries Google Custom Search first (requires GOOGLE_API_KEY + GOOGLE_CSE_ID).
-Falls back to DuckDuckGo HTML scraping if Google fails or keys are missing.
-"""
-
 import os
 import re
 from urllib.parse import unquote, urlparse

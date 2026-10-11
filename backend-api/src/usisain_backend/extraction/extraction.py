@@ -1,8 +1,3 @@
-"""extraction.py — turns whatever a client sends (raw text, an uploaded
-file, a caption+image pair) into the normalized shape orchestration.pipeline
-expects.  Files are written to OS temp storage and cleaned up after the
-pipeline finishes (see stream.py / analyze.py)."""
-
 import os
 import tempfile
 from pathlib import Path

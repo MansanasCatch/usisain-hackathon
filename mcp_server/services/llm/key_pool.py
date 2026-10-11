@@ -1,16 +1,3 @@
-"""key_pool.py — runtime-reloadable API key pool shared by the cloud LLM
-providers (Gemini, Grok).
-
-Keys are read from an environment variable on every access, so changing
-them at runtime (via the dashboard's AI Settings panel, which updates both
-``os.environ`` and ``.env``) takes effect on the very next request — no
-backend restart required.
-
-Supports a single key or a comma-separated list for round-robin rotation:
-
-    GEMINI_API_KEY=key1,key2,key3
-"""
-
 import os
 import threading
 

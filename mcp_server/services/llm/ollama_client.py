@@ -1,11 +1,3 @@
-"""ollama_client.py — local LLM provider via Ollama. This is the default
-provider: fully offline, no API key, no data leaves the machine.
-
-Model selection is automatic:
-  - Text-only prompts  → OLLAMA_MODEL        (default: llama3.2:1b)
-  - Image/vision prompts → OLLAMA_VISION_MODEL (default: moondream)
-"""
-
 import os
 import sys
 

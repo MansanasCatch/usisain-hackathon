@@ -1,13 +1,3 @@
-"""
-server.py — MCP server exposing the 5 pipeline steps as tools over stdio.
-
-Run standalone for a quick manual test:
-    py server.py
-Or let the backend spawn it automatically (see
-backend-api/src/usisain_backend/services/mcp_client/client.py) — that's how
-it runs in normal operation, you don't need to start this by hand.
-"""
-
 import sys
 from pathlib import Path
 
