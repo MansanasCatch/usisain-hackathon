@@ -1,12 +1,56 @@
+import re
 from mcp_server.constants import SOURCE_SIMILARITY_WEIGHT, SOURCE_TRUST_WEIGHT
 from mcp_server.shared.text_utils import domain_trust, text_similarity
 
 
-def score_sources(claim: str, results: list[dict]) -> list[dict]:
+def is_source_relevant(source: dict, claim: str, query: str = "") -> bool:
+    """Verify that a search result contains key entity/subject keywords from the claim or query."""
+    title = (source.get("title") or "").lower()
+    snippet = (source.get("snippet") or "").lower()
+    url = (source.get("url") or "").lower()
+    content = f"{title} {snippet} {url}"
+
+    combined_input = f"{claim} {query}".lower()
+    words = re.findall(r"\b[a-zA-Z0-9_\u00C0-\u024F]{3,}\b", combined_input)
+    stopwords = {
+        "the", "and", "that", "this", "with", "from", "for", "are", "was", "were", "been",
+        "have", "has", "had", "what", "when", "where", "which", "who", "whom", "will", "would",
+        "can", "could", "should", "about", "into", "through", "during", "before", "after",
+        "above", "below", "between", "under", "again", "further", "then", "once", "here",
+        "there", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such",
+        "only", "own", "same", "than", "too", "very", "just", "now", "tama", "mali", "noon",
+        "noong", "nagkita", "kayo", "sila", "siya", "kami", "tayo", "nila", "namin", "ninyo",
+        "kanila", "kanya", "aking", "iyong", "lahat", "isang", "mga", "para", "dahil", "kung",
+        "pero", "ngunit", "subalit", "dapat", "hindi", "wala", "meron", "mayroon", "post",
+        "image", "video", "photo", "news", "update", "updates", "today", "yesterday", "site",
+        "page", "read", "view", "more", "comment", "comments", "share"
+    }
+    keywords = [w for w in words if w not in stopwords and len(w) > 3]
+    if not keywords:
+        keywords = [w for w in words if len(w) > 3]
+    if not keywords:
+        return True
+
+    unique_keywords = set(keywords)
+    match_count = sum(1 for kw in unique_keywords if kw in content)
+    required = 1 if len(unique_keywords) <= 2 else 2
+    return match_count >= required
+
+
+def score_sources(claim: str, results: list[dict], query: str = "") -> list[dict]:
     scored = []
     for r in results:
-        trust = domain_trust(r["url"])
-        similarity = text_similarity(claim, r["snippet"])
+        # Strictly reject unrelated results that don't match the subject entities
+        if not is_source_relevant(r, claim, query):
+            continue
+
+        trust = domain_trust(r.get("url", ""))
+        similarity = text_similarity(claim, r.get("snippet", ""))
+
+        # Low similarity sources should not be accepted as fact-checking evidence
+        if similarity < 0.20:
+            continue
+
         combined = round(trust * SOURCE_TRUST_WEIGHT + similarity * SOURCE_SIMILARITY_WEIGHT, 3)
         scored.append(
             {

@@ -61,17 +61,43 @@ async def synthesize_explanation(
         explanation = await llm.complete(
             system_prompt, context, image_path=image_to_pass, max_tokens=512
         )
-        if not top_sources and explanation:
+        if explanation:
+            import re
+
+            allowed_urls = {s["url"].rstrip("/").lower() for s in top_sources if s.get("url")}
             lines = []
             for line in explanation.splitlines():
-                if "[" in line and "](" in line:
-                    continue
-                if (
-                    line.strip()
-                    .lower()
-                    .startswith(("sources:", "source:", "- source", "* source", "sources"))
-                ):
-                    continue
+                found_markdown_links = re.findall(r"\[([^\]]+)\]\((https?://[^\)]+)\)", line)
+                found_raw_urls = re.findall(r"(https?://[^\s\)]+)", line)
+
+                if not top_sources:
+                    if (
+                        found_markdown_links
+                        or found_raw_urls
+                        or line.strip().lower().startswith(
+                            (
+                                "sources:",
+                                "source:",
+                                "* source",
+                                "- source",
+                                "sources",
+                                "verified source",
+                                "the only relevant verified source",
+                                "the only relevant source",
+                            )
+                        )
+                    ):
+                        continue
+                else:
+                    urls_in_line = [
+                        u.rstrip("/").lower() for _, u in found_markdown_links
+                    ] + [u.rstrip("/").lower() for u in found_raw_urls]
+                    if urls_in_line:
+                        if not any(
+                            any(allowed in u or u in allowed for allowed in allowed_urls)
+                            for u in urls_in_line
+                        ):
+                            continue
                 lines.append(line)
             explanation = "\n".join(lines).strip()
     except Exception as e:

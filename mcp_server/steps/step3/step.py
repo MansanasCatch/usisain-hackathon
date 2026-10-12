@@ -38,7 +38,7 @@ class Step3LegitOrFake(BaseStep):
         cached = lookup_rag_cache(search_query)
         advisories = lookup_advisories(search_query)
         search_results, search_error = execute_search(search_query, max_results=3)
-        scored = score_sources(search_query, search_results)
+        scored = score_sources(claim, search_results, query=search_query)
         top_sources = deduplicate_sources(scored)[:2]
         urls_to_fetch = [s["url"] for s in top_sources if s.get("url")]
         fetch_enabled = os.environ.get("STEP3_FETCH_FULL_PAGE", "False").lower() in (

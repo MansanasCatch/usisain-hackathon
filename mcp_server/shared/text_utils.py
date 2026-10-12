@@ -99,13 +99,13 @@ def domain_trust(url: str) -> float:
 def text_similarity(a: str, b: str) -> float:
     import re
 
-    a_clean = re.sub("[^\\w\\s]", " ", a.lower())
-    b_clean = re.sub("[^\\w\\s]", " ", b.lower())
+    a_clean = re.sub(r"[^\w\s]", " ", a.lower())
+    b_clean = re.sub(r"[^\w\s]", " ", b.lower())
     a_words = set((w for w in a_clean.split() if len(w) > 2))
     b_words = set((w for w in b_clean.split() if len(w) > 2))
     if not a_words or not b_words:
         return 0.0
-    overlap = len(a_words.intersection(b_words)) / min(len(a_words), len(b_words))
+    overlap = len(a_words.intersection(b_words)) / max(len(a_words), 1)
     seq_ratio = difflib.SequenceMatcher(None, a_clean, b_clean).ratio()
     return max(overlap, seq_ratio)
 
