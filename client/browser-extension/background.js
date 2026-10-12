@@ -128,8 +128,11 @@ if (menusApi) menusApi.onClicked.addListener(async (info, tab) => {
     const hasVision = isVisionModel(activeModel, activeProvider);
 
     if (info.menuItemId === "snip-extract" || info.menuItemId === "analyzeimage") {
-      if (!hasVision) {
-        const errorMsg = `Cannot analyze image: The active model "${activeModel}" (${activeProvider.toUpperCase()}) is Text-Only and does not support image analysis. Please switch to a Vision-supported model (such as Google Gemini or a model with the 👁️ Vision badge in the UsisAIn popup) to analyze images.`;
+      // If Tesseract-OCR is enabled or provider is Ollama (which routes images to moondream),
+      // image analysis is fully supported even with text-only active models.
+      // Only block if the model is Text-Only AND Tesseract-OCR is disabled AND provider is not Ollama.
+      if (!hasVision && !useOcr && activeProvider !== "ollama") {
+        const errorMsg = `Cannot analyze image: The active model "${activeModel}" (${activeProvider.toUpperCase()}) is Text-Only and Tesseract-OCR is disabled. Please enable Tesseract-OCR or switch to a Vision-supported model (such as Google Gemini or a model with the 👁️ Vision badge in the UsisAIn popup) to analyze images.`;
         await safeSendMessage(tab.id, {
           action: "pipeline-error",
           error: errorMsg

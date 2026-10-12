@@ -24,3 +24,6 @@ data/vector_index/
 desktop/dist/
 desktop/build/
 desktop/keys/
+.wix/
+*.wixpdb
+

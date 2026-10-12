@@ -268,9 +268,21 @@ class Step5Learnings(BaseStep):
                     material += f"- [{s['title']}]({s['url']})\n"
         except Exception as e:
             material = f"Make sure to verify information before sharing. Learn more about media literacy from trusted official sites. (Learnings unavailable: {e})"
+        if not material or material.strip() in ("0", ".", "None", "null"):
+            material = (
+                "When evaluating claims on social media, always verify the source and look for coverage in established news outlets. "
+                "Disinformation often relies on unverified screenshots and sensational quotes to provoke emotional reactions."
+            )
         tips = [
-            line.strip("-•1234567890. ").strip() for line in material.splitlines() if line.strip()
+            cleaned
+            for line in material.splitlines()
+            if (cleaned := line.strip("-•1234567890. ").strip()) and cleaned not in ("0", ".", "null")
         ]
+        if not tips:
+            tips = [
+                "Verify claims with independent sources before sharing.",
+                "Be skeptical of emotive language and sensational headlines."
+            ]
         source_links = [s["url"] for s in top_sources if s.get("url")]
         return Step5Output(
             tips=tips, explanation=material, learning_material=material, source_links=source_links

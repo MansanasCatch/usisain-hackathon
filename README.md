@@ -48,22 +48,29 @@ It is reachable from two client channels:
 
 ## Quick Start
 
-### Option A: Install and use (no code)
+### Option A: Install with Windows Installer (.msi) — Recommended
 
-> Recommended for general users, reviewers, and evaluators. No Python required.
+> Recommended for general users, reviewers, and evaluators. No Python or command line required.
 
-1. **Download** `UsisAIn-windows-x64.zip` from [GitHub Releases](https://github.com/MansanasCatch/usisain-hackathon/releases) (or find it at `desktop/dist/UsisAIn-windows-x64.zip` in this repo).
-2. **Extract** the archive anywhere and double-click **`UsisAIn.exe`**. You can pin it to Start or the taskbar.
-3. **That's it.** The launcher will:
-   - detect your default browser,
-   - automatically preload the UsisAIn extension,
-   - open the dashboard at `http://localhost:8000/app/dashboard`.
-
-   Closing the launcher window (or clicking **Quit**) stops all background processes and frees port 8000.
+1. **Get the installer:**
+   - **Download pre-built:** Download **`UsisAIn-Setup.msi`** from [GitHub Releases](https://github.com/MansanasCatch/usisain-hackathon/releases) *(binary installer files are published under Releases rather than tracked in git)*.
+   - **Or build locally:** If you cloned the repository, run `.\desktop\build_windows.ps1` to generate **`desktop/dist/UsisAIn-Setup.msi`** on your machine.
+2. **Install:**
+   - Double-click **`UsisAIn-Setup.msi`**.
+   - Follow the setup wizard (**Next** ➔ **Install**).
+   - This automatically installs UsisAIn into `Program Files\UsisAIn` and places shortcuts on your **Desktop** and **Start Menu**.
+3. **Launch:**
+   - Double-click the **UsisAIn** shortcut on your Desktop or Start Menu.
+   - The launcher will:
+     - Detect your default browser,
+     - Automatically preload the UsisAIn extension,
+     - Open the dashboard at `http://localhost:8000/app/dashboard`.
+   - Closing the launcher window (or clicking **Quit**) stops all background processes and frees port 8000.
 4. **Configure AI (one time)** in the dashboard under **AI Settings**:
-   - **Offline / local (Ollama):** If Ollama is running and the default model (`llama3.2:1b`) is missing, UsisAIn pulls it automatically with a live progress bar. If Ollama isn't installed, the dashboard shows a one-click install guide.
+   - **Offline / local (Ollama):** If Ollama is running and default models are missing, UsisAIn guides you or pulls them automatically. Ensure a text reasoning model like `llama3.2:1b` is selected for text synthesis, with `moondream` or `llama3.2-vision` for vision analysis.
    - **Cloud:** Paste a Gemini or Grok/Groq key, click **Update Key** (applies instantly), then **Test Key**. See [Configuration](#configuration) for where to get keys.
 
+> To uninstall anytime, open Windows **Settings** ➔ **Installed apps** (or Control Panel ➔ Programs and Features) and click **Uninstall** on **UsisAIn**.
 > Your data, logs, and API keys are stored in `%LOCALAPPDATA%\UsisAIn\app`.
 
 ### Option B: Run from source (developers)
@@ -451,7 +458,7 @@ The desktop launcher packages UsisAIn as a standalone executable with custom ico
 ### Build
 
 ```powershell
-# Windows: .exe and release zip
+# Windows: builds standalone .exe, .msi installer, and release zip
 .\desktop\build_windows.ps1
 ```
 
@@ -463,7 +470,7 @@ chmod +x desktop/build_macos.sh
 
 | Platform | Output |
 | :--- | :--- |
-| Windows | `desktop/dist/UsisAIn/UsisAIn.exe` and `desktop/dist/UsisAIn-windows-x64.zip` |
+| Windows | `desktop/dist/UsisAIn-Setup.msi` (MSI Installer)<br>`desktop/dist/UsisAIn/UsisAIn.exe` (Executable)<br>`desktop/dist/UsisAIn-windows-x64.zip` (Zip Archive) |
 | macOS | `desktop/dist/UsisAIn.app` and `desktop/dist/UsisAIn-macOS.dmg` |
 
 ### Browser detection and extension install flow

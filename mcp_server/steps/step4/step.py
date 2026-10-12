@@ -35,10 +35,22 @@ class Step4ActionableItems(BaseStep):
         try:
             actions_text = await llm.complete(system_prompt, context, max_tokens=256)
         except Exception:
-            return Step4Output(actions=[])
-        actions = [
-            line.strip("-•1234567890. ").strip()
-            for line in actions_text.splitlines()
-            if line.strip()
-        ]
+            actions_text = ""
+        actions = []
+        for line in actions_text.splitlines():
+            cleaned = line.strip("-•1234567890. ").strip()
+            if cleaned and cleaned not in ("0", ".", "null"):
+                actions.append(cleaned)
+        if not actions:
+            if verdict == "flagged":
+                actions = [
+                    "Do not share or amplify this post until confirmed by reputable news organizations.",
+                    "Verify the claims against official announcements or trusted fact-checking portals.",
+                    "Report unverified or deceptive claims to the platform moderators.",
+                ]
+            else:
+                actions = [
+                    "Cross-reference key claims with primary sources before sharing.",
+                    "Verify the original publishing date, publisher, and context.",
+                ]
         return Step4Output(actions=actions)

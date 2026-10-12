@@ -82,4 +82,11 @@ async def synthesize_explanation(
                 os.remove(temp_frame_path)
             except Exception:
                 pass
+    if not explanation or explanation.strip() in ("0", "None", ".", "null"):
+        if verdict == "likely_true":
+            explanation = "The content aligns with available credible records and verified information."
+        elif verdict == "inconclusive":
+            explanation = "The content could not be independently corroborated by reliable sources. Treat with caution."
+        else:
+            explanation = "The claim lacks credible evidence or corroboration from official sources and has been flagged for potential misinformation."
     return explanation

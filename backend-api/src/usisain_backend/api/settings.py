@@ -123,6 +123,13 @@ def get_ollama_models():
 @router.post("/api/ollama/switch-model")
 def switch_ollama_model(req: SwitchModelRequest):
     new_model = req.model.strip()
+    if "moondream" in new_model.lower():
+        settings.persist_env_var("OLLAMA_VISION_MODEL", new_model)
+        return {
+            "status": "ok",
+            "active_model": os.environ.get("OLLAMA_MODEL", "llama3.2:1b"),
+            "active_vision_model": new_model,
+        }
     settings.persist_env_var("OLLAMA_MODEL", new_model)
     return {"status": "ok", "active_model": new_model}
 

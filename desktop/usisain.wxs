@@ -1,0 +1,56 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="UsisAIn"
+           Manufacturer="MansanasCatch"
+           Version="1.0.0"
+           UpgradeCode="0d1a67b2-8ec2-4211-9a99-b1d7d5d2b70f"
+           Scope="perMachine">
+    <SummaryInformation Description="UsisAIn - Multimodal AI Trust &amp; Fraud Detection System" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of UsisAIn is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/MansanasCatch/usisain-hackathon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/MansanasCatch/usisain-hackathon" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="UsisAIn" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="UsisAIn">
+        <Component Id="StartMenuShortcutComponent" Guid="a651a7b8-724d-4a1e-8488-75176bb743e0">
+          <Shortcut Id="ApplicationStartMenuShortcut"
+                    Name="UsisAIn"
+                    Description="UsisAIn - Multimodal AI Trust &amp; Fraud Detection System"
+                    Target="[INSTALLFOLDER]UsisAIn.exe"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon" />
+          <RemoveFolder Id="CleanUpStartMenuShortCut" On="uninstall" />
+          <RegistryValue Root="HKCU" Key="Software\MansanasCatch\UsisAIn" Name="start_shortcut" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcutComponent" Guid="5ef29486-dcb0-4660-bf64-28a1be5b3781">
+        <Shortcut Id="ApplicationDesktopShortcut"
+                  Name="UsisAIn"
+                  Description="UsisAIn - Multimodal AI Trust &amp; Fraud Detection System"
+                  Target="[INSTALLFOLDER]UsisAIn.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\MansanasCatch\UsisAIn" Name="desktop_shortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="MainApplication" Title="UsisAIn" Level="1">
+      <ComponentRef Id="StartMenuShortcutComponent" />
+      <ComponentRef Id="DesktopShortcutComponent" />
+      <Files Directory="INSTALLFOLDER" Include="dist\UsisAIn\**" />
+    </Feature>
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+  </Package>
+</Wix>

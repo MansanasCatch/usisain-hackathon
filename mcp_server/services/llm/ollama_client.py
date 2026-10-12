@@ -54,16 +54,22 @@ class OllamaProvider(LLMProvider):
 
     @property
     def text_model(self) -> str:
-        return self._model or os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
+        model = self._model or os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
+        if "moondream" in model.lower() or "vision" in model.lower():
+            return "llama3.2:1b"
+        return model
 
     @property
     def vision_model(self) -> str:
-        return os.environ.get("OLLAMA_VISION_MODEL", "moondream")
+        model = os.environ.get("OLLAMA_VISION_MODEL", "moondream")
+        if "llama3.2-vision" in model.lower():
+            return "moondream"
+        return model
 
     async def complete(
         self, system: str, user: str, image_path: str | None = None, max_tokens: int | None = None
     ) -> str:
-        needs_vision = image_path and os.path.exists(image_path)
+        needs_vision = bool(image_path and os.path.exists(image_path))
         active_model = self.vision_model if needs_vision else self.text_model
         safe_print(f"[Ollama LLM Call] Model: {active_model}", prefix="\nINFO:     ")
         if DEBUG_OLLAMA_PROMPTS:
@@ -83,10 +89,28 @@ class OllamaProvider(LLMProvider):
             options["num_predict"] = max_tokens
         else:
             options["num_predict"] = 256 if not needs_vision else 384
-        response = await self.client.chat(
-            model=active_model,
-            messages=[{"role": "system", "content": system}, message],
-            options=options,
-        )
-        content = response.message.content
-        return (content or "").strip()
+        try:
+            response = await self.client.chat(
+                model=active_model,
+                messages=[{"role": "system", "content": system}, message],
+                options=options,
+            )
+            content = response.message.content
+            return (content or "").strip()
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "compatible" in err_msg or "not found" in err_msg or "pull" in err_msg:
+                fallback = "moondream" if needs_vision else "llama3.2:1b"
+                if active_model != fallback:
+                    safe_print(
+                        f"[Ollama Fallback] Model '{active_model}' failed: {e}. Retrying with '{fallback}'...",
+                        prefix="\nWARNING:  ",
+                    )
+                    retry_resp = await self.client.chat(
+                        model=fallback,
+                        messages=[{"role": "system", "content": system}, message],
+                        options=options,
+                    )
+                    content = retry_resp.message.content
+                    return (content or "").strip()
+            raise
