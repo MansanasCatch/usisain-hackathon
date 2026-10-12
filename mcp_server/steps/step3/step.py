@@ -57,7 +57,7 @@ class Step3LegitOrFake(BaseStep):
                 f"- Title: {s['title']}\n  URL: {s['url']}\n  Snippet: {snippet}\n"
             )
         source_context = "\n".join(source_context_lines) or "No web sources found."
-        if scored:
+        if top_sources:
             score = round(sum((s["combined"] for s in top_sources)) / len(top_sources) * 100, 1)
         else:
             score = 15.0
@@ -67,11 +67,11 @@ class Step3LegitOrFake(BaseStep):
             verdict = "inconclusive"
         else:
             verdict = "flagged"
-        if not top_sources:
-            note = "\n\nNOTE: No web search results were found. Therefore, do NOT include any 'Sources' or 'Sources:' section and do NOT list any links or URLs in your output."
-            sources_rule = "4. Do NOT include any 'Sources' section or links, since no web search results are available.\n"
+        if not top_sources or verdict == "flagged":
+            note = "\n\nNOTE: No verified web search results corroborate this specific claim. Therefore, do NOT include any 'Sources' or 'Sources:' section and do NOT list any links or URLs in your output."
+            sources_rule = "4. Do NOT include any 'Sources' section or links, since no verified web search results corroborate this claim.\n"
         else:
-            note = f"\n\nOnly list from the following verified sources if they are directly relevant: {[s['url'] for s in top_sources]}"
+            note = f"\n\nOnly list from the following verified sources if they directly corroborate or refute the claim: {[s['url'] for s in top_sources]}"
             sources_rule = "4. At the end of your explanation, list the relevant, verified sources as clickable markdown links in the format:\n   - [Source Title/Domain](URL): Brief description of what this source verifies.\n"
         explanation = await synthesize_explanation(
             verdict=verdict,

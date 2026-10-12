@@ -70,6 +70,18 @@ STOPWORDS = {
 }
 
 
+GENERIC_QUERY_WORDS = {
+    "senator", "judge", "senator-judge", "mayor", "president", "vice", "governor",
+    "congressman", "representative", "minister", "analyst", "forensic", "financial",
+    "official", "spokesperson", "lawyer", "attorney", "court", "hearing", "trial",
+    "december", "january", "february", "march", "april", "may", "june", "july",
+    "august", "september", "october", "november", "tama", "mali", "read", "more",
+    "news", "view", "photo", "image", "post", "video", "statement", "analyst",
+    "po", "ba", "noong", "nagkita", "kayo", "sila", "lamang", "maraming", "salamat",
+    "network", "channel", "headline", "breaking"
+}
+
+
 def extract_fast_query(claim: str) -> str:
     if not claim:
         return ""
@@ -94,7 +106,7 @@ def extract_fast_query(claim: str) -> str:
         url_query = " ".join(keywords[:5])
         if url_query:
             cap_words = re.findall("\\b[A-Z][a-z]+\\b", claim)
-            cap_words = [w for w in cap_words if w.lower() not in url_query.lower()]
+            cap_words = [w for w in cap_words if w.lower() not in url_query.lower() and w.lower() not in GENERIC_QUERY_WORDS]
             final_query = f"{url_query} " + " ".join(cap_words[:2])
             return final_query.strip()
     words = re.findall("\\b[a-zA-Z0-9-]+\\b", claim)
@@ -110,15 +122,19 @@ def extract_fast_query(claim: str) -> str:
         seen.add(w_lower)
         score = 0
         if w[0].isupper() and w_lower != first_word:
-            score += 10
-        score += min(len(w) * 0.1, 1.0)
-        score += max(0, (len(words) - idx) / len(words) * 0.5)
+            if w_lower in GENERIC_QUERY_WORDS:
+                score += 2
+            else:
+                score += 25
+        elif w_lower in GENERIC_QUERY_WORDS:
+            score -= 10
+        score += max(0, (len(words) - idx) / len(words) * 2.0)
         scored_words.append((w, score, idx))
     scored_words.sort(key=lambda item: item[1], reverse=True)
-    top_items = scored_words[:5]
+    top_items = scored_words[:4]
     top_items.sort(key=lambda item: item[2])
     result_query = " ".join((item[0] for item in top_items))
-    return result_query or " ".join(words[:5])
+    return result_query or " ".join(words[:4])
 
 
 async def generate_search_query(

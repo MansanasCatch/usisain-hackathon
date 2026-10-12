@@ -268,7 +268,8 @@ class Step5Learnings(BaseStep):
                     material += f"- [{s['title']}]({s['url']})\n"
         except Exception as e:
             material = f"Make sure to verify information before sharing. Learn more about media literacy from trusted official sites. (Learnings unavailable: {e})"
-        if not material or material.strip() in ("0", ".", "None", "null"):
+        refusal_markers = ("i can't provide", "i cannot provide", "i am unable to", "i'm sorry, but i cannot", "as an ai")
+        if not material or material.strip() in ("0", ".", "None", "null") or any(rm in material.lower() for rm in refusal_markers):
             material = (
                 "When evaluating claims on social media, always verify the source and look for coverage in established news outlets. "
                 "Disinformation often relies on unverified screenshots and sensational quotes to provoke emotional reactions."
