@@ -52,5 +52,6 @@
     </Feature>
 
     <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="assets\License.rtf" />
   </Package>
 </Wix>

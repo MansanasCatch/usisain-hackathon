@@ -15,11 +15,13 @@ It is reachable from two client channels:
 
 - [Key Features](#key-features)
 - [Quick Start](#quick-start)
-  - [Option A: Install and use (no code)](#option-a-install-and-use-no-code)
-  - [Option B: Run from source (developers)](#option-b-run-from-source-developers)
+  - [Option A: Install with Windows Installer (.msi)](#option-a-install-with-windows-installer-msi--recommended)
+  - [Option B: Run on macOS (Universal Package)](#option-b-run-on-macos-universal-package)
+  - [Option C: Run from source (developers)](#option-c-run-from-source-developers)
 - [How It Works: The 5-Step Pipeline](#how-it-works-the-5-step-pipeline)
 - [AI Providers](#ai-providers)
 - [Configuration](#configuration)
+- [Dynamic Port Management & Auto-Restart](#dynamic-port-management--auto-restart)
 - [Browser Extension](#browser-extension)
 - [Web App and Dashboard](#web-app-and-dashboard)
 - [Language Support](#language-support)
@@ -53,10 +55,11 @@ It is reachable from two client channels:
 > Recommended for general users, reviewers, and evaluators. No Python or command line required.
 
 1. **Get the installer:**
-   - **Download pre-built:** Download **`UsisAIn-Setup.msi`** from [GitHub Releases](https://github.com/MansanasCatch/usisain-hackathon/releases) *(binary installer files are published under Releases rather than tracked in git)*.
+   - **Download pre-built:** Download **`UsisAIn-Setup.msi`** (or portable **`UsisAIn-windows-x64.zip`**) from [GitHub Releases](https://github.com/MansanasCatch/usisain-hackathon/releases) *(binary installer files are published under Releases rather than tracked in git)*.
    - **Or build locally:** If you cloned the repository, run `.\desktop\build_windows.ps1` to generate **`desktop/dist/UsisAIn-Setup.msi`** on your machine.
 2. **Install:**
    - Double-click **`UsisAIn-Setup.msi`**.
+   - Review and accept the educational open-source Terms and Media Literacy License Agreement (no generic placeholders).
    - Follow the setup wizard (**Next** ➔ **Install**).
    - This automatically installs UsisAIn into `Program Files\UsisAIn` and places shortcuts on your **Desktop** and **Start Menu**.
 3. **Launch:**
@@ -64,8 +67,9 @@ It is reachable from two client channels:
    - The launcher will:
      - Detect your default browser,
      - Automatically preload the UsisAIn extension,
-     - Open the dashboard at `http://localhost:8000/app/dashboard`.
-   - Closing the launcher window (or clicking **Quit**) stops all background processes and frees port 8000.
+     - Open the dashboard at `http://localhost:8000/app/dashboard` (or custom configured port).
+   - Closing the launcher window (or clicking **Quit**) stops all background processes and frees the port.
+   - Easily switch ports anytime from the launcher status window using the **Change Port** button (auto-restarts smoothly).
 4. **Configure AI (one time)** in the dashboard under **AI Settings**:
    - **Offline / local (Ollama):** If Ollama is running and default models are missing, UsisAIn guides you or pulls them automatically. Ensure a text reasoning model like `llama3.2:1b` is selected for text synthesis, with `moondream` or `llama3.2-vision` for vision analysis.
    - **Cloud:** Paste a Gemini or Grok/Groq key, click **Update Key** (applies instantly), then **Test Key**. See [Configuration](#configuration) for where to get keys.
@@ -73,7 +77,24 @@ It is reachable from two client channels:
 > To uninstall anytime, open Windows **Settings** ➔ **Installed apps** (or Control Panel ➔ Programs and Features) and click **Uninstall** on **UsisAIn**.
 > Your data, logs, and API keys are stored in `%LOCALAPPDATA%\UsisAIn\app`.
 
-### Option B: Run from source (developers)
+### Option B: Run on macOS (Universal Package)
+
+> Recommended for macOS users. No git clone or manual environment setup needed.
+
+1. **Download the macOS release:**
+   - Download **`UsisAIn-macos-universal.zip`** from [GitHub Releases](https://github.com/MansanasCatch/usisain-hackathon/releases).
+2. **Extract and launch:**
+   - Unzip `UsisAIn-macos-universal.zip`.
+   - Open Terminal in the extracted folder and run:
+     ```bash
+     chmod +x run_macos.sh
+     ./run_macos.sh
+     ```
+   - This automatically creates the local virtual environment, installs dependencies, verifies database tables, loads the browser extension, and opens your default browser at `http://localhost:8000/app/dashboard`.
+3. **Build Native macOS .app or .dmg (Optional):**
+   - If you have Xcode or command-line tools installed, run `./desktop/build_macos.sh` to generate native `UsisAIn.app` and `UsisAIn-macOS.dmg` bundles.
+
+### Option C: Run from source (developers)
 
 > Recommended if you're modifying the AI pipeline, backend, or extension.
 
@@ -158,7 +179,7 @@ Input ─► 1. Insights ─► 2. Content Analyser ─► 3. Authenticity ─�
 Gives a neutral overview of the content and extracts text and context.
 
 - **Text:** the LLM summarizes claims and flags urgent language, emotional framing, and suspicious links.
-- **Images and video frames:** sent to a multimodal model (Gemini, Grok, or Ollama Vision). If Tesseract OCR is installed it extracts text overlays; otherwise the step falls back to visual LLM inference without errors.
+- **Images and video frames:** sent to a multimodal model (Gemini, Grok, or Ollama Vision). If Tesseract OCR is installed and active, it extracts high-precision text overlays while leaving you free to choose any multimodal model for visual analysis. Without OCR, the pipeline directly performs visual LLM inference smoothly.
 - **Snipping tool:** extracts text and images from a user-drawn region on any webpage.
 - **Video:** extracts keyframes with OpenCV.
 - **Output:** a concise summary passed to Steps 3, 4, and 5.
@@ -185,12 +206,13 @@ Analyzes images and video locally for manipulation or AI generation. *Skipped fo
 Cross-references claims against fresh web results and your local reference documents.
 
 1. **Query generation:** a fast heuristic extracts key entities and URLs (`STEP3_FAST_QUERY_GEN=True`), with an LLM fallback.
-2. **RAG lookup:** searches the local vector store for cached investigations and official advisories (minimum score 0.45).
-3. **Web search:** Google Custom Search (DuckDuckGo as fallback), up to 3 results.
-4. **Scoring and dedup:** sources are scored by Domain Trust (60%) and Text Similarity (40%), deduplicated by URL and title, and the top 2 are kept.
-5. **Page scraping (optional):** with `STEP3_FETCH_FULL_PAGE=True`, fetches up to 1,500 characters from the top 2 sources in parallel (ThreadPoolExecutor + BeautifulSoup).
-6. **LLM synthesis:** weighs snippets, advisories, and the claim, then returns a verdict (`likely_true`, `inconclusive`, `flagged`) and a credibility score (0-100) with verified links.
-7. **Caching:** stores the query, verdict, score, and top source URL in the RAG store for instant future lookups.
+2. **Relevance and entity filter:** strict entity and relevance filtering prevents appending unrelated named entities or off-topic links (e.g. noise from query anomalies or unmatched RAG vectors). Only sources directly matching the claim are retained.
+3. **RAG lookup:** searches the local vector store for cached investigations and official advisories (minimum score 0.45).
+4. **Web search:** Google Custom Search (DuckDuckGo as fallback), up to 3 results.
+5. **Scoring and dedup:** sources are scored by Domain Trust (60%) and Text Similarity (40%), deduplicated by URL and title, and the top 2 are kept.
+6. **Page scraping (optional):** with `STEP3_FETCH_FULL_PAGE=True`, fetches up to 1,500 characters from the top 2 sources in parallel (ThreadPoolExecutor + BeautifulSoup).
+7. **LLM synthesis:** weighs snippets, advisories, and the claim, then returns a verdict (`likely_true`, `inconclusive`, `flagged`) and a credibility score (0-100) with verified links.
+8. **Caching:** stores the query, verdict, score, and top source URL in the RAG store for instant future lookups.
 
 - **Output:** credibility score, verdict, and scored sources.
 - **Tech:** Google Custom Search API, RAG vector store, BeautifulSoup, LLM.
@@ -213,6 +235,7 @@ Teaches users to recognize the threat pattern.
 
 - Builds an educational query and fetches resources from trusted domains (`site:gov.ph`, `site:edu.ph`, `wikipedia.org`, `factcheck.org`).
 - The LLM writes a 2-3 sentence overview of the pattern (emotional framing, clickbait, phishing, etc.).
+- **Model refusal protection:** if a local vision model responds with a deprecation or capability disclaimer, UsisAIn activates automatic educational fallbacks, ensuring users always receive clear, authoritative media literacy guidance.
 - **Anti-hallucination:** the LLM is prohibited from generating URLs. Verified links are appended programmatically by Python.
 - **Tech:** Google Custom Search API, LLM.
 
@@ -275,6 +298,25 @@ UsisAIn supports both and routes automatically by key prefix.
 4. UsisAIn detects the `gsk_` prefix and routes inference to Groq's `llama-3.3-70b-versatile`.
 
 </details>
+
+---
+
+## Dynamic Port Management & Auto-Restart
+
+UsisAIn provides native port configuration and instant hot restart:
+
+- **From GUI Desktop Launcher:** Click **Change Port** on the Status Window, enter your target port (e.g. `8080`), and click **Restart Server**. UsisAIn will automatically:
+  1. Save the new port to `.env` and runtime preferences.
+  2. Gracefully terminate the current server process without leaving dangling child tasks.
+  3. Spin up the backend on the new port and update the dashboard link.
+- **From CLI / Terminal:** Specify `--port <number>` or set the `PORT` environment variable:
+  ```powershell
+  # Windows
+  python run.py --port 8080
+  
+  # macOS / Linux
+  ./run_macos.sh --port 8080
+  ```
 
 ---
 
@@ -468,10 +510,10 @@ chmod +x desktop/build_macos.sh
 ./desktop/build_macos.sh
 ```
 
-| Platform | Output |
-| :--- | :--- |
-| Windows | `desktop/dist/UsisAIn-Setup.msi` (MSI Installer)<br>`desktop/dist/UsisAIn/UsisAIn.exe` (Executable)<br>`desktop/dist/UsisAIn-windows-x64.zip` (Zip Archive) |
-| macOS | `desktop/dist/UsisAIn.app` and `desktop/dist/UsisAIn-macOS.dmg` |
+| Platform | Output | Notes |
+| :--- | :--- | :--- |
+| Windows | `desktop/dist/UsisAIn-Setup.msi`<br>`desktop/dist/UsisAIn-windows-x64.zip`<br>`desktop/dist/UsisAIn/UsisAIn.exe` | 1-Click MSI Installer with embedded custom License / EULA and uninstaller. Portable ZIP and folder executable. |
+| macOS | `desktop/dist/UsisAIn-macos-universal.zip`<br>`desktop/dist/UsisAIn.app`<br>`desktop/dist/UsisAIn-macOS.dmg` | Universal cross-platform package with `run_macos.sh`. Native `.app` bundle and DMG disk image built via `build_macos.sh`. |
 
 ### Browser detection and extension install flow
 
