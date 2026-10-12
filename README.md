@@ -211,7 +211,7 @@ Cross-references claims against fresh web results and your local reference docum
 4. **Web search:** Google Custom Search (DuckDuckGo as fallback), up to 3 results.
 5. **Scoring and dedup:** sources are scored by Domain Trust (60%) and Text Similarity (40%), deduplicated by URL and title, and the top 2 are kept.
 6. **Page scraping (optional):** with `STEP3_FETCH_FULL_PAGE=True`, fetches up to 1,500 characters from the top 2 sources in parallel (ThreadPoolExecutor + BeautifulSoup).
-7. **LLM synthesis:** weighs snippets, advisories, and the claim, then returns a verdict (`likely_true`, `inconclusive`, `flagged`) and a credibility score (0-100) with verified links.
+7. **LLM synthesis:** weighs snippets, advisories, and the claim, then returns a verdict (`likely_true`, `inconclusive`, `flagged`) and a credibility score (0-100) with verified links. Claims without sufficient search corroboration receive a neutral `inconclusive` verdict (score 50/100) with advice to verify through official channels, rather than being falsely flagged as a scam.
 8. **Caching:** stores the query, verdict, score, and top source URL in the RAG store for instant future lookups.
 
 - **Output:** credibility score, verdict, and scored sources.
