@@ -38,12 +38,6 @@ def model_supports_vision(provider: str, model_name: str | None = None) -> bool:
     if not name:
         return False
 
-    if p == "grok":
-        keys = parse_keys(os.environ.get("GROK_API_KEY", ""))
-        if keys and keys[0].startswith("gsk_"):
-            # Groq Cloud endpoints currently do not support vision on chat models
-            return False
-
     return any(k in name for k in VISION_KEYWORDS)
 
 

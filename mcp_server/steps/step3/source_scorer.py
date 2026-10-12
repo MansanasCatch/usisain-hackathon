@@ -93,10 +93,13 @@ def score_sources(claim: str, results: list[dict], query: str = "") -> list[dict
             continue
 
         trust = domain_trust(r.get("url", ""))
-        similarity = text_similarity(claim, r.get("snippet", ""))
+        snippet = r.get("snippet", "")
+        sim_claim = text_similarity(claim, snippet)
+        sim_query = text_similarity(query, snippet) if query else 0.0
+        similarity = max(sim_claim, sim_query)
 
-        # Low similarity sources should not be accepted as fact-checking evidence
-        if similarity < 0.25:
+        # Discard only completely irrelevant snippets with near-zero match
+        if similarity < 0.10:
             continue
 
         combined = round(trust * SOURCE_TRUST_WEIGHT + similarity * SOURCE_SIMILARITY_WEIGHT, 3)

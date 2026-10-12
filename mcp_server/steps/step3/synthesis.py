@@ -29,10 +29,10 @@ async def synthesize_explanation(
 ) -> str:
     from mcp_server.steps.step3.source_scorer import is_source_relevant
     top_sources = [s for s in top_sources if is_source_relevant(s, claim, search_query)]
-    if not top_sources or verdict == "flagged":
-        sources_rule = "4. Do NOT include any 'Sources' section or links, since no verified web search results corroborate this claim.\n"
-        note = "\n\nNOTE: No verified web search results corroborate this specific claim. Therefore, do NOT include any 'Sources' or 'Sources:' section and do NOT list any links or URLs in your output."
-        source_context = "No verified web sources corroborate this claim."
+    if not top_sources:
+        sources_rule = "4. Do NOT include any 'Sources' section or links, since no verified web search results were retrieved for this claim.\n"
+        note = "\n\nNOTE: No verified web search results were retrieved for this specific claim. Therefore, explain that the content is unverified and cannot be corroborated yet. Do NOT include any 'Sources' or 'Sources:' section and do NOT list any links or URLs in your output."
+        source_context = "No verified web sources were retrieved for this claim."
 
     advisory_lines = []
     for a in advisories:
@@ -41,8 +41,8 @@ async def synthesize_explanation(
     advisory_context = "\n".join(advisory_lines) or "None"
     verdict_label = {
         "likely_true": "LIKELY_TRUE (Legitimate / corroborated)",
-        "inconclusive": "INCONCLUSIVE (Unverified / questionable)",
-        "flagged": "FLAGGED (Unverified / lacking credible evidence)",
+        "inconclusive": "INCONCLUSIVE (Unverified / insufficient evidence to confirm)",
+        "flagged": "FLAGGED (Detected fraud, manipulation, or debunked claim)",
     }.get(verdict, verdict.upper())
     context = (
         f"Assigned Verdict: {verdict_label}\n"
@@ -95,7 +95,7 @@ async def synthesize_explanation(
                     u.rstrip("/").lower() for _, u in found_markdown_links
                 ] + [u.rstrip("/").lower() for u in found_raw_urls]
 
-                if not top_sources or verdict == "flagged":
+                if not top_sources:
                     if (
                         found_markdown_links
                         or found_raw_urls

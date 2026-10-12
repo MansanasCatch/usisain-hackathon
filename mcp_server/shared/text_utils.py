@@ -85,8 +85,20 @@ TRUSTED_DOMAINS = {
     "bleepingcomputer.com": 0.85,
     "consumerfinance.gov": 0.95,
     "fdic.gov": 0.95,
+    "wikipedia.org": 0.85,
+    "wikimedia.org": 0.85,
+    "wtatennis.com": 0.90,
+    "atptour.com": 0.90,
+    "espn.com": 0.85,
+    "olympics.com": 0.90,
+    "fiba.basketball": 0.90,
+    "spin.ph": 0.85,
+    "tiebreakertimes.com.ph": 0.85,
+    "bworldonline.com": 0.80,
+    "ptvnews.ph": 0.90,
+    "cicc.gov.ph": 1.0,
 }
-DEFAULT_TRUST = 0.4
+DEFAULT_TRUST = 0.60
 
 
 def domain_trust(url: str) -> float:
@@ -105,7 +117,8 @@ def text_similarity(a: str, b: str) -> float:
     b_words = set((w for w in b_clean.split() if len(w) > 2))
     if not a_words or not b_words:
         return 0.0
-    overlap = len(a_words.intersection(b_words)) / max(len(a_words), 1)
+    intersection = a_words.intersection(b_words)
+    overlap = len(intersection) / min(len(a_words), len(b_words))
     seq_ratio = difflib.SequenceMatcher(None, a_clean, b_clean).ratio()
     return max(overlap, seq_ratio)
 

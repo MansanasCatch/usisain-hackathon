@@ -60,16 +60,39 @@ class Step3LegitOrFake(BaseStep):
         if top_sources:
             score = round(sum((s["combined"] for s in top_sources)) / len(top_sources) * 100, 1)
         else:
-            score = 15.0
-        if score >= 70:
+            # When no web sources are found, it is unverified / neutral (inconclusive), NOT a scam (flagged)!
+            score = 50.0
+
+        # Assess forensic/scam factors from Step 2 and official advisories
+        is_manipulated_media = False
+        if step2_result and isinstance(step2_result, dict):
+            s2_verdict = step2_result.get("verdict", "")
+            ai_pct = step2_result.get("ai_generated_pct", 0)
+            edit_pct = step2_result.get("edited_pct", 0)
+            if s2_verdict in ("likely_ai_generated", "likely_edited") and (ai_pct > 65 or edit_pct > 70):
+                is_manipulated_media = True
+
+        has_fraud_advisories = bool(advisories and len(advisories) > 0)
+
+        if is_manipulated_media or has_fraud_advisories:
+            score = min(score, 25.0)
+            verdict = "flagged"
+        elif not top_sources:
+            verdict = "inconclusive"
+        elif score >= 65:
             verdict = "likely_true"
         elif score >= 45:
             verdict = "inconclusive"
         else:
             verdict = "flagged"
-        if not top_sources or verdict == "flagged":
-            note = "\n\nNOTE: No verified web search results corroborate this specific claim. Therefore, do NOT include any 'Sources' or 'Sources:' section and do NOT list any links or URLs in your output."
-            sources_rule = "4. Do NOT include any 'Sources' section or links, since no verified web search results corroborate this claim.\n"
+
+        if not top_sources or verdict != "likely_true":
+            if not top_sources:
+                note = "\n\nNOTE: No verified web search results were found for this claim. Therefore, explain that the content is unverified and cannot be confirmed or debunked yet. Do NOT include any 'Sources' section or URLs."
+                sources_rule = "4. Do NOT include any 'Sources' section or links, since no verified web search results corroborate this claim.\n"
+            else:
+                note = f"\n\nOnly list from the following verified sources if they directly corroborate or refute the claim: {[s['url'] for s in top_sources]}"
+                sources_rule = "4. At the end of your explanation, list the relevant, verified sources as clickable markdown links in the format:\n   - [Source Title/Domain](URL): Brief description of what this source verifies.\n"
         else:
             note = f"\n\nOnly list from the following verified sources if they directly corroborate or refute the claim: {[s['url'] for s in top_sources]}"
             sources_rule = "4. At the end of your explanation, list the relevant, verified sources as clickable markdown links in the format:\n   - [Source Title/Domain](URL): Brief description of what this source verifies.\n"
