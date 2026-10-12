@@ -4,8 +4,38 @@ if (typeof globalThis.usisainExt === "undefined" && typeof importScripts === "fu
 }
 const menusApi = globalThis.usisainExt ? globalThis.usisainExt.menus : undefined;
 
-const BACKEND = "http://localhost:8000";
+let BACKEND = "http://localhost:8000";
 const DEFAULT_LANGUAGE = "english"; 
+
+async function loadBackendConfig() {
+  try {
+    const res = await chrome.storage.local.get(["backendUrl", "backendPort"]);
+    if (res.backendUrl) {
+      BACKEND = res.backendUrl;
+      return;
+    }
+    if (res.backendPort) {
+      BACKEND = `http://localhost:${res.backendPort}`;
+      return;
+    }
+    const r = await fetch(chrome.runtime.getURL("backend.json"));
+    if (r.ok) {
+      const cfg = await r.json();
+      if (cfg.url) BACKEND = cfg.url;
+      else if (cfg.port) BACKEND = `http://localhost:${cfg.port}`;
+    }
+  } catch (e) {
+    // Keep default fallback
+  }
+}
+loadBackendConfig();
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local") {
+    if (changes.backendUrl) BACKEND = changes.backendUrl.newValue;
+    else if (changes.backendPort) BACKEND = `http://localhost:${changes.backendPort.newValue}`;
+  }
+});
 
 const activeTabAbortControllers = new Map();
 
@@ -348,6 +378,7 @@ async function streamAnalysis(tabId, form, previewText, previewImageUrl) {
       tts_enabled: useTts,
       selected_voice: selectedVoice,
       language: selectedLanguage,
+      backend_url: BACKEND,
     });
   }
 

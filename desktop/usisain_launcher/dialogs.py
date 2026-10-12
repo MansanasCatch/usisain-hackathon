@@ -372,6 +372,102 @@ def show_error(root: tk.Tk, title: str, message: str) -> None:
     _show_modal(win)
 
 
+def prompt_change_port(
+    root: tk.Tk, current_port: int, is_port_in_use: Callable[[int], bool] | None = None
+) -> int | None:
+    win = _modal(root, f"{APP_NAME} - Change Server Port")
+    _header(
+        win,
+        "Change Server Port",
+        "Enter a port number (1024 - 65535). UsisAIn will automatically restart on the new port.",
+    )
+
+    result: dict[str, int | None] = {"value": None}
+
+    container = tk.Frame(win, bg=BG)
+    container.pack(fill="x", padx=24, pady=(6, 0))
+
+    lbl = tk.Label(
+        container,
+        text="Port number (1024 - 65535):",
+        bg=BG,
+        fg=TEXT,
+        font=F_BTN,
+        anchor="w",
+    )
+    lbl.pack(fill="x", pady=(0, 6))
+
+    entry_frame = tk.Frame(
+        container,
+        bg=CARD,
+        highlightthickness=1,
+        highlightbackground=BORDER,
+        highlightcolor=ACCENT,
+    )
+    entry_frame.pack(fill="x")
+
+    entry = tk.Entry(
+        entry_frame,
+        bg=CARD,
+        fg=TEXT,
+        insertbackground=TEXT,
+        font=(FONT_FAMILY, 11, "bold"),
+        relief="flat",
+        bd=0,
+    )
+    entry.pack(fill="x", padx=10, pady=8)
+    entry.insert(0, str(current_port))
+    entry.focus_set()
+    entry.select_range(0, tk.END)
+
+    error_label = tk.Label(
+        container,
+        text="",
+        bg=BG,
+        fg=ERR,
+        font=F_SMALL,
+        anchor="w",
+        justify="left",
+        wraplength=380,
+    )
+    error_label.pack(fill="x", pady=(8, 0))
+
+    def on_apply() -> None:
+        raw_val = entry.get().strip()
+        try:
+            val = int(raw_val)
+        except ValueError:
+            error_label.configure(text="Please enter a valid numeric port number.")
+            return
+
+        if not (1024 <= val <= 65535):
+            error_label.configure(text="Port must be between 1024 and 65535.")
+            return
+
+        if val == current_port:
+            win.destroy()
+            return
+
+        if is_port_in_use is not None and is_port_in_use(val):
+            error_label.configure(
+                text=f"Port {val} is already in use by another application. Pick a different port."
+            )
+            return
+
+        result["value"] = val
+        win.destroy()
+
+    buttons = _button_row(win)
+    FlatButton(buttons, "Apply & Restart", on_apply, "primary").pack(side="right")
+    FlatButton(buttons, "Cancel", win.destroy).pack(side="right", padx=(0, 8))
+
+    win.bind("<Return>", lambda _e: on_apply())
+    win.bind("<Escape>", lambda _e: win.destroy())
+
+    _show_modal(win)
+    return result["value"]
+
+
 def copy_to_clipboard(root: tk.Tk, text: str) -> None:
     try:
         root.clipboard_clear()
@@ -395,8 +491,10 @@ class StatusWindow:
         on_add_extension: Callable[[], None],
         on_open_logs: Callable[[], None],
         on_quit: Callable[[], None],
+        on_change_port: Callable[[], None] | None = None,
     ) -> None:
         self.root = root
+        self._on_change_port = on_change_port
         root.title(APP_NAME)
         root.resizable(False, False)
         root.protocol("WM_DELETE_WINDOW", on_quit)
@@ -411,6 +509,13 @@ class StatusWindow:
         self._dot.pack(side="left")
         self._status = tk.Label(line, text="Starting...", bg=CARD, fg=TEXT, font=F_BTN, anchor="w")
         self._status.pack(side="left", padx=(8, 0))
+
+        if on_change_port is not None:
+            self.btn_port = FlatButton(line, "Change port...", on_change_port, "link")
+            self.btn_port.pack(side="right")
+        else:
+            self.btn_port = None
+
         self._detail = tk.Label(
             card,
             text="",
@@ -466,6 +571,8 @@ class StatusWindow:
         enabled = state == "ready"
         self.btn_app.set_enabled(enabled)
         self.btn_dash.set_enabled(enabled)
+        if self.btn_port is not None:
+            self.btn_port.set_enabled(state != "starting")
         if state == "starting":
             self._bar.start(12)
         else:

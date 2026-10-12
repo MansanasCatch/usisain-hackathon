@@ -1,4 +1,45 @@
-const BACKEND = "http://localhost:8000";
+let BACKEND = "http://localhost:8000";
+
+async function loadBackendConfig() {
+  try {
+    const res = await chrome.storage.local.get(["backendUrl", "backendPort"]);
+    if (res.backendUrl) {
+      BACKEND = res.backendUrl;
+      return;
+    }
+    if (res.backendPort) {
+      BACKEND = `http://localhost:${res.backendPort}`;
+      return;
+    }
+    const r = await fetch(chrome.runtime.getURL("backend.json"));
+    if (r.ok) {
+      const cfg = await r.json();
+      if (cfg.url) BACKEND = cfg.url;
+      else if (cfg.port) BACKEND = `http://localhost:${cfg.port}`;
+    }
+  } catch (e) {
+    // Keep fallback
+  }
+}
+
+if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local") {
+      let updated = false;
+      if (changes.backendUrl) {
+        BACKEND = changes.backendUrl.newValue;
+        updated = true;
+      } else if (changes.backendPort) {
+        BACKEND = `http://localhost:${changes.backendPort.newValue}`;
+        updated = true;
+      }
+      if (updated) {
+        loadSettings();
+        loadHistory();
+      }
+    }
+  });
+}
 
 
 const LANGUAGE_MAP = {
@@ -349,13 +390,14 @@ async function loadHistory() {
       historyList.appendChild(li);
     }
   } catch {
-    statusEl.textContent = "Can't reach backend — is it running on localhost:8000?";
+    statusEl.textContent = `Can't reach backend — is it running on ${BACKEND}?`;
     statusEl.className = "error";
   }
 }
 
 
 (async () => {
+  await loadBackendConfig();
   await loadSettings();
   loadHistory();
   await initModelSelector();

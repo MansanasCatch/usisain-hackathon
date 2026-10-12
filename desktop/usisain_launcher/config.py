@@ -14,6 +14,7 @@ log = logging.getLogger(__name__)
 class LauncherConfig:
     dont_ask_again: bool = False
     last_browser: str | None = None
+    port: int = 8000
 
     @classmethod
     def load(cls, path: Path) -> LauncherConfig:
@@ -27,9 +28,17 @@ class LauncherConfig:
         if not isinstance(raw, dict):
             return cls()
         last = raw.get("last_browser")
+        raw_port = raw.get("port")
+        try:
+            port_val = int(raw_port) if raw_port is not None else 8000
+            if not (1024 <= port_val <= 65535):
+                port_val = 8000
+        except (ValueError, TypeError):
+            port_val = 8000
         return cls(
             dont_ask_again=bool(raw.get("dont_ask_again", False)),
             last_browser=last if isinstance(last, str) else None,
+            port=port_val,
         )
 
     def save(self, path: Path) -> bool:

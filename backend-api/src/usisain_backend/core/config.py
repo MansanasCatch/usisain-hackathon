@@ -34,13 +34,23 @@ class Settings(BaseSettings):
     step3_fetch_full_page: bool = False
     max_video_frames: int = 24
     max_reference_doc_size_mb: float = 10.0
+    port: int = 8000
 
     def persist_env_var(self, key: str, val: str) -> None:
         clean_val = val.strip()
         os.environ[key] = clean_val
         attr = key.lower()
         if hasattr(self, attr):
-            setattr(self, attr, clean_val)
+            cur = getattr(self, attr)
+            if isinstance(cur, int):
+                try:
+                    setattr(self, attr, int(clean_val))
+                except ValueError:
+                    setattr(self, attr, cur)
+            elif isinstance(cur, bool):
+                setattr(self, attr, clean_val.lower() in ("true", "1", "yes"))
+            else:
+                setattr(self, attr, clean_val)
         try:
             if ENV_FILE.exists():
                 lines = ENV_FILE.read_text(encoding="utf-8").splitlines()

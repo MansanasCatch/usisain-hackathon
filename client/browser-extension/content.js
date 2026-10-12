@@ -96,6 +96,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.language) {
         ttsPlayer.setLanguage(message.language);
       }
+      if (message.backend_url) {
+        ttsPlayer.backendUrl = message.backend_url;
+      }
       return;
     }
     if (message.action === "pipeline-event") { updatePanelStep(message.event); return; }
@@ -1170,18 +1173,29 @@ class TTSPlayer {
     this._isPlaying = false;
     this._currentAudio = null;
     this._aborted = false;
+    this.backendUrl = "http://localhost:8000";
 
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.get(["useTts", "selectedVoice"], (data) => {
+      chrome.storage.local.get(["useTts", "selectedVoice", "backendUrl", "backendPort"], (data) => {
         if (data.useTts !== undefined) {
           this.setEnabled(data.useTts);
         }
         if (data.selectedVoice) {
           this.selectedVoiceName = data.selectedVoice;
         }
+        if (data.backendUrl) {
+          this.backendUrl = data.backendUrl;
+        } else if (data.backendPort) {
+          this.backendUrl = `http://localhost:${data.backendPort}`;
+        }
       });
 
       chrome.storage.onChanged.addListener((changes) => {
+        if (changes.backendUrl !== undefined) {
+          this.backendUrl = changes.backendUrl.newValue;
+        } else if (changes.backendPort !== undefined) {
+          this.backendUrl = `http://localhost:${changes.backendPort.newValue}`;
+        }
         if (changes.useTts !== undefined) {
           this.setEnabled(changes.useTts.newValue);
           const panelToggle = document.getElementById("usisain-tts-toggle");
@@ -1271,7 +1285,8 @@ class TTSPlayer {
   }
 
   async _playItem(item) {
-    const backendUrl = `http://localhost:8000/api/tts/generate?text=${encodeURIComponent(item.text)}&language=${encodeURIComponent(item.lang)}&voice=${encodeURIComponent(item.voice || "")}`;
+    const base = this.backendUrl || "http://localhost:8000";
+    const backendUrl = `${base}/api/tts/generate?text=${encodeURIComponent(item.text)}&language=${encodeURIComponent(item.lang)}&voice=${encodeURIComponent(item.voice || "")}`;
 
     const response = await fetch(backendUrl, { method: "POST" });
     if (!response.ok) {
@@ -1333,7 +1348,8 @@ class TTSPlayer {
 
     this._isPlaying = false;
 
-    fetch("http://localhost:8000/api/tts/stop", { method: "POST" }).catch(() => {});
+    const base = this.backendUrl || "http://localhost:8000";
+    fetch(`${base}/api/tts/stop`, { method: "POST" }).catch(() => {});
   }
 }
 

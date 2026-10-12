@@ -23,10 +23,11 @@ os.chdir(ROOT_DIR)
 if __name__ == "__main__":
     import uvicorn
 
+    port = int(os.environ.get("PORT", "8000"))
     print("=" * 65)
     print("  UsisAIn - Autonomous Fact-Checking & Deepfake Verification")
-    print("  Server:    http://127.0.0.1:8000")
-    print("  Dashboard: http://127.0.0.1:8000/app/dashboard")
+    print(f"  Server:    http://127.0.0.1:{port}")
+    print(f"  Dashboard: http://127.0.0.1:{port}/app/dashboard")
     print("  Extension: Preloading into default browser automatically...")
     print("=" * 65)
 
@@ -34,7 +35,7 @@ if __name__ == "__main__":
         uvicorn.run(
             "usisain_backend.main:app",
             host="127.0.0.1",
-            port=8000,
+            port=port,
             reload=False,
             log_level="info",
         )

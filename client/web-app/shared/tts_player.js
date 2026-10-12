@@ -61,12 +61,10 @@ class TTSPlayer {
   }
 
   _getBackendBase() {
-    
-    
-    if (typeof window !== "undefined" && window.location.origin.includes(":8000")) {
+    if (typeof window !== "undefined" && window.location.origin && window.location.origin.startsWith("http")) {
       return "";
     }
-    return "http://localhost:8000";
+    return "";
   }
 
   speak(text) {
